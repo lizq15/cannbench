@@ -15,6 +15,12 @@ _OPERATOR_SPECS = {
         dataset_namespace="embedding",
         runner_name="embedding",
     ),
+    "gather": OperatorSpec(
+        name="gather",
+        supported_dtypes=("float32", "float16", "bfloat16"),
+        dataset_namespace="gather",
+        runner_name="gather",
+    ),
 }
 
 

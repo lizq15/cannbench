@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from array import array
 
+from cannbench.datasets.gather import GatherCase
 from cannbench.datasets.embedding import EmbeddingCase
 from cannbench.datasets.softmax import SoftmaxCase
 
@@ -48,4 +49,27 @@ def materialize_embedding_inputs(
         "weights": weights,
         "num_embeddings": case.num_embeddings,
         "embedding_dim": case.embedding_dim,
+    }
+
+
+def materialize_gather_inputs(
+    case: GatherCase, *, dtype: str, seed: int
+) -> dict[str, object]:
+    generator = random.Random(seed)
+    input_size = 1
+    for dim in case.input_shape:
+        input_size *= dim
+    index_size = 1
+    for dim in case.index_shape:
+        index_size *= dim
+
+    values = tuple(round(generator.uniform(-1.0, 1.0), 6) for _ in range(input_size))
+    indices = tuple(generator.randrange(case.input_shape[case.dim]) for _ in range(index_size))
+    return {
+        "input_shape": case.input_shape,
+        "index_shape": case.index_shape,
+        "dim": case.dim,
+        "dtype": dtype,
+        "values": values,
+        "indices": indices,
     }

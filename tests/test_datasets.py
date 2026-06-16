@@ -3,11 +3,14 @@ import pytest
 from cannbench.datasets import (
     get_embedding_case,
     get_embedding_dataset,
+    get_gather_case,
+    get_gather_dataset,
     get_softmax_case,
     get_softmax_dataset,
 )
 from cannbench.datasets.materialize import (
     materialize_embedding_inputs,
+    materialize_gather_inputs,
     materialize_softmax_inputs,
 )
 from cannbench.datasets.synthetic import (
@@ -217,3 +220,44 @@ def test_materialized_embedding_inputs_change_with_different_seed():
     right = materialize_embedding_inputs(case, dtype="float16", seed=456)
 
     assert left["indices"] != right["indices"] or left["weights"] != right["weights"]
+
+
+def test_get_gather_case_preserves_source_metadata():
+    case = get_gather_case("realistic", "t5_attention_probs")
+
+    assert case.case_id == "t5_attention_probs"
+    assert case.input_shape == (4, 8, 1024, 1024)
+    assert case.index_shape == (4, 8, 1024, 1024)
+    assert case.dim == -1
+    assert case.source_model == "T5Small"
+
+
+def test_get_gather_dataset_loads_builtin_splits():
+    smoke = get_gather_dataset("smoke")
+    realistic = get_gather_dataset("realistic")
+    stress = get_gather_dataset("stress")
+
+    assert smoke.name == "smoke"
+    assert realistic.cases
+    assert len(stress.cases) == 2
+
+
+def test_materialized_gather_inputs_are_deterministic_for_same_seed():
+    case = get_gather_case("smoke", "tiny_rank2_gather")
+
+    left = materialize_gather_inputs(case, dtype="float16", seed=123)
+    right = materialize_gather_inputs(case, dtype="float16", seed=123)
+
+    assert left["input_shape"] == right["input_shape"] == (32, 64)
+    assert left["index_shape"] == right["index_shape"] == (32, 32)
+    assert left["indices"] == right["indices"]
+    assert left["values"] == right["values"]
+
+
+def test_materialized_gather_inputs_change_with_different_seed():
+    case = get_gather_case("smoke", "tiny_rank2_gather")
+
+    left = materialize_gather_inputs(case, dtype="float16", seed=123)
+    right = materialize_gather_inputs(case, dtype="float16", seed=456)
+
+    assert left["indices"] != right["indices"] or left["values"] != right["values"]

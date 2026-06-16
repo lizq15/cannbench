@@ -40,6 +40,25 @@ def test_embedding_request_accepts_builtin_dataset_case():
     }
 
 
+def test_gather_request_accepts_builtin_dataset_case():
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        op="gather",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_rank2_gather",
+        warmup=5,
+        iterations=10,
+    )
+
+    assert request.op == "gather"
+    assert request.case_payload == {
+        "input_shape": (32, 64),
+        "index_shape": (32, 32),
+        "dim": 1,
+    }
+
+
 def test_operator_request_rejects_unknown_dtype():
     with pytest.raises(ValueError, match="Unsupported dtype"):
         OperatorBenchmarkRequest(

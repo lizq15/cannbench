@@ -1,0 +1,29 @@
+{
+  "name": "stress",
+  "cases": [
+    {
+      "case_id": "wide_index_gather",
+      "family": "wide_index",
+      "input_shape": [64, 4096],
+      "index_shape": [64, 4096],
+      "dim": 1,
+      "source_kind": "synthetic_boundary",
+      "source_project": "cannbench",
+      "source_model": "gather_wide_index_boundary",
+      "source_file": "generated",
+      "source_op": "torch.gather"
+    },
+    {
+      "case_id": "batched_token_gather",
+      "family": "batched_tokens",
+      "input_shape": [8, 128, 512],
+      "index_shape": [8, 128, 512],
+      "dim": 2,
+      "source_kind": "synthetic_boundary",
+      "source_project": "cannbench",
+      "source_model": "gather_batched_token_boundary",
+      "source_file": "generated",
+      "source_op": "torch.gather"
+    }
+  ]
+}
