@@ -97,6 +97,25 @@ def test_take_along_dim_request_accepts_builtin_dataset_case():
     }
 
 
+def test_masked_select_request_accepts_builtin_dataset_case():
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        op="masked_select",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_rank2_masked_select",
+        warmup=5,
+        iterations=10,
+    )
+
+    assert request.op == "masked_select"
+    assert request.case_payload == {
+        "input_shape": (32, 64),
+        "mask_shape": (32, 64),
+        "mask_density": 0.5,
+    }
+
+
 def test_operator_request_rejects_unknown_dtype():
     with pytest.raises(ValueError, match="Unsupported dtype"):
         OperatorBenchmarkRequest(

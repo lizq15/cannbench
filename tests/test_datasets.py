@@ -7,6 +7,8 @@ from cannbench.datasets import (
     get_gather_dataset,
     get_index_select_case,
     get_index_select_dataset,
+    get_masked_select_case,
+    get_masked_select_dataset,
     get_softmax_case,
     get_softmax_dataset,
     get_take_along_dim_case,
@@ -16,6 +18,7 @@ from cannbench.datasets.materialize import (
     materialize_embedding_inputs,
     materialize_gather_inputs,
     materialize_index_select_inputs,
+    materialize_masked_select_inputs,
     materialize_softmax_inputs,
     materialize_take_along_dim_inputs,
 )
@@ -352,3 +355,47 @@ def test_materialized_take_along_dim_inputs_change_with_different_seed():
     right = materialize_take_along_dim_inputs(case, dtype="float16", seed=456)
 
     assert left["indices"] != right["indices"] or left["values"] != right["values"]
+
+
+def test_get_masked_select_case_preserves_source_metadata():
+    case = get_masked_select_case("realistic", "bert_attention_masked_scores")
+
+    assert case.case_id == "bert_attention_masked_scores"
+    assert case.input_shape == (16, 12, 128, 128)
+    assert case.mask_shape == (16, 12, 128, 128)
+    assert case.mask_density == 0.75
+    assert case.source_project == "TritonBench"
+    assert case.source_model == "BERT_pytorch"
+    assert case.source_op == "torch.masked_select"
+
+
+def test_get_masked_select_dataset_loads_builtin_splits():
+    smoke = get_masked_select_dataset("smoke")
+    realistic = get_masked_select_dataset("realistic")
+    stress = get_masked_select_dataset("stress")
+
+    assert smoke.name == "smoke"
+    assert len(smoke.cases) == 3
+    assert len(realistic.cases) >= 3
+    assert len(stress.cases) >= 3
+
+
+def test_materialized_masked_select_inputs_are_deterministic_for_same_seed():
+    case = get_masked_select_case("smoke", "tiny_rank2_masked_select")
+
+    left = materialize_masked_select_inputs(case, dtype="float16", seed=123)
+    right = materialize_masked_select_inputs(case, dtype="float16", seed=123)
+
+    assert left["input_shape"] == right["input_shape"] == (32, 64)
+    assert left["mask_shape"] == right["mask_shape"] == (32, 64)
+    assert left["mask"] == right["mask"]
+    assert left["values"] == right["values"]
+
+
+def test_materialized_masked_select_inputs_change_with_different_seed():
+    case = get_masked_select_case("smoke", "tiny_rank2_masked_select")
+
+    left = materialize_masked_select_inputs(case, dtype="float16", seed=123)
+    right = materialize_masked_select_inputs(case, dtype="float16", seed=456)
+
+    assert left["mask"] != right["mask"] or left["values"] != right["values"]

@@ -33,6 +33,12 @@ _OPERATOR_SPECS = {
         dataset_namespace="take_along_dim",
         runner_name="take_along_dim",
     ),
+    "masked_select": OperatorSpec(
+        name="masked_select",
+        supported_dtypes=("float32", "float16", "bfloat16"),
+        dataset_namespace="masked_select",
+        runner_name="masked_select",
+    ),
 }
 
 

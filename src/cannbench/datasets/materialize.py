@@ -6,6 +6,7 @@ from array import array
 from cannbench.datasets.gather import GatherCase
 from cannbench.datasets.index_select import IndexSelectCase
 from cannbench.datasets.embedding import EmbeddingCase
+from cannbench.datasets.masked_select import MaskedSelectCase
 from cannbench.datasets.softmax import SoftmaxCase
 from cannbench.datasets.take_along_dim import TakeAlongDimCase
 
@@ -120,4 +121,27 @@ def materialize_take_along_dim_inputs(
         "dtype": dtype,
         "values": values,
         "indices": indices,
+    }
+
+
+def materialize_masked_select_inputs(
+    case: MaskedSelectCase, *, dtype: str, seed: int
+) -> dict[str, object]:
+    generator = random.Random(seed)
+    input_size = 1
+    for dim in case.input_shape:
+        input_size *= dim
+    mask_size = 1
+    for dim in case.mask_shape:
+        mask_size *= dim
+
+    values = tuple(round(generator.uniform(-1.0, 1.0), 6) for _ in range(input_size))
+    mask = tuple(generator.random() < case.mask_density for _ in range(mask_size))
+    return {
+        "input_shape": case.input_shape,
+        "mask_shape": case.mask_shape,
+        "mask_density": case.mask_density,
+        "dtype": dtype,
+        "values": values,
+        "mask": mask,
     }

@@ -11,6 +11,10 @@ from cannbench.datasets.take_along_dim import (
     get_take_along_dim_case,
     get_take_along_dim_dataset,
 )
+from cannbench.datasets.masked_select import (
+    get_masked_select_case,
+    get_masked_select_dataset,
+)
 from cannbench.datasets.embedding import get_embedding_case, get_embedding_dataset
 from cannbench.datasets.softmax import get_softmax_case, get_softmax_dataset
 
@@ -31,6 +35,8 @@ class OperatorDataset:
             return get_index_select_dataset(split)
         if self.dataset_namespace == "take_along_dim":
             return get_take_along_dim_dataset(split)
+        if self.dataset_namespace == "masked_select":
+            return get_masked_select_dataset(split)
         raise ValueError(f"Unknown operator dataset namespace: {self.dataset_namespace}")
 
 
@@ -47,6 +53,8 @@ def get_operator_dataset(name: str) -> OperatorDataset:
         return OperatorDataset(
             name="take_along_dim", dataset_namespace="take_along_dim"
         )
+    if name == "masked_select":
+        return OperatorDataset(name="masked_select", dataset_namespace="masked_select")
     raise ValueError(f"Unsupported operator: {name}")
 
 
@@ -61,4 +69,6 @@ def get_operator_case(op_name: str, dataset_name: str, case_id: str):
         return get_index_select_case(dataset_name, case_id)
     if op_name == "take_along_dim":
         return get_take_along_dim_case(dataset_name, case_id)
+    if op_name == "masked_select":
+        return get_masked_select_case(dataset_name, case_id)
     raise ValueError(f"Unsupported operator: {op_name}")

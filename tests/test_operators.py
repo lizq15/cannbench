@@ -48,12 +48,22 @@ def test_take_along_dim_operator_spec_is_registered():
     assert spec.runner_name == "take_along_dim"
 
 
+def test_masked_select_operator_spec_is_registered():
+    spec = get_operator_spec("masked_select")
+
+    assert spec.name == "masked_select"
+    assert spec.supported_dtypes == ("float32", "float16", "bfloat16")
+    assert spec.dataset_namespace == "masked_select"
+    assert spec.runner_name == "masked_select"
+
+
 def test_list_operator_names_contains_softmax():
     assert "softmax" in list_operator_names()
     assert "embedding" in list_operator_names()
     assert "gather" in list_operator_names()
     assert "index_select" in list_operator_names()
     assert "take_along_dim" in list_operator_names()
+    assert "masked_select" in list_operator_names()
 
 
 def test_unknown_operator_spec_is_rejected():
@@ -88,6 +98,13 @@ def test_take_along_dim_dataset_is_registered():
 
     assert dataset.name == "take_along_dim"
     assert dataset.dataset_namespace == "take_along_dim"
+
+
+def test_masked_select_dataset_is_registered():
+    dataset = get_operator_dataset("masked_select")
+
+    assert dataset.name == "masked_select"
+    assert dataset.dataset_namespace == "masked_select"
 
 
 def test_softmax_dataset_is_registered():

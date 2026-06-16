@@ -1,0 +1,41 @@
+{
+  "name": "realistic",
+  "cases": [
+    {
+      "case_id": "bert_attention_masked_scores",
+      "family": "attention_scores",
+      "input_shape": [16, 12, 128, 128],
+      "mask_shape": [16, 12, 128, 128],
+      "mask_density": 0.75,
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "BERT_pytorch",
+      "source_file": "torchbench_train/BERT_pytorch_train.json",
+      "source_op": "torch.masked_select"
+    },
+    {
+      "case_id": "t5_attention_masked_scores",
+      "family": "attention_scores",
+      "input_shape": [4, 8, 1024, 1024],
+      "mask_shape": [4, 8, 1024, 1024],
+      "mask_density": 0.6,
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "T5Small",
+      "source_file": "hf_train/T5Small_train.json",
+      "source_op": "torch.masked_select"
+    },
+    {
+      "case_id": "opt_logits_masked_filter",
+      "family": "lm_logits",
+      "input_shape": [8, 256, 50272],
+      "mask_shape": [8, 256, 50272],
+      "mask_density": 0.05,
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "OPTForCausalLM",
+      "source_file": "hf_train/OPTForCausalLM_train.json",
+      "source_op": "torch.masked_select"
+    }
+  ]
+}

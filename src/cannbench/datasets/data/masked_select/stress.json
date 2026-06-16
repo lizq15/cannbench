@@ -1,0 +1,41 @@
+{
+  "name": "stress",
+  "cases": [
+    {
+      "case_id": "long_context_masked_attention",
+      "family": "long_context",
+      "input_shape": [2, 16, 4096, 4096],
+      "mask_shape": [2, 16, 4096, 4096],
+      "mask_density": 0.9,
+      "source_kind": "synthetic_boundary",
+      "source_project": "cannbench",
+      "source_model": "masked_select_long_context_boundary",
+      "source_file": "generated",
+      "source_op": "torch.masked_select"
+    },
+    {
+      "case_id": "wide_vocab_masked_logits",
+      "family": "wide_vocab",
+      "input_shape": [4, 512, 128000],
+      "mask_shape": [4, 512, 128000],
+      "mask_density": 0.02,
+      "source_kind": "synthetic_boundary",
+      "source_project": "cannbench",
+      "source_model": "masked_select_wide_vocab_boundary",
+      "source_file": "generated",
+      "source_op": "torch.masked_select"
+    },
+    {
+      "case_id": "sparse_batch_filter",
+      "family": "sparse_filter",
+      "input_shape": [64, 2048, 512],
+      "mask_shape": [64, 2048, 512],
+      "mask_density": 0.1,
+      "source_kind": "synthetic_boundary",
+      "source_project": "cannbench",
+      "source_model": "masked_select_sparse_boundary",
+      "source_file": "generated",
+      "source_op": "torch.masked_select"
+    }
+  ]
+}

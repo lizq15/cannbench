@@ -1,0 +1,41 @@
+{
+  "name": "smoke",
+  "cases": [
+    {
+      "case_id": "tiny_rank2_masked_select",
+      "family": "element_filter",
+      "input_shape": [32, 64],
+      "mask_shape": [32, 64],
+      "mask_density": 0.5,
+      "source_kind": "synthetic_smoke",
+      "source_project": "cannbench",
+      "source_model": "masked_select_smoke_fixture",
+      "source_file": "built-in",
+      "source_op": "torch.masked_select"
+    },
+    {
+      "case_id": "tiny_rank3_masked_select",
+      "family": "sequence_filter",
+      "input_shape": [4, 16, 32],
+      "mask_shape": [4, 16, 32],
+      "mask_density": 0.4,
+      "source_kind": "synthetic_smoke",
+      "source_project": "cannbench",
+      "source_model": "masked_select_rank3_fixture",
+      "source_file": "built-in",
+      "source_op": "torch.masked_select"
+    },
+    {
+      "case_id": "tiny_channel_masked_select",
+      "family": "channel_filter",
+      "input_shape": [2, 32, 64],
+      "mask_shape": [2, 32, 64],
+      "mask_density": 0.3,
+      "source_kind": "synthetic_smoke",
+      "source_project": "cannbench",
+      "source_model": "masked_select_channel_fixture",
+      "source_file": "built-in",
+      "source_op": "torch.masked_select"
+    }
+  ]
+}

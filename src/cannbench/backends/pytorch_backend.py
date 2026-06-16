@@ -14,6 +14,7 @@ from cannbench.datasets.materialize import (
     materialize_embedding_inputs,
     materialize_gather_inputs,
     materialize_index_select_inputs,
+    materialize_masked_select_inputs,
     materialize_softmax_inputs,
     materialize_take_along_dim_inputs,
     materialized_values_to_buffer,
@@ -273,6 +274,47 @@ class NvidiaBackend(OperatorBackend):
             for _ in range(request.iterations):
                 started = time.perf_counter()
                 torch.take_along_dim(input_tensor, index_tensor, payload["dim"])
+                torch.cuda.synchronize()
+                samples.append((time.perf_counter() - started) * 1000.0)
+            metrics = self._summarize_metrics(
+                iterations=request.iterations,
+                warmup=request.warmup,
+                samples=samples,
+            )
+            return OperatorBenchmarkResult(
+                backend=self.name,
+                device_name=torch.cuda.get_device_name(device),
+                op=request.op,
+                dtype=request.dtype,
+                case=self._build_result_case(request, case),
+                metrics=metrics,
+            )
+
+        if request.op == "masked_select":
+            payload = materialize_masked_select_inputs(
+                case,
+                dtype=request.dtype,
+                seed=request.seed,
+            )
+            input_tensor = torch.tensor(
+                materialized_values_to_buffer(payload["values"]),
+                device=device,
+                dtype=dtype,
+            ).reshape(payload["input_shape"])
+            mask_tensor = torch.tensor(
+                payload["mask"],
+                device=device,
+                dtype=torch.bool,
+            ).reshape(payload["mask_shape"])
+
+            for _ in range(request.warmup):
+                torch.masked_select(input_tensor, mask_tensor)
+            torch.cuda.synchronize()
+
+            samples: list[float] = []
+            for _ in range(request.iterations):
+                started = time.perf_counter()
+                torch.masked_select(input_tensor, mask_tensor)
                 torch.cuda.synchronize()
                 samples.append((time.perf_counter() - started) * 1000.0)
             metrics = self._summarize_metrics(
