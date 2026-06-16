@@ -4,6 +4,10 @@ from cannbench.datasets.softmax import (
     get_softmax_case,
     get_softmax_dataset,
 )
+from cannbench.datasets.materialize import (
+    materialize_softmax_inputs,
+    materialized_values_to_buffer,
+)
 from cannbench.datasets.synthetic import (
     build_softmax_smoke_case,
     build_softmax_stress_case,
@@ -12,6 +16,8 @@ from cannbench.datasets.synthetic import (
 __all__ = [
     "SoftmaxCase",
     "SoftmaxDataset",
+    "materialize_softmax_inputs",
+    "materialized_values_to_buffer",
     "build_softmax_smoke_case",
     "build_softmax_stress_case",
     "get_softmax_case",

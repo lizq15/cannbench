@@ -8,6 +8,11 @@ from cannbench.core.result import (
     SoftmaxShape,
 )
 from cannbench.core.timing import summarize_timings_ms
+from cannbench.datasets import get_softmax_case
+from cannbench.datasets.materialize import (
+    materialize_softmax_inputs,
+    materialized_values_to_buffer,
+)
 
 
 class NvidiaBackend(OperatorBackend):
@@ -27,7 +32,17 @@ class NvidiaBackend(OperatorBackend):
 
         device = torch.device(self.device_type)
         dtype = getattr(torch, request.dtype)
-        tensor = torch.randn(request.dimensions, device=device, dtype=dtype)
+        payload = materialize_softmax_inputs(
+            get_softmax_case(request.dataset, request.case_id),
+            dtype=request.dtype,
+            seed=request.seed,
+        )
+        tensor = torch.tensor(
+            materialized_values_to_buffer(payload["values"]),
+            device=device,
+            dtype=dtype,
+        )
+        tensor = tensor.reshape(payload["shape"])
 
         for _ in range(request.warmup):
             torch.softmax(tensor, dim=request.dim)

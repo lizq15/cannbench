@@ -18,6 +18,7 @@ def test_operator_request_accepts_builtin_dataset_case():
     assert request.case_id == "tiny_logits"
     assert request.dimensions == (32, 128)
     assert request.dim == -1
+    assert request.seed is not None
 
 
 def test_operator_request_rejects_unknown_dtype():
@@ -45,6 +46,20 @@ def test_operator_request_defaults_output_formats():
     )
 
     assert request.output_formats == ("json", "csv", "md")
+
+
+def test_operator_request_defaults_seed():
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        warmup=5,
+        iterations=10,
+    )
+
+    assert request.seed == 0
 
 
 def test_operator_request_rejects_unknown_dataset():

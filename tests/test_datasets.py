@@ -1,6 +1,7 @@
 import pytest
 
 from cannbench.datasets import get_softmax_case, get_softmax_dataset
+from cannbench.datasets.materialize import materialize_softmax_inputs
 from cannbench.datasets.synthetic import (
     build_softmax_smoke_case,
     build_softmax_stress_case,
@@ -146,3 +147,24 @@ def test_build_softmax_stress_case_applies_shared_metadata():
     assert case.source_project == "cannbench"
     assert case.source_file == "generated"
     assert case.source_op == "softmax"
+
+
+def test_materialized_softmax_inputs_are_deterministic_for_same_seed():
+    case = get_softmax_case("smoke", "tiny_logits")
+
+    left = materialize_softmax_inputs(case, dtype="float16", seed=123)
+    right = materialize_softmax_inputs(case, dtype="float16", seed=123)
+
+    assert left["dim"] == right["dim"] == -1
+    assert left["shape"] == right["shape"] == (32, 128)
+    assert left["dtype"] == right["dtype"] == "float16"
+    assert left["values"] == right["values"]
+
+
+def test_materialized_softmax_inputs_change_with_different_seed():
+    case = get_softmax_case("smoke", "tiny_logits")
+
+    left = materialize_softmax_inputs(case, dtype="float16", seed=123)
+    right = materialize_softmax_inputs(case, dtype="float16", seed=456)
+
+    assert left["values"] != right["values"]

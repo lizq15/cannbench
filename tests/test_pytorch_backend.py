@@ -73,6 +73,55 @@ def test_backend_raises_clear_error_when_cuda_is_unavailable(monkeypatch):
         backend.run_softmax(request)
 
 
+def test_backend_materializes_softmax_inputs_from_seed(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeTensor:
+        def reshape(self, shape):
+            captured["shape"] = shape
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.cuda = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake GPU",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.tensor = self._tensor
+            self.softmax = lambda tensor, dim: tensor
+
+        def _tensor(self, values, device=None, dtype=None):
+            captured["values"] = values
+            captured["device"] = device
+            captured["dtype"] = dtype
+            return FakeTensor()
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+
+    from cannbench.backends.pytorch_backend import NvidiaBackend
+
+    backend = NvidiaBackend()
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        warmup=1,
+        iterations=1,
+        seed=7,
+    )
+
+    backend.run_softmax(request)
+
+    assert captured["shape"] == (32, 128)
+    assert captured["dtype"] == "float16"
+    assert captured["values"]
+
+
 def test_backend_rejects_non_positive_iterations():
     with pytest.raises(ValueError, match="iterations must be > 0"):
         OperatorBenchmarkRequest(

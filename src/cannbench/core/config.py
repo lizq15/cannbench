@@ -16,6 +16,7 @@ class OperatorBenchmarkRequest:
     case_id: str
     warmup: int
     iterations: int
+    seed: int = 0
     output_formats: tuple[str, ...] = field(
         default_factory=lambda: ("json", "csv", "md")
     )
@@ -51,6 +52,8 @@ class OperatorBenchmarkRequest:
             raise ValueError("warmup must be >= 0")
         if self.iterations <= 0:
             raise ValueError("iterations must be > 0")
+        if self.seed < 0:
+            raise ValueError("seed must be >= 0")
 
         case = get_softmax_case(self.dataset, self.case_id)
         object.__setattr__(self, "dimensions", case.shape)
