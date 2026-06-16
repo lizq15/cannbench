@@ -96,9 +96,9 @@ CannBench aims to produce benchmark results that are easy to archive and compare
 
 Recommended output formats:
 
-- Console summary
 - JSON result files
 - CSV exports for comparison
+- Markdown reports
 
 ## Proposed Project Structure
 
@@ -116,33 +116,62 @@ cannbench/
 └── .agents/
 ```
 
-## Usage Plan
+## Getting Started
 
-The exact CLI is still to be implemented, but the intended workflow is straightforward:
+### Install
 
-### Operator Benchmark
+CannBench itself is a small Python package, but the current runnable operator path also requires:
+
+- PyTorch installed in the target environment
+- A usable NVIDIA CUDA runtime for the `nvidia` backend
+
+Install the project package first:
+
+```bash
+python3 -m pip install -e ".[dev]"
+```
+
+Then install the matching PyTorch + CUDA stack for your machine before running the benchmark.
+
+### Run the first operator benchmark
+
+The current runnable path is the NVIDIA single-card `softmax` benchmark.
 
 ```bash
 cannbench operator \
   --backend nvidia \
-  --op matmul \
-  --dtype fp16 \
-  --shape "4096,4096,4096" \
-  --warmup 20 \
-  --iters 100
+  --op softmax \
+  --dtype float16 \
+  --rows 1024 \
+  --cols 1024 \
+  --dim -1 \
+  --warmup 10 \
+  --iterations 50 \
+  --output-dir results \
+  --run-name nvidia-softmax-smoke
 ```
 
-### Model Benchmark
+This command writes:
 
-```bash
-cannbench model \
-  --backend ascend \
-  --model <model_name> \
-  --precision bf16 \
-  --prompt-len 1024 \
-  --output-len 256 \
-  --batch-size 1
-```
+- `results/nvidia-softmax-smoke.json`
+- `results/nvidia-softmax-smoke.csv`
+- `results/nvidia-softmax-smoke.md`
+
+### Current Scope
+
+Implemented now:
+
+- Python CLI entrypoint
+- Softmax operator benchmark request/result schema
+- Timing summaries with p50/p95/p99
+- JSON / CSV / Markdown report writers
+- NVIDIA PyTorch backend for single-card `softmax`
+
+Planned next:
+
+- Ascend runtime path
+- More operators
+- Model-level TTFS / TPS benchmarks
 
 ## Design Principles
 
@@ -153,8 +182,8 @@ cannbench model \
 
 ## Roadmap
 
-- Add NVIDIA backend for single-operator benchmarking
 - Add Ascend backend for single-operator benchmarking
+- Add more NVIDIA operators beyond the initial `softmax` path
 - Add TTFS and TPS model benchmark pipeline
 - Standardize result schema
 - Add benchmark reports and comparison scripts
@@ -191,11 +220,12 @@ The following projects and documents are useful references for CannBench design 
 
 ## Status
 
-This repository is currently in the setup stage. The initial scope is:
+This repository is in the first implementation stage. The current scope is:
 
 - Single-card benchmarking only
-- NVIDIA and Ascend support
-- Operator benchmarks and model TTFS/TPS benchmarks
+- First runnable operator path: NVIDIA `softmax`
+- Shared schema, timing, and report output layers
+- Model TTFS/TPS benchmarking is not implemented yet
 
 ## License
 
