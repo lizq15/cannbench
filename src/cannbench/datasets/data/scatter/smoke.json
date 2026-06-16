@@ -1,0 +1,44 @@
+{
+  "name": "smoke",
+  "cases": [
+    {
+      "case_id": "tiny_rank2_scatter",
+      "family": "token_update",
+      "input_shape": [32, 64],
+      "index_shape": [32, 64],
+      "src_shape": [32, 64],
+      "dim": 1,
+      "source_kind": "synthetic_smoke",
+      "source_project": "cannbench",
+      "source_model": "scatter_smoke_fixture",
+      "source_file": "built-in",
+      "source_op": "torch.scatter"
+    },
+    {
+      "case_id": "tiny_rank3_scatter",
+      "family": "batched_update",
+      "input_shape": [4, 16, 32],
+      "index_shape": [4, 16, 32],
+      "src_shape": [4, 16, 32],
+      "dim": -1,
+      "source_kind": "synthetic_smoke",
+      "source_project": "cannbench",
+      "source_model": "scatter_rank3_fixture",
+      "source_file": "built-in",
+      "source_op": "torch.scatter"
+    },
+    {
+      "case_id": "tiny_sequence_scatter",
+      "family": "sequence_update",
+      "input_shape": [2, 32, 64],
+      "index_shape": [2, 32, 64],
+      "src_shape": [2, 32, 64],
+      "dim": 1,
+      "source_kind": "synthetic_smoke",
+      "source_project": "cannbench",
+      "source_model": "scatter_sequence_fixture",
+      "source_file": "built-in",
+      "source_op": "torch.scatter"
+    }
+  ]
+}

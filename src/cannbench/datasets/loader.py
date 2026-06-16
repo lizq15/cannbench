@@ -27,6 +27,10 @@ from cannbench.datasets.scatter_add import (
     get_scatter_add_case,
     get_scatter_add_dataset,
 )
+from cannbench.datasets.scatter import (
+    get_scatter_case,
+    get_scatter_dataset,
+)
 from cannbench.datasets.embedding import get_embedding_case, get_embedding_dataset
 from cannbench.datasets.softmax import get_softmax_case, get_softmax_dataset
 
@@ -55,6 +59,8 @@ class OperatorDataset:
             return get_cross_entropy_dataset(split)
         if self.dataset_namespace == "scatter_add":
             return get_scatter_add_dataset(split)
+        if self.dataset_namespace == "scatter":
+            return get_scatter_dataset(split)
         raise ValueError(f"Unknown operator dataset namespace: {self.dataset_namespace}")
 
 
@@ -79,6 +85,8 @@ def get_operator_dataset(name: str) -> OperatorDataset:
         return OperatorDataset(name="cross_entropy", dataset_namespace="cross_entropy")
     if name == "scatter_add":
         return OperatorDataset(name="scatter_add", dataset_namespace="scatter_add")
+    if name == "scatter":
+        return OperatorDataset(name="scatter", dataset_namespace="scatter")
     raise ValueError(f"Unsupported operator: {name}")
 
 
@@ -101,4 +109,6 @@ def get_operator_case(op_name: str, dataset_name: str, case_id: str):
         return get_cross_entropy_case(dataset_name, case_id)
     if op_name == "scatter_add":
         return get_scatter_add_case(dataset_name, case_id)
+    if op_name == "scatter":
+        return get_scatter_case(dataset_name, case_id)
     raise ValueError(f"Unsupported operator: {op_name}")

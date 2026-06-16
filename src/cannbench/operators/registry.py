@@ -57,6 +57,12 @@ _OPERATOR_SPECS = {
         dataset_namespace="scatter_add",
         runner_name="scatter_add",
     ),
+    "scatter": OperatorSpec(
+        name="scatter",
+        supported_dtypes=("float32", "float16", "bfloat16"),
+        dataset_namespace="scatter",
+        runner_name="scatter",
+    ),
 }
 
 

@@ -40,6 +40,12 @@ from cannbench.datasets.scatter_add import (
     get_scatter_add_case,
     get_scatter_add_dataset,
 )
+from cannbench.datasets.scatter import (
+    ScatterCase,
+    ScatterDataset,
+    get_scatter_case,
+    get_scatter_dataset,
+)
 from cannbench.datasets.embedding import (
     EmbeddingCase,
     EmbeddingDataset,
@@ -84,6 +90,8 @@ __all__ = [
     "CrossEntropyDataset",
     "ScatterAddCase",
     "ScatterAddDataset",
+    "ScatterCase",
+    "ScatterDataset",
     "SoftmaxCase",
     "SoftmaxDataset",
     "EmbeddingCase",
@@ -102,6 +110,8 @@ __all__ = [
     "get_cross_entropy_dataset",
     "get_scatter_add_case",
     "get_scatter_add_dataset",
+    "get_scatter_case",
+    "get_scatter_dataset",
     "get_embedding_case",
     "get_embedding_dataset",
     "get_operator_case",
