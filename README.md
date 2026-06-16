@@ -125,6 +125,7 @@ CannBench itself is a small Python package, but the current runnable operator pa
 
 - PyTorch installed in the target environment
 - A usable NVIDIA CUDA runtime for the `nvidia` backend
+- PyTorch with `torch_npu` installed in the target environment for the `ascend` backend
 
 Install the project package first:
 
@@ -132,11 +133,11 @@ Install the project package first:
 python3 -m pip install -e ".[dev]"
 ```
 
-Then install the matching PyTorch + CUDA stack for your machine before running the benchmark.
+Then install the matching PyTorch runtime stack for the target machine before running the benchmark.
 
-### Run the first operator benchmark
+### Run an operator benchmark
 
-The current runnable path is the NVIDIA single-card `softmax` benchmark.
+The current operator path supports NVIDIA CUDA execution and an Ascend NPU backend adapter using the same dataset and materialization framework.
 
 ```bash
 cannbench operator \
@@ -151,13 +152,13 @@ cannbench operator \
   --run-name nvidia-softmax-smoke
 ```
 
-The operator path now selects shapes from built-in softmax datasets instead of raw `rows` / `cols` CLI arguments:
+The operator path selects shapes from built-in operator datasets instead of raw ad hoc shape CLI arguments:
 
 - `smoke`: small synthetic cases for functionality checks
-- `realistic`: TritonBench-derived model shapes with source metadata
-- `stress`: operator-specific softmax boundary cases
+- `realistic`: model-shaped cases with source metadata
+- `stress`: operator-specific boundary cases
 
-The detailed softmax dataset catalog, case tables, TritonBench baseline commit, and curation rules are documented in [src/cannbench/datasets/data/softmax/README.md](/root/aiagent/cannbench/src/cannbench/datasets/data/softmax/README.md).
+Dataset catalogs and case tables are documented under `src/cannbench/datasets/data/<operator>/README.md`.
 
 This command writes:
 
@@ -165,21 +166,88 @@ This command writes:
 - `results/nvidia-softmax-smoke.csv`
 - `results/nvidia-softmax-smoke.md`
 
+### Prepare Shared Inputs
+
+Prepared inputs make it possible to run the same generated data on different backend machines, such as one NVIDIA host and one Ascend host.
+
+```bash
+cannbench prepare \
+  --op softmax \
+  --dtype float16 \
+  --dataset smoke \
+  --case-id tiny_logits \
+  --seed 7 \
+  --output prepared-softmax.json
+```
+
+Run the prepared input on a backend machine:
+
+```bash
+cannbench operator \
+  --backend nvidia \
+  --prepared-input prepared-softmax.json \
+  --warmup 10 \
+  --iterations 50 \
+  --output-dir results \
+  --run-name nvidia-softmax-prepared
+```
+
+### Ascend Backend Status
+
+The Ascend backend is wired into the same operator framework as NVIDIA:
+
+- Same operator names
+- Same dataset manifests
+- Same seeded input materialization
+- Same prepared-input flow
+- Same JSON / CSV / Markdown output writers
+
+Ascend execution requires a target machine with PyTorch and `torch_npu`. This repository does not currently include a built-in Ascend custom operator implementation. The custom-op deployment hook is intentionally a boolean flag:
+
+```bash
+cannbench operator \
+  --backend ascend \
+  --prepared-input prepared-softmax.json \
+  --deploy-custom-op
+```
+
+When `--deploy-custom-op` is set, CannBench looks for:
+
+```text
+src/cannbench/datasets/data/<operator>/custom_ops/ascend/default/install.sh
+```
+
+If that path is absent, the run fails with a clear error. If `--deploy-custom-op` is not set, CannBench skips custom-op deployment and uses the default Ascend operator library behavior available in the target runtime.
+
 ### Current Scope
 
 Implemented now:
 
 - Python CLI entrypoint
-- Manifest-driven softmax dataset selection
-- Softmax operator benchmark request/result schema with source metadata
+- Manifest-driven operator dataset selection
+- Operator benchmark request/result schema with source metadata
 - Timing summaries with p50/p95/p99
 - JSON / CSV / Markdown report writers
-- NVIDIA PyTorch backend for single-card `softmax`
+- Prepared-input generation for cross-machine backend comparisons
+- NVIDIA PyTorch backend for single-card operator tests
+- Ascend PyTorch backend adapter with optional default custom-op deployment hook
+- Built-in operator datasets and dispatch for:
+  - `softmax`
+  - `embedding`
+  - `gather`
+  - `index_select`
+  - `take_along_dim`
+  - `masked_select`
+  - `cross_entropy`
+  - `scatter_add`
+  - `scatter`
+  - `index_add`
+  - `index_put`
 
 Planned next:
 
-- Ascend runtime path
-- More operators
+- Built-in Ascend custom operator projects under each operator dataset directory
+- Real-hardware validation on NVIDIA CUDA and Ascend NPU hosts
 - Model-level TTFS / TPS benchmarks
 
 ## Design Principles
@@ -191,8 +259,8 @@ Planned next:
 
 ## Roadmap
 
-- Add Ascend backend for single-operator benchmarking
-- Add more NVIDIA operators beyond the initial `softmax` path
+- Add built-in Ascend custom operator examples, starting with `softmax`
+- Expand operator datasets and realistic shape coverage
 - Add TTFS and TPS model benchmark pipeline
 - Standardize result schema
 - Add benchmark reports and comparison scripts
@@ -232,8 +300,9 @@ The following projects and documents are useful references for CannBench design 
 This repository is in the first implementation stage. The current scope is:
 
 - Single-card benchmarking only
-- First runnable operator path: NVIDIA `softmax`
+- First operator benchmark framework for NVIDIA and Ascend backends
 - Shared schema, timing, and report output layers
+- Ascend custom operator source projects are not included yet
 - Model TTFS/TPS benchmarking is not implemented yet
 
 ## License
