@@ -286,7 +286,27 @@ cannbench collect \
 
 The remote host must already have CannBench installed in `workdir`. The local controller copies the prepared input to the remote run directory, runs `cannbench capture-output` remotely, and downloads the resulting `output` artifact directory to `output-dir`.
 
-Device-side profiler collection over `msprof op` and NVIDIA profiling tools is planned as the next collection phase.
+Collect device-side profiler artifacts from the remote host:
+
+```bash
+cannbench collect \
+  --endpoint configs/ascend.json \
+  --prepared-input prepared-softmax.json \
+  --output-dir results/ascend-softmax \
+  --run-id softmax-run \
+  --profile-device-time \
+  --warmup 10 \
+  --iterations 50
+```
+
+For Ascend endpoints, CannBench wraps the remote operator command with `msprof op` and downloads:
+
+```text
+results/ascend-softmax/profile/
+results/ascend-softmax/perf/
+```
+
+For NVIDIA endpoints, CannBench wraps the remote operator command with `ncu` and downloads the same local artifact directories. Output capture and profiling can be requested in the same `collect` call by passing both `--capture-output` and `--profile-device-time`; internally they still run as separate phases.
 
 ### Current Scope
 
@@ -300,6 +320,7 @@ Implemented now:
 - Prepared-input generation for cross-machine backend comparisons
 - Output artifact capture and CPU-side output comparison
 - SSH/SCP-based remote output collection from backend hosts
+- Remote device-side profiler artifact collection for Ascend and NVIDIA
 - NVIDIA PyTorch backend for single-card operator tests
 - Ascend PyTorch backend adapter with optional default custom-op deployment hook
 - Built-in operator datasets and dispatch for:
@@ -317,7 +338,7 @@ Implemented now:
 
 Planned next:
 
-- Remote device-side profiler collection: Ascend `msprof op` and NVIDIA profiling tooling
+- Parse profiler artifacts into normalized device-side latency metrics
 - Built-in Ascend custom operator projects under each operator dataset directory
 - Real-hardware validation on NVIDIA CUDA and Ascend NPU hosts
 - Model-level TTFS / TPS benchmarks

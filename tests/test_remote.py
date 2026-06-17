@@ -86,3 +86,99 @@ def test_collect_remote_artifacts_runs_capture_and_downloads_output(tmp_path):
             str(tmp_path / "results" / "output"),
         ],
     ]
+
+
+def test_collect_remote_artifacts_runs_ascend_profile_and_downloads_profile(tmp_path):
+    commands: list[list[str]] = []
+
+    def fake_runner(command):
+        commands.append(command)
+
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        workdir="/opt/cannbench",
+        python="python3",
+        env={"ASCEND_VISIBLE_DEVICES": "0"},
+    )
+    prepared_input = tmp_path / "prepared.json"
+    prepared_input.write_text("{}")
+
+    collect_remote_artifacts(
+        endpoint=endpoint,
+        prepared_input=prepared_input,
+        output_dir=tmp_path / "results",
+        run_id="softmax-run",
+        capture_output=False,
+        profile_device_time=True,
+        warmup=3,
+        iterations=5,
+        runner=fake_runner,
+    )
+
+    assert commands == [
+        [
+            "ssh",
+            "user@ascend-host",
+            "mkdir -p /opt/cannbench/.cannbench-runs/softmax-run /opt/cannbench/.cannbench-runs/softmax-run/profile",
+        ],
+        [
+            "scp",
+            str(prepared_input),
+            "user@ascend-host:/opt/cannbench/.cannbench-runs/softmax-run/prepared.json",
+        ],
+        [
+            "ssh",
+            "user@ascend-host",
+            "cd /opt/cannbench && ASCEND_VISIBLE_DEVICES=0 msprof op --output=/opt/cannbench/.cannbench-runs/softmax-run/profile python3 -m cannbench operator --backend ascend --prepared-input .cannbench-runs/softmax-run/prepared.json --warmup 3 --iterations 5 --output-dir .cannbench-runs/softmax-run/perf --run-name benchmark",
+        ],
+        [
+            "scp",
+            "-r",
+            "user@ascend-host:/opt/cannbench/.cannbench-runs/softmax-run/profile",
+            str(tmp_path / "results" / "profile"),
+        ],
+        [
+            "scp",
+            "-r",
+            "user@ascend-host:/opt/cannbench/.cannbench-runs/softmax-run/perf",
+            str(tmp_path / "results" / "perf"),
+        ],
+    ]
+
+
+def test_collect_remote_artifacts_runs_nvidia_ncu_profile(tmp_path):
+    commands: list[list[str]] = []
+
+    def fake_runner(command):
+        commands.append(command)
+
+    endpoint = RemoteEndpoint(
+        name="nvidia-h100",
+        backend="nvidia",
+        host="user@nvidia-host",
+        workdir="/opt/cannbench",
+        python="python3",
+        env={"CUDA_VISIBLE_DEVICES": "0"},
+    )
+    prepared_input = tmp_path / "prepared.json"
+    prepared_input.write_text("{}")
+
+    collect_remote_artifacts(
+        endpoint=endpoint,
+        prepared_input=prepared_input,
+        output_dir=tmp_path / "results",
+        run_id="softmax-run",
+        capture_output=False,
+        profile_device_time=True,
+        warmup=3,
+        iterations=5,
+        runner=fake_runner,
+    )
+
+    assert commands[2] == [
+        "ssh",
+        "user@nvidia-host",
+        "cd /opt/cannbench && CUDA_VISIBLE_DEVICES=0 ncu --target-processes all --force-overwrite --export /opt/cannbench/.cannbench-runs/softmax-run/profile/ncu-report python3 -m cannbench operator --backend nvidia --prepared-input .cannbench-runs/softmax-run/prepared.json --warmup 3 --iterations 5 --output-dir .cannbench-runs/softmax-run/perf --run-name benchmark",
+    ]

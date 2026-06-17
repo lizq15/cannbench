@@ -65,6 +65,9 @@ def collect_remote_artifacts(
     prepared_input: Path,
     output_dir: Path,
     capture_output: bool,
+    profile_device_time: bool = False,
+    warmup: int = 10,
+    iterations: int = 50,
     deploy_custom_op: bool = False,
     run_id: str | None = None,
     endpoint: RemoteEndpoint | None = None,
@@ -75,32 +78,82 @@ def collect_remote_artifacts(
         if endpoint_path is None:
             raise ValueError("endpoint or endpoint_path is required")
         endpoint = read_remote_endpoint(endpoint_path)
-    if not capture_output:
-        raise ValueError("collect currently requires --capture-output")
+    if not capture_output and not profile_device_time:
+        raise ValueError("collect requires --capture-output or --profile-device-time")
 
     actual_run_id = run_id or uuid.uuid4().hex
     remote_run_dir = f"{endpoint.workdir}/.cannbench-runs/{actual_run_id}"
     remote_prepared = f"{remote_run_dir}/prepared.json"
     remote_output = f"{remote_run_dir}/output"
+    remote_profile = f"{remote_run_dir}/profile"
+    remote_perf = f"{remote_run_dir}/perf"
     relative_prepared = f".cannbench-runs/{actual_run_id}/prepared.json"
     relative_output = f".cannbench-runs/{actual_run_id}/output"
+    relative_perf = f".cannbench-runs/{actual_run_id}/perf"
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    runner(["ssh", endpoint.host, f"mkdir -p {shlex.quote(remote_run_dir)}"])
+    mkdir_targets = [remote_run_dir]
+    if profile_device_time:
+        mkdir_targets.append(remote_profile)
+    runner(
+        [
+            "ssh",
+            endpoint.host,
+            "mkdir -p " + " ".join(shlex.quote(target) for target in mkdir_targets),
+        ]
+    )
     runner(["scp", str(prepared_input), f"{endpoint.host}:{remote_prepared}"])
 
-    command = (
-        f"cd {shlex.quote(endpoint.workdir)} && "
-        f"{_remote_command_env(endpoint.env)}"
-        f"{shlex.quote(endpoint.python)} -m cannbench capture-output "
-        f"--backend {shlex.quote(endpoint.backend)} "
-        f"--prepared-input {shlex.quote(relative_prepared)} "
-        f"--output {shlex.quote(relative_output)}"
-    )
-    if deploy_custom_op:
-        command = f"{command} --deploy-custom-op"
-    runner(["ssh", endpoint.host, command])
-    runner(["scp", "-r", f"{endpoint.host}:{remote_output}", str(output_dir / "output")])
+    if capture_output:
+        command = (
+            f"cd {shlex.quote(endpoint.workdir)} && "
+            f"{_remote_command_env(endpoint.env)}"
+            f"{shlex.quote(endpoint.python)} -m cannbench capture-output "
+            f"--backend {shlex.quote(endpoint.backend)} "
+            f"--prepared-input {shlex.quote(relative_prepared)} "
+            f"--output {shlex.quote(relative_output)}"
+        )
+        if deploy_custom_op:
+            command = f"{command} --deploy-custom-op"
+        runner(["ssh", endpoint.host, command])
+        runner(
+            ["scp", "-r", f"{endpoint.host}:{remote_output}", str(output_dir / "output")]
+        )
+
+    if profile_device_time:
+        base_operator = (
+            f"{shlex.quote(endpoint.python)} -m cannbench operator "
+            f"--backend {shlex.quote(endpoint.backend)} "
+            f"--prepared-input {shlex.quote(relative_prepared)} "
+            f"--warmup {warmup} "
+            f"--iterations {iterations} "
+            f"--output-dir {shlex.quote(relative_perf)} "
+            "--run-name benchmark"
+        )
+        if deploy_custom_op:
+            base_operator = f"{base_operator} --deploy-custom-op"
+        if endpoint.backend == "ascend":
+            profiled_operator = (
+                f"msprof op --output={shlex.quote(remote_profile)} {base_operator}"
+            )
+        elif endpoint.backend == "nvidia":
+            profiled_operator = (
+                "ncu --target-processes all --force-overwrite "
+                f"--export {shlex.quote(remote_profile + '/ncu-report')} "
+                f"{base_operator}"
+            )
+        else:
+            raise ValueError(f"unsupported profiler backend: {endpoint.backend}")
+        command = (
+            f"cd {shlex.quote(endpoint.workdir)} && "
+            f"{_remote_command_env(endpoint.env)}"
+            f"{profiled_operator}"
+        )
+        runner(["ssh", endpoint.host, command])
+        runner(
+            ["scp", "-r", f"{endpoint.host}:{remote_profile}", str(output_dir / "profile")]
+        )
+        runner(["scp", "-r", f"{endpoint.host}:{remote_perf}", str(output_dir / "perf")])
 
     return RemoteCollectionResult(
         endpoint=endpoint,
