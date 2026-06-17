@@ -3,6 +3,12 @@ from pathlib import Path
 
 from cannbench.backends import get_backend
 from cannbench.core.config import OperatorBenchmarkRequest
+from cannbench.core.operator_output import (
+    compare_operator_outputs,
+    read_operator_output,
+    write_operator_output,
+    write_output_comparison,
+)
 from cannbench.core.prepared_input import (
     build_prepared_operator_input,
     read_prepared_operator_input,
@@ -23,6 +29,13 @@ def _positive_int(value: str) -> int:
     parsed = int(value)
     if parsed <= 0:
         raise argparse.ArgumentTypeError("iterations must be > 0")
+    return parsed
+
+
+def _non_negative_float(value: str) -> float:
+    parsed = float(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("value must be >= 0")
     return parsed
 
 
@@ -50,6 +63,24 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--case-id", required=True)
     prepare.add_argument("--seed", type=_non_negative_int, default=0)
     prepare.add_argument("--output", type=Path, required=True)
+
+    capture = subparsers.add_parser("capture-output")
+    capture.add_argument("--backend", choices=["nvidia", "ascend"], required=True)
+    capture.add_argument("--op", choices=list_operator_names())
+    capture.add_argument("--dtype", default="float16")
+    capture.add_argument("--dataset", choices=["smoke", "realistic", "stress"], default="realistic")
+    capture.add_argument("--case-id")
+    capture.add_argument("--prepared-input", type=Path)
+    capture.add_argument("--seed", type=_non_negative_int, default=0)
+    capture.add_argument("--deploy-custom-op", action="store_true", default=False)
+    capture.add_argument("--output", type=Path, required=True)
+
+    compare = subparsers.add_parser("compare-output")
+    compare.add_argument("--left", type=Path, required=True)
+    compare.add_argument("--right", type=Path, required=True)
+    compare.add_argument("--rtol", type=_non_negative_float, default=0.001)
+    compare.add_argument("--atol", type=_non_negative_float, default=0.001)
+    compare.add_argument("--output", type=Path, required=True)
 
     return parser
 
@@ -102,5 +133,52 @@ def main(argv: list[str] | None = None) -> int:
             seed=args.seed,
         )
         write_prepared_operator_input(args.output, prepared)
+    elif args.command == "capture-output":
+        try:
+            if args.prepared_input is not None:
+                prepared = read_prepared_operator_input(args.prepared_input)
+                request = OperatorBenchmarkRequest(
+                    backend=args.backend,
+                    op=prepared.op,
+                    dtype=prepared.dtype,
+                    dataset=prepared.dataset,
+                    case_id=prepared.case.case_id,
+                    warmup=0,
+                    iterations=1,
+                    seed=prepared.seed,
+                    deploy_custom_op=args.deploy_custom_op,
+                )
+            else:
+                if not args.op or not args.case_id:
+                    parser.error("--op and --case-id are required unless --prepared-input is set")
+                request = OperatorBenchmarkRequest(
+                    backend=args.backend,
+                    op=args.op,
+                    dtype=args.dtype,
+                    dataset=args.dataset,
+                    case_id=args.case_id,
+                    warmup=0,
+                    iterations=1,
+                    seed=args.seed,
+                    deploy_custom_op=args.deploy_custom_op,
+                )
+            backend = get_backend(args.backend)
+            output = backend.capture_operator_output(request)
+            write_operator_output(args.output, output)
+        except (RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+    elif args.command == "compare-output":
+        try:
+            left = read_operator_output(args.left)
+            right = read_operator_output(args.right)
+            result = compare_operator_outputs(
+                left,
+                right,
+                rtol=args.rtol,
+                atol=args.atol,
+            )
+            write_output_comparison(args.output, result)
+        except (RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
 
     return 0

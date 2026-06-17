@@ -334,6 +334,85 @@ def test_backend_materializes_softmax_inputs_from_seed(monkeypatch):
     assert captured["values"]
 
 
+def test_backend_captures_softmax_output_once(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeTensor:
+        def __init__(self, values=None, shape=(32, 128)):
+            self._values = values or [0.25, 0.75]
+            self.shape = shape
+
+        def reshape(self, shape):
+            captured["input_shape"] = shape
+            return self
+
+        def detach(self):
+            return self
+
+        def cpu(self):
+            captured["moved_to_cpu"] = True
+            return self
+
+        def to(self, dtype=None):
+            captured["output_dtype"] = dtype
+            return self
+
+        def flatten(self):
+            return self
+
+        def tolist(self):
+            return self._values
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.cuda = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: captured.setdefault("synchronized", True),
+                get_device_name=lambda device: "Fake GPU",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.float32 = "float32"
+            self.tensor = self._tensor
+            self.softmax = self._softmax
+
+        def _tensor(self, values, device=None, dtype=None):
+            captured["device"] = device
+            captured["dtype"] = dtype
+            return FakeTensor(values=values)
+
+        def _softmax(self, tensor, dim):
+            captured["softmax_dim"] = dim
+            return FakeTensor(values=[0.25, 0.75], shape=(2,))
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+
+    from cannbench.backends.pytorch_backend import NvidiaBackend
+
+    backend = NvidiaBackend()
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        warmup=0,
+        iterations=1,
+        seed=7,
+    )
+
+    output = backend.capture_operator_output(request)
+
+    assert output.backend == "nvidia"
+    assert output.device_name == "Fake GPU"
+    assert output.shape == (2,)
+    assert output.values == (0.25, 0.75)
+    assert captured["input_shape"] == (32, 128)
+    assert captured["moved_to_cpu"] is True
+    assert captured["output_dtype"] == "float32"
+    assert captured["synchronized"] is True
+
+
 def test_backend_runs_embedding_with_materialized_inputs(monkeypatch):
     captured: dict[str, object] = {}
 

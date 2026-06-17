@@ -4,6 +4,7 @@ import tomllib
 import pytest
 
 from cannbench.cli import build_parser, main
+from cannbench.core.operator_output import CapturedOperatorOutput, OutputComparisonResult
 from cannbench.core.result import (
     BenchmarkMetrics,
     OperatorBenchmarkResult,
@@ -104,6 +105,48 @@ def test_build_parser_exposes_prepare_subcommand():
 
     assert args.command == "prepare"
     assert args.seed == 7
+
+
+def test_build_parser_exposes_capture_output_subcommand():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "capture-output",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--output",
+            "nvidia-output",
+        ]
+    )
+
+    assert args.command == "capture-output"
+    assert args.backend == "nvidia"
+    assert args.output.name == "nvidia-output"
+
+
+def test_build_parser_exposes_compare_output_subcommand():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "compare-output",
+            "--left",
+            "nvidia-output",
+            "--right",
+            "ascend-output",
+            "--output",
+            "accuracy.json",
+        ]
+    )
+
+    assert args.command == "compare-output"
+    assert args.rtol == 0.001
+    assert args.atol == 0.001
 
 
 def test_build_parser_accepts_ascend_backend():
@@ -271,6 +314,122 @@ def test_main_prepare_writes_prepared_input_manifest(tmp_path):
     assert exit_code == 0
     assert "\"schema_version\": 1" in payload
     assert "\"case_id\": \"tiny_logits\"" in payload
+
+
+def test_main_capture_output_writes_artifact(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+    output = CapturedOperatorOutput(
+        backend="nvidia",
+        device_name="Fake GPU",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        seed=7,
+        shape=(1,),
+        values=(1.0,),
+    )
+
+    class FakeBackend:
+        def capture_operator_output(self, request):
+            captured["request"] = request
+            return output
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+
+    def fake_write_operator_output(path, actual_output):
+        captured["output_path"] = path
+        captured["output"] = actual_output
+        return {}
+
+    monkeypatch.setattr("cannbench.cli.write_operator_output", fake_write_operator_output)
+
+    exit_code = main(
+        [
+            "capture-output",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--dtype",
+            "float16",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--seed",
+            "7",
+            "--output",
+            str(tmp_path / "nvidia-output"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["request"].seed == 7
+    assert captured["request"].warmup == 0
+    assert captured["request"].iterations == 1
+    assert captured["output_path"] == tmp_path / "nvidia-output"
+    assert captured["output"] is output
+
+
+def test_main_compare_output_writes_report(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+    comparison = OutputComparisonResult(
+        passed=True,
+        shape_match=True,
+        left_backend="nvidia",
+        right_backend="ascend",
+        op="softmax",
+        dtype_left="float16",
+        dtype_right="float16",
+        case_id="tiny_logits",
+        seed_left=7,
+        seed_right=7,
+        shape=(1,),
+        numel=1,
+        mismatch_count=0,
+        max_abs_error=0.0,
+        max_rel_error=0.0,
+        mean_abs_error=0.0,
+        rmse=0.0,
+        rtol=0.001,
+        atol=0.001,
+    )
+
+    monkeypatch.setattr("cannbench.cli.read_operator_output", lambda path: path)
+    monkeypatch.setattr(
+        "cannbench.cli.compare_operator_outputs",
+        lambda left, right, rtol, atol: comparison,
+    )
+
+    def fake_write_output_comparison(path, actual_comparison):
+        captured["report_path"] = path
+        captured["comparison"] = actual_comparison
+        return path
+
+    monkeypatch.setattr(
+        "cannbench.cli.write_output_comparison", fake_write_output_comparison
+    )
+
+    exit_code = main(
+        [
+            "compare-output",
+            "--left",
+            str(tmp_path / "nvidia-output"),
+            "--right",
+            str(tmp_path / "ascend-output"),
+            "--rtol",
+            "0.001",
+            "--atol",
+            "0.001",
+            "--output",
+            str(tmp_path / "accuracy.json"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["report_path"] == tmp_path / "accuracy.json"
+    assert captured["comparison"] is comparison
 
 
 def test_main_runs_operator_benchmark_from_prepared_input(tmp_path, monkeypatch):
