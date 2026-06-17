@@ -54,6 +54,25 @@ def test_read_remote_endpoint_parses_host_port_suffix(tmp_path):
     assert endpoint.port == 20002
 
 
+def test_read_remote_endpoint_accepts_setup_command(tmp_path):
+    path = tmp_path / "ascend.json"
+    path.write_text(
+        json.dumps(
+            {
+                "name": "ascend-a2",
+                "backend": "ascend",
+                "host": "root@121.41.199.170",
+                "workdir": "/home/y00621698/cannbench",
+                "setup": "source /usr/local/Ascend/cann/set_env.sh",
+            }
+        )
+    )
+
+    endpoint = read_remote_endpoint(path)
+
+    assert endpoint.setup == "source /usr/local/Ascend/cann/set_env.sh"
+
+
 def test_collect_remote_artifacts_runs_capture_and_downloads_output(tmp_path):
     commands: list[list[str]] = []
 
@@ -122,6 +141,7 @@ def test_collect_remote_artifacts_runs_ascend_profile_and_downloads_profile(tmp_
         port=None,
         workdir="/opt/cannbench",
         python="python3",
+        setup="source /usr/local/Ascend/cann/set_env.sh",
         env={"ASCEND_VISIBLE_DEVICES": "0"},
     )
     prepared_input = tmp_path / "prepared.json"
@@ -153,7 +173,7 @@ def test_collect_remote_artifacts_runs_ascend_profile_and_downloads_profile(tmp_
         [
             "ssh",
             "user@ascend-host",
-            "cd /opt/cannbench && ASCEND_VISIBLE_DEVICES=0 msprof op --output=/opt/cannbench/.cannbench-runs/softmax-run/profile python3 -m cannbench operator --backend ascend --prepared-input .cannbench-runs/softmax-run/prepared.json --warmup 3 --iterations 5 --output-dir .cannbench-runs/softmax-run/perf --run-name benchmark",
+            "cd /opt/cannbench && source /usr/local/Ascend/cann/set_env.sh && ASCEND_VISIBLE_DEVICES=0 msprof op --output=/opt/cannbench/.cannbench-runs/softmax-run/profile python3 -m cannbench operator --backend ascend --prepared-input .cannbench-runs/softmax-run/prepared.json --warmup 3 --iterations 5 --output-dir .cannbench-runs/softmax-run/perf --run-name benchmark",
         ],
         [
             "scp",

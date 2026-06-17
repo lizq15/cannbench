@@ -22,6 +22,7 @@ class RemoteEndpoint:
     workdir: str
     port: int | None = None
     python: str = "python3"
+    setup: str | None = None
     env: dict[str, str] = field(default_factory=dict)
 
 
@@ -54,6 +55,7 @@ def read_remote_endpoint(path: Path) -> RemoteEndpoint:
         port=port,
         workdir=str(payload["workdir"]).rstrip("/"),
         python=str(payload.get("python", "python3")),
+        setup=str(payload["setup"]) if payload.get("setup") else None,
         env=env,
     )
 
@@ -69,6 +71,13 @@ def _remote_command_env(env: dict[str, str]) -> str:
         f"{shlex.quote(key)}={shlex.quote(value)}"
         for key, value in sorted(env.items())
     ) + " "
+
+
+def _remote_command_prefix(endpoint: RemoteEndpoint) -> str:
+    prefix = f"cd {shlex.quote(endpoint.workdir)} && "
+    if endpoint.setup:
+        prefix = f"{prefix}{endpoint.setup} && "
+    return prefix
 
 
 def _ssh_command(endpoint: RemoteEndpoint, remote_command: str) -> list[str]:
@@ -145,7 +154,7 @@ def collect_remote_artifacts(
 
     if capture_output:
         command = (
-            f"cd {shlex.quote(endpoint.workdir)} && "
+            f"{_remote_command_prefix(endpoint)}"
             f"{_remote_command_env(endpoint.env)}"
             f"{shlex.quote(endpoint.python)} -m cannbench capture-output "
             f"--backend {shlex.quote(endpoint.backend)} "
@@ -186,7 +195,7 @@ def collect_remote_artifacts(
         else:
             raise ValueError(f"unsupported profiler backend: {endpoint.backend}")
         command = (
-            f"cd {shlex.quote(endpoint.workdir)} && "
+            f"{_remote_command_prefix(endpoint)}"
             f"{_remote_command_env(endpoint.env)}"
             f"{profiled_operator}"
         )
