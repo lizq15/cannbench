@@ -49,17 +49,6 @@ def _payload_key_order(key: str) -> tuple[int, str]:
 
 
 @dataclass(frozen=True)
-class BenchmarkMetrics:
-    iterations: int
-    warmup: int
-    latency_ms_avg: float
-    latency_ms_p50: float
-    latency_ms_p95: float
-    latency_ms_p99: float
-    throughput_ops_per_sec: float
-
-
-@dataclass(frozen=True)
 class OperatorCase:
     case_id: str
     family: str
@@ -155,7 +144,8 @@ class OperatorBenchmarkResult:
     op: str
     dtype: str
     case: OperatorCase
-    metrics: BenchmarkMetrics
+    warmup: int
+    iterations: int
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -164,13 +154,6 @@ class OperatorBenchmarkResult:
             "op": self.op,
             "dtype": self.dtype,
             "case": self.case.to_json_dict(),
-            "metrics": {
-                "iterations": self.metrics.iterations,
-                "warmup": self.metrics.warmup,
-                "latency_ms_avg": self.metrics.latency_ms_avg,
-                "latency_ms_p50": self.metrics.latency_ms_p50,
-                "latency_ms_p95": self.metrics.latency_ms_p95,
-                "latency_ms_p99": self.metrics.latency_ms_p99,
-                "throughput_ops_per_sec": self.metrics.throughput_ops_per_sec,
-            },
+            "warmup": self.warmup,
+            "iterations": self.iterations,
         }

@@ -6,7 +6,6 @@ import pytest
 from cannbench.cli import build_parser, main
 from cannbench.core.operator_output import CapturedOperatorOutput, OutputComparisonResult
 from cannbench.core.result import (
-    BenchmarkMetrics,
     OperatorBenchmarkResult,
     build_softmax_case,
 )
@@ -29,15 +28,8 @@ def sample_result() -> OperatorBenchmarkResult:
             source_file="tritonbench/tritonbench/data/input_configs/hf_train/T5Small_train.json",
             source_op="softmax",
         ),
-        metrics=BenchmarkMetrics(
-            iterations=3,
-            warmup=2,
-            latency_ms_avg=1.0,
-            latency_ms_p50=1.0,
-            latency_ms_p95=1.0,
-            latency_ms_p99=1.0,
-            throughput_ops_per_sec=1000.0,
-        ),
+        warmup=2,
+        iterations=3,
     )
 
 

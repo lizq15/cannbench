@@ -1,17 +1,13 @@
 from __future__ import annotations
 
-import time
-
 from cannbench.backends.base import OperatorBackend
 from cannbench.core.config import OperatorBenchmarkRequest
 from cannbench.core.operator_output import CapturedOperatorOutput
 from cannbench.core.result import (
-    BenchmarkMetrics,
     OperatorBenchmarkResult,
     build_softmax_case,
     OperatorCase,
 )
-from cannbench.core.timing import summarize_timings_ms
 from cannbench.datasets import get_operator_case
 from cannbench.datasets.materialize import (
     materialize_embedding_inputs,
@@ -33,20 +29,6 @@ from cannbench.operators import get_operator_spec
 class TorchOperatorBackend(OperatorBackend):
     def __init__(self, *, name: str, device_type: str) -> None:
         super().__init__(name=name, device_type=device_type)
-
-    def _summarize_metrics(
-        self, *, iterations: int, warmup: int, samples: list[float]
-    ) -> BenchmarkMetrics:
-        summary = summarize_timings_ms(samples)
-        return BenchmarkMetrics(
-            iterations=iterations,
-            warmup=warmup,
-            latency_ms_avg=summary["latency_ms_avg"],
-            latency_ms_p50=summary["latency_ms_p50"],
-            latency_ms_p95=summary["latency_ms_p95"],
-            latency_ms_p99=summary["latency_ms_p99"],
-            throughput_ops_per_sec=iterations / (sum(samples) / 1000.0),
-        )
 
     def _build_result_case(self, request: OperatorBenchmarkRequest, case) -> OperatorCase:
         if request.op == "softmax":
@@ -416,24 +398,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.softmax(tensor, dim=request.dim)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.softmax(tensor, dim=request.dim)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "embedding":
@@ -462,24 +437,17 @@ class TorchOperatorBackend(OperatorBackend):
                 module(indices)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 module(indices)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "gather":
@@ -501,24 +469,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.gather(input_tensor, payload["dim"], index_tensor)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.gather(input_tensor, payload["dim"], index_tensor)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "index_select":
@@ -542,24 +503,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.index_select(input_tensor, payload["dim"], index_tensor)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.index_select(input_tensor, payload["dim"], index_tensor)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "index_add":
@@ -587,24 +541,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.index_add(input_tensor, payload["dim"], index_tensor, src_tensor)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.index_add(input_tensor, payload["dim"], index_tensor, src_tensor)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "index_put":
@@ -642,9 +589,7 @@ class TorchOperatorBackend(OperatorBackend):
                 )
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.index_put(
                     input_tensor,
                     index_tensors,
@@ -652,19 +597,14 @@ class TorchOperatorBackend(OperatorBackend):
                     accumulate=payload["accumulate"],
                 )
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "take_along_dim":
@@ -688,24 +628,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.take_along_dim(input_tensor, index_tensor, payload["dim"])
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.take_along_dim(input_tensor, index_tensor, payload["dim"])
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "masked_select":
@@ -729,24 +662,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.masked_select(input_tensor, mask_tensor)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.masked_select(input_tensor, mask_tensor)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "cross_entropy":
@@ -770,24 +696,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.nn.functional.cross_entropy(logits, targets)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.nn.functional.cross_entropy(logits, targets)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "scatter_add":
@@ -817,24 +736,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.scatter_add(input_tensor, payload["dim"], index_tensor, src_tensor)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.scatter_add(input_tensor, payload["dim"], index_tensor, src_tensor)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         if request.op == "scatter":
@@ -862,24 +774,17 @@ class TorchOperatorBackend(OperatorBackend):
                 torch.scatter(input_tensor, payload["dim"], index_tensor, src_tensor)
             self._synchronize(torch)
 
-            samples: list[float] = []
             for _ in range(request.iterations):
-                started = time.perf_counter()
                 torch.scatter(input_tensor, payload["dim"], index_tensor, src_tensor)
                 self._synchronize(torch)
-                samples.append((time.perf_counter() - started) * 1000.0)
-            metrics = self._summarize_metrics(
-                iterations=request.iterations,
-                warmup=request.warmup,
-                samples=samples,
-            )
             return OperatorBenchmarkResult(
                 backend=self.name,
                 device_name=self._device_name(torch, device),
                 op=request.op,
                 dtype=request.dtype,
                 case=self._build_result_case(request, case),
-                metrics=metrics,
+                warmup=request.warmup,
+                iterations=request.iterations,
             )
 
         raise RuntimeError(f"Unsupported operator for {self.name} backend: {request.op}")

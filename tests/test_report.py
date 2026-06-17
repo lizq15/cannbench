@@ -23,15 +23,8 @@ def _write_perf(path, *, backend, avg):
                     "source_op": "softmax",
                     "payload": {"dimensions": [32, 128], "dim": -1},
                 },
-                "metrics": {
-                    "iterations": 5,
-                    "warmup": 3,
-                    "latency_ms_avg": avg,
-                    "latency_ms_p50": avg,
-                    "latency_ms_p95": avg,
-                    "latency_ms_p99": avg,
-                    "throughput_ops_per_sec": 1000.0 / avg,
-                },
+                "warmup": 3,
+                "iterations": 5,
             }
         )
         + "\n"
@@ -89,8 +82,16 @@ def test_write_local_report_summarizes_perf_accuracy_and_profile_paths(tmp_path)
 
     report = report_path.read_text()
     assert "# CannBench Local Comparison Report" in report
-    assert "| nvidia | Fake nvidia | softmax | tiny_logits | float16 | 1.2 |" in report
-    assert "| ascend | Fake ascend | softmax | tiny_logits | float16 | 1.5 |" in report
+    assert (
+        "| nvidia | Fake nvidia | softmax | tiny_logits | float16 | "
+        "1.3 | 1.3 | 1.4 | 1.5 |"
+    ) in report
+    assert (
+        "| ascend | Fake ascend | softmax | tiny_logits | float16 | "
+        "1.6 | 1.6 | 1.7 | 1.8 |"
+    ) in report
+    assert "host_latency" not in report
+    assert "timing_source" not in report
     assert "| passed | True |" in report
     assert f"| nvidia_profile | {nvidia_dir / 'profile'} |" in report
     assert "| nvidia_device_latency_ms_avg | 1.3 |" in report

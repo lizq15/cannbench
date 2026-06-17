@@ -5,7 +5,6 @@ import pytest
 
 from cannbench.core.output import write_benchmark_outputs
 from cannbench.core.result import (
-    BenchmarkMetrics,
     OperatorBenchmarkResult,
     OperatorCase,
     build_softmax_case,
@@ -29,15 +28,8 @@ def _sample_result() -> OperatorBenchmarkResult:
             source_file="tests/fixtures",
             source_op="softmax",
         ),
-        metrics=BenchmarkMetrics(
-            iterations=10,
-            warmup=5,
-            latency_ms_avg=1.0,
-            latency_ms_p50=1.0,
-            latency_ms_p95=1.1,
-            latency_ms_p99=1.2,
-            throughput_ops_per_sec=1000.0,
-        ),
+        iterations=10,
+        warmup=5,
     )
 
 
@@ -58,21 +50,16 @@ def test_result_to_json_dict_contains_core_fields():
             source_file="tritonbench/models/t5.py",
             source_op="softmax",
         ),
-        metrics=BenchmarkMetrics(
-            iterations=10,
-            warmup=5,
-            latency_ms_avg=1.2,
-            latency_ms_p50=1.1,
-            latency_ms_p95=1.5,
-            latency_ms_p99=1.6,
-            throughput_ops_per_sec=833.33,
-        ),
+        iterations=10,
+        warmup=5,
     )
 
     payload = result.to_json_dict()
 
     assert payload["backend"] == "nvidia"
-    assert payload["metrics"]["latency_ms_avg"] == 1.2
+    assert payload["iterations"] == 10
+    assert payload["warmup"] == 5
+    assert "metrics" not in payload
     assert payload["case"] == {
         "case_id": "t5_attention",
         "family": "attention",
@@ -106,11 +93,8 @@ def test_write_benchmark_outputs_creates_json_csv_and_markdown(tmp_path):
         "family",
         "payload",
         "source_model",
-        "latency_ms_avg",
-        "latency_ms_p50",
-        "latency_ms_p95",
-        "latency_ms_p99",
-        "throughput_ops_per_sec",
+        "warmup",
+        "iterations",
     ]
     assert rows[1] == [
         "nvidia",
@@ -121,16 +105,15 @@ def test_write_benchmark_outputs_creates_json_csv_and_markdown(tmp_path):
         "lm_logits",
         "dimensions=128x128, dim=-1",
         "smoke_fixture",
-        "1.0",
-        "1.0",
-        "1.1",
-        "1.2",
-        "1000.0",
+        "5",
+        "10",
     ]
     markdown = paths["md"].read_text()
     assert "| backend | nvidia |" in markdown
     assert "| case_id | tiny_logits |" in markdown
     assert "| source_model | smoke_fixture |" in markdown
+    assert "latency_ms" not in markdown
+    assert "throughput_ops_per_sec" not in markdown
 
 
 def test_write_benchmark_outputs_creates_only_requested_formats(tmp_path):

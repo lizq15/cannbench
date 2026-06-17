@@ -12,12 +12,23 @@ def _read_perf_result(run_dir: Path) -> dict[str, object]:
     return json.loads(json_files[0].read_text())
 
 
-def _perf_row(result: dict[str, object]) -> str:
+def _metric(profile: dict[str, object] | None, key: str) -> object:
+    if profile is None:
+        return "missing"
+    return profile[key]
+
+
+def _perf_row(
+    result: dict[str, object], profile: dict[str, object] | None
+) -> str:
     case = result["case"]
-    metrics = result["metrics"]
     return (
         f"| {result['backend']} | {result['device_name']} | {result['op']} | "
-        f"{case['case_id']} | {result['dtype']} | {metrics['latency_ms_avg']} |"
+        f"{case['case_id']} | {result['dtype']} | "
+        f"{_metric(profile, 'latency_ms_avg')} | "
+        f"{_metric(profile, 'latency_ms_p50')} | "
+        f"{_metric(profile, 'latency_ms_p95')} | "
+        f"{_metric(profile, 'latency_ms_p99')} |"
     )
 
 
@@ -46,10 +57,10 @@ def write_local_report(
         "",
         "## Performance",
         "",
-        "| backend | device_name | op | case_id | dtype | latency_ms_avg |",
-        "| --- | --- | --- | --- | --- | --- |",
-        _perf_row(nvidia),
-        _perf_row(ascend),
+        "| backend | device_name | op | case_id | dtype | device_latency_ms_avg | device_latency_ms_p50 | device_latency_ms_p95 | device_latency_ms_p99 |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        _perf_row(nvidia, nvidia_profile),
+        _perf_row(ascend, ascend_profile),
         "",
         "## Accuracy",
         "",

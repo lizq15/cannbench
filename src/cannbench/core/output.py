@@ -39,11 +39,8 @@ def write_benchmark_outputs(
                     "family",
                     "payload",
                     "source_model",
-                    "latency_ms_avg",
-                    "latency_ms_p50",
-                    "latency_ms_p95",
-                    "latency_ms_p99",
-                    "throughput_ops_per_sec",
+                    "warmup",
+                    "iterations",
                 ]
             )
             writer.writerow(
@@ -56,11 +53,8 @@ def write_benchmark_outputs(
                     result.case.family,
                     result.case.payload_summary,
                     result.case.source_model,
-                    result.metrics.latency_ms_avg,
-                    result.metrics.latency_ms_p50,
-                    result.metrics.latency_ms_p95,
-                    result.metrics.latency_ms_p99,
-                    result.metrics.throughput_ops_per_sec,
+                    result.warmup,
+                    result.iterations,
                 ]
             )
         created["csv"] = csv_path
@@ -82,11 +76,8 @@ def write_benchmark_outputs(
                     f"| family | {result.case.family} |",
                     f"| payload | {result.case.payload_summary} |",
                     f"| source_model | {result.case.source_model} |",
-                    f"| latency_ms_avg | {result.metrics.latency_ms_avg} |",
-                    f"| latency_ms_p50 | {result.metrics.latency_ms_p50} |",
-                    f"| latency_ms_p95 | {result.metrics.latency_ms_p95} |",
-                    f"| latency_ms_p99 | {result.metrics.latency_ms_p99} |",
-                    f"| throughput_ops_per_sec | {result.metrics.throughput_ops_per_sec} |",
+                    f"| warmup | {result.warmup} |",
+                    f"| iterations | {result.iterations} |",
                     "",
                 ]
             )
