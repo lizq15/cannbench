@@ -216,7 +216,7 @@ def collect_remote_artifacts(
             )
             profiled_operator = (
                 f"major=$({capability_probe}); "
-                'if [ "$major" -ge 7 ] && command -v ncu >/dev/null 2>&1; '
+                'if [ "$major" -ge 7 ]; '
                 f"then {ncu_operator}; "
                 f"else {cuda_event_operator}; "
                 "fi"

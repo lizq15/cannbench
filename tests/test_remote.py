@@ -226,7 +226,8 @@ def test_collect_remote_artifacts_runs_nvidia_ncu_profile(tmp_path):
     ]
     command = commands[2][2]
     assert "torch.cuda.get_device_capability(0)[0]" in command
-    assert 'if [ "$major" -ge 7 ] && command -v ncu' in command
+    assert 'if [ "$major" -ge 7 ];' in command
+    assert "command -v ncu" not in command
     assert "ncu --target-processes all --force-overwrite --csv" in command
     assert "python3 -m cannbench cuda-event-profile --backend nvidia" in command
     assert "--profile-dir /opt/cannbench/.cannbench-runs/softmax-run/profile" in command
