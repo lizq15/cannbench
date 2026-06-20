@@ -267,6 +267,11 @@ def test_ascend_backend_deploys_default_custom_op_when_enabled(monkeypatch, tmp_
         "_run_custom_op_install",
         lambda script: captured.setdefault("script", script),
     )
+    monkeypatch.setattr(
+        backend,
+        "_load_custom_op_module",
+        lambda op_name: captured.setdefault("loaded", op_name),
+    )
 
     request = OperatorBenchmarkRequest(
         backend="ascend",
@@ -283,6 +288,7 @@ def test_ascend_backend_deploys_default_custom_op_when_enabled(monkeypatch, tmp_
     backend.run_softmax(request)
 
     assert captured["script"] == install_script
+    assert captured["loaded"] == "softmax"
 
 
 def test_backend_materializes_softmax_inputs_from_seed(monkeypatch):
