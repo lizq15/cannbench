@@ -113,6 +113,73 @@ Design intent: curated representative shapes from real traced models. All rows i
 | `xglm_logits` | `lm_logits` | `[1024, 256008]` | `1` | `XGLMForCausalLM` | `hf_train/XGLMForCausalLM_train.json` | `aten._log_softmax.default` |
 | `opt_logits` | `lm_logits` | `[4094, 50272]` | `1` | `OPTForCausalLM` | `hf_train/OPTForCausalLM_train.json` | `aten._log_softmax.default` |
 
+### Ascend Custom Softmax Realistic Performance Snapshot
+
+Date: 2026-06-22
+
+Purpose: record the first broad Ascend comparison between the default Ascend
+operator library softmax and the built-in custom `aten_softmax` implementation
+for the `realistic` split.
+
+Measurement settings:
+
+- Backend: Ascend NPU
+- Profiler: `msprof op`
+- Dtype: `float32`
+- Seed: `7`
+- Warmup: `0`
+- Iterations: `1`
+- Samples per row: `1`
+- Reported value: parsed device-side duration from profiler CSV output
+
+Run status:
+
+- Total realistic cases: `30`
+- Successful profile rows: `55 / 60`
+- Fully comparable cases: `27 / 30`
+- Failed profile rows: `5 / 60`
+- Failure reason for incomplete rows: NPU runtime failed to open device context
+  after the long run (`LazySetDevice`, error code `507033`,
+  `rtSetDevice execution failed`, `context is a null pointer`).
+
+Interpretation: completed rows show the custom implementation is broadly in the
+same performance range as the default Ascend operator library implementation.
+Because each row has one profiler sample, treat this as a checkpoint record, not
+a stable benchmark summary.
+
+| case_id | default_ms | custom_ms | custom/default | status |
+| --- | ---: | ---: | ---: | --- |
+| `t5_attention` | 0.135135 | 0.138428 | 1.024x | ok |
+| `xcit_attention` | 0.003714 | 0.003626 | 0.976x | ok |
+| `convbert_attention` | 0.093750 | 0.093697 | 0.999x | ok |
+| `convbert_local_kernel` | 0.007134 | 0.007406 | 1.038x | ok |
+| `deberta_attention` | 0.039373 | 0.038644 | 0.981x | ok |
+| `electra_attention` | 0.137837 | 0.137303 | 0.996x | ok |
+| `gptneo_attention` | 0.026213 | 0.026223 | 1.000x | ok |
+| `gptj_attention` | 0.003928 | 0.003615 | 0.920x | ok |
+| `layoutlm_attention` | 0.230790 | 0.226357 | 0.981x | ok |
+| `mobilebert_attention` | 0.026779 | 0.025852 | 0.965x | ok |
+| `xlnet_attention` | 0.138712 | 0.138616 | 0.999x | ok |
+| `plbart_attention` | 0.505655 | 0.506869 | 1.002x | ok |
+| `pegasus_attention` | 0.026647 | 0.025515 | 0.958x | ok |
+| `trocr_attention` | 0.139692 | 0.139721 | 1.000x | ok |
+| `levit_global_attention` | 0.842046 | 0.836390 | 0.993x | ok |
+| `levit_mixed_attention` | 0.404607 | 0.396170 | 0.979x | ok |
+| `swin_window_attention` | 0.036603 | 0.036397 | 0.994x | ok |
+| `crossvit_cls_attention` | 0.004265 | 0.004483 | 1.051x | ok |
+| `halonet_window_attention` | 0.170329 | 0.170361 | 1.000x | ok |
+| `speech_transformer_attention` | 0.014321 | 0.014734 | 1.029x | ok |
+| `bert_pytorch_attention` | 0.012228 | 0.012452 | 1.018x | ok |
+| `t5_logits` | 0.707640 | 0.706114 | 0.998x | ok |
+| `convbert_logits` | 1.353036 | 1.348364 | 0.997x | ok |
+| `longformer_logits` | 1.115980 | 1.119064 | 1.003x | ok |
+| `plbart_logits` | 2.252802 | 2.256534 | 1.002x | ok |
+| `camembert_logits` | 1.426481 | 1.426887 | 1.000x | ok |
+| `m2m100_logits` | 1.530845 | 1.526289 | 0.997x | ok |
+| `mt5_logits` | 3.136916 |  |  | incomplete |
+| `xglm_logits` |  |  |  | incomplete |
+| `opt_logits` |  |  |  | incomplete |
+
 ### Stress
 
 Design intent: synthetic `softmax` boundary cases. These are specific to `softmax` workload semantics and should not be mechanically reused for other operators.
