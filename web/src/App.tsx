@@ -6,6 +6,8 @@ import { GpuBenchmarkImport } from "./components/GpuBenchmarkImport";
 import { KernelTraceRail } from "./components/KernelTraceRail";
 import { OperatorRail } from "./components/OperatorRail";
 import { RunFilters } from "./components/RunFilters";
+import logoDarkUrl from "./assets/brand/cannbench-logo-dark.png";
+import logoLightUrl from "./assets/brand/cannbench-logo-light.png";
 import { buildBenchmarkViewModel } from "./data/benchmarkData";
 import rawRecords from "./data/sample/benchmark-results.json";
 import type { BenchmarkRecord } from "./types";
@@ -108,30 +110,21 @@ export function App() {
         <span>GB/s</span>
       </div>
       <header className="console-header">
-        <div>
+        <h1 id="page-title" className="brand-title" aria-label="CANNBench">
           <button
             type="button"
-            className="eyebrow eyebrow-trigger"
-            aria-label="CannBench operator trace"
+            className="brand-trigger"
+            aria-label="CANNBench"
             onClick={openImportFromTitle}
           >
-            CannBench / Operator Trace
+            <img
+              className="brand-logo"
+              src={theme === "dark" ? logoDarkUrl : logoLightUrl}
+              alt=""
+              aria-hidden="true"
+            />
           </button>
-          <h1 id="page-title">Operator Performance Console</h1>
-          <p className="hero-copy">
-            Compare GPU H800, Ascend NPU library, and custom operator versions across curated benchmark cases.
-          </p>
-        </div>
-        <dl className="shell-metrics" aria-label="Loaded benchmark data">
-          <div>
-            <dt>records</dt>
-            <dd>{viewModel.records.length}</dd>
-          </div>
-          <div>
-            <dt>operators</dt>
-            <dd>{viewModel.operators.length}</dd>
-          </div>
-        </dl>
+        </h1>
         <button
           type="button"
           className="theme-toggle"

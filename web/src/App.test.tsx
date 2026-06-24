@@ -19,7 +19,7 @@ describe("App", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: /Operator Performance Console/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^CANNBench$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /softmax/i })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /gptj_attention/i })).toBeInTheDocument();
 
@@ -35,7 +35,7 @@ describe("App", () => {
 
     expect(screen.queryByRole("dialog", { name: /GPU benchmark import/i })).not.toBeInTheDocument();
 
-    const titleTrigger = screen.getByRole("button", { name: /CannBench operator trace/i });
+    const titleTrigger = screen.getByRole("button", { name: /^CANNBench$/i });
     await user.click(titleTrigger);
     await user.click(titleTrigger);
     expect(screen.queryByRole("dialog", { name: /GPU benchmark import/i })).not.toBeInTheDocument();

@@ -292,11 +292,11 @@ body[data-theme="dark"] {
 .console-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 24px;
-  align-items: end;
-  margin-bottom: 22px;
-  padding: clamp(28px, 4vw, 52px);
-  border-radius: 32px;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 18px 22px;
+  border-radius: 24px;
 }
 
 .eyebrow,
@@ -309,13 +309,6 @@ body[data-theme="dark"] {
   text-transform: uppercase;
 }
 
-.eyebrow-trigger {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
 h1,
 .workspace h2,
 .diff-head h3,
@@ -324,53 +317,38 @@ h1,
   letter-spacing: -0.06em;
 }
 
-h1 {
-  max-width: 700px;
-  margin: 16px 0 0;
-  font-size: clamp(2.1rem, 4.8vw, 4.6rem);
-  line-height: 0.94;
-}
-
-.hero-copy {
-  max-width: 680px;
-  margin: 26px 0 0;
-  color: var(--muted);
-  font-size: clamp(1rem, 1.7vw, 1.22rem);
-  line-height: 1.7;
-}
-
-.shell-metrics {
-  display: flex;
-  gap: 10px;
+.brand-title {
+  max-width: max-content;
   margin: 0;
+  line-height: 1;
 }
 
-.shell-metrics div {
-  min-width: 116px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(0, 0, 0, 0.11);
+.brand-trigger {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
-.shell-metrics dt {
-  margin: 0 0 8px;
-  color: var(--faint);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+.brand-logo {
+  display: block;
+  width: clamp(220px, 29vw, 390px);
+  height: auto;
+  max-height: 96px;
+  object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--accent) 14%, transparent));
+  transition: filter 160ms ease, opacity 160ms ease;
 }
 
-.shell-metrics dd {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.8rem;
-  font-weight: 800;
+.brand-trigger:hover .brand-logo {
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 24%, transparent));
+  opacity: 0.92;
 }
 
 .theme-toggle {
   position: absolute;
-  top: 18px;
+  top: 20px;
   border: 0;
   color: var(--faint);
   background: transparent;
@@ -1047,6 +1025,11 @@ body[data-theme="light"] .upload-panel {
   .workspace-head {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .brand-logo {
+    width: min(220px, calc(100vw - 96px));
+    max-height: 76px;
   }
 
   .console-grid {
