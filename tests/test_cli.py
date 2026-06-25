@@ -1,5 +1,6 @@
 import runpy
 import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -55,6 +56,30 @@ def test_build_parser_exposes_operator_subcommand():
     assert args.op == "softmax"
     assert args.dataset == "realistic"
     assert args.case_id == "t5_attention"
+
+
+def test_build_parser_exposes_bench_subcommand():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "bench",
+            "--backend",
+            "ascend",
+            "--implementation",
+            "simt",
+            "--op",
+            "softmax",
+            "--dataset",
+            "realistic",
+            "--case-id",
+            "t5_attention",
+        ]
+    )
+
+    assert args.command == "bench"
+    assert args.backend == "ascend"
+    assert args.implementation == "simt"
+    assert args.op == "softmax"
 
 
 def test_build_parser_accepts_embedding_operator():
@@ -149,12 +174,16 @@ def test_build_parser_exposes_collect_subcommand():
             "collect",
             "--endpoint",
             "configs/ascend.json",
-            "--prepared-input",
-            "prepared-softmax.json",
             "--output-dir",
             "results/ascend-softmax",
             "--run-id",
             "softmax-run",
+            "--op",
+            "softmax",
+            "--dataset",
+            "realistic",
+            "--case-id",
+            "t5_attention",
             "--capture-output",
             "--profile-device-time",
             "--summarize-profile",
@@ -173,6 +202,48 @@ def test_build_parser_exposes_collect_subcommand():
     assert args.warmup == 3
     assert args.iterations == 5
     assert args.deploy_custom_op is True
+
+
+def test_build_parser_exposes_publish_subcommand():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "publish",
+            "--source",
+            "runs/softmax-run",
+            "--dest",
+            "published/softmax-run",
+        ]
+    )
+
+    assert args.command == "publish"
+    assert args.source == Path("runs/softmax-run")
+    assert args.dest == Path("published/softmax-run")
+
+
+def test_build_parser_exposes_serve_subcommand():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "serve",
+            "--frontend-dir",
+            "web/dist",
+            "--published-dir",
+            "published",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "9000",
+            "--enable-gpu-upload",
+        ]
+    )
+
+    assert args.command == "serve"
+    assert args.frontend_dir == Path("web/dist")
+    assert args.published_dir == Path("published")
+    assert args.host == "0.0.0.0"
+    assert args.port == 9000
+    assert args.enable_gpu_upload is True
 
 
 def test_build_parser_defaults_operator_iterations_to_one():
@@ -201,10 +272,14 @@ def test_build_parser_defaults_collect_iterations_to_one():
             "collect",
             "--endpoint",
             "configs/ascend.json",
-            "--prepared-input",
-            "prepared-softmax.json",
             "--output-dir",
             "results/ascend-softmax",
+            "--op",
+            "softmax",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
             "--profile-device-time",
         ]
     )
@@ -376,6 +451,46 @@ def test_main_runs_operator_benchmark_and_writes_outputs(tmp_path, monkeypatch):
     assert captured["run_name"] == "softmax-run"
     assert captured["result"] is result
     assert captured["formats"] == ("json", "csv", "md")
+
+
+def test_main_runs_bench_and_maps_simt_to_custom_op_deployment(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+    result = sample_result()
+
+    class FakeBackend:
+        def run_operator(self, request):
+            captured["request"] = request
+            return result
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+    monkeypatch.setattr(
+        "cannbench.cli.write_benchmark_outputs",
+        lambda output_dir, run_name, actual_result, formats: {},
+    )
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "ascend",
+            "--implementation",
+            "simt",
+            "--op",
+            "softmax",
+            "--dtype",
+            "float16",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--output-dir",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["request"].backend == "ascend"
+    assert captured["request"].deploy_custom_op is True
 
 
 def test_main_passes_custom_op_deployment_flag_to_request(tmp_path, monkeypatch):
@@ -607,6 +722,73 @@ def test_main_collect_invokes_remote_collection(tmp_path, monkeypatch):
     assert captured["deploy_custom_op"] is False
 
 
+def test_main_collect_builds_prepared_input_when_case_is_provided(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+    endpoint_path = tmp_path / "ascend.json"
+    output_dir = tmp_path / "results"
+    output_dir.mkdir()
+    built = object()
+
+    def fake_build_prepared_operator_input(**kwargs):
+        captured["built_kwargs"] = kwargs
+        return built
+
+    def fake_write_prepared_operator_input(path, prepared):
+        captured["written"] = (path, prepared)
+        return path
+
+    monkeypatch.setattr(
+        "cannbench.cli.build_prepared_operator_input", fake_build_prepared_operator_input
+    )
+    monkeypatch.setattr(
+        "cannbench.cli.write_prepared_operator_input", fake_write_prepared_operator_input
+    )
+
+    def fake_collect_remote_artifacts(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(
+        "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
+    )
+
+    exit_code = main(
+        [
+            "collect",
+            "--endpoint",
+            str(endpoint_path),
+            "--output-dir",
+            str(output_dir),
+            "--run-id",
+            "softmax-run",
+            "--op",
+            "softmax",
+            "--dtype",
+            "float16",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--seed",
+            "7",
+            "--profile-device-time",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["built_kwargs"] == {
+        "op": "softmax",
+        "dtype": "float16",
+        "dataset": "smoke",
+        "case_id": "tiny_logits",
+        "seed": 7,
+    }
+    written_path, written_prepared = captured["written"]
+    assert written_path.parent == output_dir / "_prepared" / "softmax" / "smoke"
+    assert written_path.suffix == ".json"
+    assert written_prepared is built
+    assert captured["prepared_input"] == written_path
+
+
 def test_main_report_writes_local_report(tmp_path, monkeypatch):
     captured: dict[str, object] = {}
 
@@ -635,6 +817,64 @@ def test_main_report_writes_local_report(tmp_path, monkeypatch):
     assert captured["ascend_dir"] == tmp_path / "ascend"
     assert captured["accuracy_path"] == tmp_path / "accuracy.json"
     assert captured["output_path"] == tmp_path / "report.md"
+
+
+def test_main_publish_copies_run_artifacts(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_publish_run_artifacts(source_dir, dest_dir):
+        captured["source_dir"] = source_dir
+        captured["dest_dir"] = dest_dir
+        return object()
+
+    monkeypatch.setattr("cannbench.cli.publish_run_artifacts", fake_publish_run_artifacts)
+
+    exit_code = main(
+        [
+            "publish",
+            "--source",
+            str(tmp_path / "runs" / "softmax-run"),
+            "--dest",
+            str(tmp_path / "published" / "softmax-run"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["source_dir"] == tmp_path / "runs" / "softmax-run"
+    assert captured["dest_dir"] == tmp_path / "published" / "softmax-run"
+
+
+def test_main_serve_invokes_static_service(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+
+    def fake_serve_cannbench(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr("cannbench.cli.serve_cannbench", fake_serve_cannbench)
+
+    exit_code = main(
+        [
+            "serve",
+            "--frontend-dir",
+            str(tmp_path / "web" / "dist"),
+            "--published-dir",
+            str(tmp_path / "published"),
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "9000",
+            "--enable-gpu-upload",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured == {
+        "frontend_dir": tmp_path / "web" / "dist",
+        "published_dir": tmp_path / "published",
+        "host": "127.0.0.1",
+        "port": 9000,
+        "enable_gpu_upload": True,
+    }
 
 
 def test_main_summarize_profile_writes_summary(tmp_path, monkeypatch):

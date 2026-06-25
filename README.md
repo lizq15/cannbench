@@ -135,9 +135,76 @@ python3 -m pip install -e ".[dev]"
 
 Then install the matching PyTorch runtime stack for the target machine before running the benchmark.
 
+### Build a Release Package
+
+Build a self-contained release directory and tarball:
+
+```bash
+make release
+```
+
+The release package includes:
+
+- Python sources and project metadata
+- Built frontend assets from `web/dist`
+- Default prepared inputs under `prepared/<operator>/<dataset>/`
+
+Prepared inputs are generated with `dtype=float16` and `seed=7` by default. This allows the same release package to be unpacked on different GPU and Ascend machines while reusing the same input manifests.
+
+### Unified CLI
+
+Use `bench` for direct local execution:
+
+```bash
+cannbench bench \
+  --backend nvidia \
+  --op softmax \
+  --dtype float16 \
+  --dataset realistic \
+  --case-id t5_attention \
+  --warmup 10 \
+  --iterations 1
+```
+
+Use `collect` for remote execution. It can either consume an existing prepared input or generate one automatically from `op/dataset/case-id/dtype/seed` before uploading it to the remote host:
+
+```bash
+cannbench collect \
+  --endpoint configs/h800.json \
+  --op softmax \
+  --dtype float16 \
+  --dataset realistic \
+  --case-id t5_attention \
+  --output-dir runs/h800-softmax-realistic \
+  --profile-device-time
+```
+
+Use `publish` to mirror selected run artifacts into `published/` without raw profiler files:
+
+```bash
+cannbench publish \
+  --source runs/h800-softmax-realistic \
+  --dest published/h800-softmax-realistic
+```
+
+Use `serve` to host the frontend and published results. GPU JSON upload is disabled unless explicitly enabled:
+
+```bash
+cannbench serve \
+  --frontend-dir web/dist \
+  --published-dir published
+```
+
+```bash
+cannbench serve \
+  --frontend-dir web/dist \
+  --published-dir published \
+  --enable-gpu-upload
+```
+
 ### Run an operator benchmark
 
-The current operator path supports NVIDIA CUDA execution and an Ascend NPU backend adapter using the same dataset and materialization framework.
+The lower-level `operator` path supports NVIDIA CUDA execution and an Ascend NPU backend adapter using the same dataset and materialization framework.
 
 ```bash
 cannbench operator \
@@ -202,7 +269,7 @@ The Ascend backend is wired into the same operator framework as NVIDIA:
 - Same prepared-input flow
 - Same JSON / CSV / Markdown output writers
 
-Ascend execution requires a target machine with PyTorch and `torch_npu`. The repository includes a built-in Ascend custom `softmax` operator project. The custom-op deployment hook is intentionally a boolean flag:
+Ascend execution requires a target machine with PyTorch and `torch_npu`. The repository includes a built-in Ascend SIMT `softmax` operator project. The SIMT deployment hook is intentionally a boolean flag:
 
 ```bash
 cannbench operator \
@@ -217,11 +284,11 @@ When `--deploy-custom-op` is set, CannBench looks for:
 src/cannbench/datasets/data/<operator>/custom_ops/ascend/default/install.sh
 ```
 
-If that path is absent, the run fails with a clear error. If `--deploy-custom-op` is not set, CannBench skips custom-op deployment and uses the default Ascend operator library behavior available in the target runtime.
+If that path is absent, the run fails with a clear error. If `--deploy-custom-op` is not set, CannBench skips SIMT deployment and uses the default CANN ops library behavior available in the target runtime.
 
 ### Performance Viewer
 
-CannBench includes a static single-page frontend for inspecting normalized benchmark results, comparing GPU H800, Ascend NPU library, and multiple Ascend custom-op versions.
+CannBench includes a static single-page frontend for inspecting normalized benchmark results, comparing GPU H800, CANN ops library, and multiple Ascend SIMT operator versions.
 
 ```bash
 cd web

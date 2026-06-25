@@ -4,6 +4,9 @@ from pathlib import Path
 from cannbench.backends import get_backend
 from cannbench.core.config import OperatorBenchmarkRequest
 from cannbench.core.cuda_events import write_cuda_event_profile_csv
+from cannbench.core.layout import build_run_layout
+from cannbench.core.publish import publish_run_artifacts
+from cannbench.serve import serve_cannbench
 from cannbench.core.operator_output import (
     compare_operator_outputs,
     read_operator_output,
@@ -43,22 +46,78 @@ def _non_negative_float(value: str) -> float:
     return parsed
 
 
+def _benchmark_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--backend", choices=["nvidia", "ascend"], required=True)
+    parser.add_argument("--implementation", choices=["cann_ops_library", "simt"])
+    parser.add_argument("--op", choices=list_operator_names())
+    parser.add_argument("--dtype", default="float16")
+    parser.add_argument("--dataset", choices=["smoke", "realistic", "stress"], default="realistic")
+    parser.add_argument("--case-id")
+    parser.add_argument("--prepared-input", type=Path)
+    parser.add_argument("--deploy-custom-op", action="store_true", default=False)
+    parser.add_argument("--warmup", type=_non_negative_int, default=10)
+    parser.add_argument("--iterations", type=_positive_int, default=1)
+    parser.add_argument("--output-dir", type=Path, default=Path("results"))
+    parser.add_argument("--run-name", default="operator-benchmark")
+
+
+def _resolve_deploy_custom_op(backend: str, implementation: str | None, deploy_custom_op: bool) -> bool:
+    if backend != "ascend":
+        return deploy_custom_op
+    if implementation == "simt":
+        return True
+    if implementation == "cann_ops_library":
+        return False
+    return deploy_custom_op
+
+
+def _prepared_input_path(output_dir: Path, op: str, dataset: str, case_id: str, dtype: str, seed: int) -> Path:
+    layout = build_run_layout(output_dir, "_prepared")
+    return layout.root / op / dataset / f"{case_id}-{dtype}-seed{seed}.json"
+
+
+def _build_request_from_args(args: argparse.Namespace) -> OperatorBenchmarkRequest:
+    if args.prepared_input is not None:
+        prepared = read_prepared_operator_input(args.prepared_input)
+        return OperatorBenchmarkRequest(
+            backend=args.backend,
+            op=prepared.op,
+            dtype=prepared.dtype,
+            dataset=prepared.dataset,
+            case_id=prepared.case.case_id,
+            warmup=args.warmup,
+            iterations=args.iterations,
+            seed=prepared.seed,
+            deploy_custom_op=_resolve_deploy_custom_op(
+                args.backend, getattr(args, "implementation", None), args.deploy_custom_op
+            ),
+        )
+    if not args.op or not args.case_id:
+        raise ValueError("--op and --case-id are required unless --prepared-input is set")
+    return OperatorBenchmarkRequest(
+        backend=args.backend,
+        op=args.op,
+        dtype=args.dtype,
+        dataset=args.dataset,
+        case_id=args.case_id,
+        warmup=args.warmup,
+        iterations=args.iterations,
+        seed=getattr(args, "seed", 0),
+        deploy_custom_op=_resolve_deploy_custom_op(
+            args.backend, getattr(args, "implementation", None), args.deploy_custom_op
+        ),
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cannbench")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    bench = subparsers.add_parser("bench")
+    _benchmark_args(bench)
+
     operator = subparsers.add_parser("operator")
-    operator.add_argument("--backend", choices=["nvidia", "ascend"], required=True)
-    operator.add_argument("--op", choices=list_operator_names())
-    operator.add_argument("--dtype", default="float16")
-    operator.add_argument("--dataset", choices=["smoke", "realistic", "stress"], default="realistic")
-    operator.add_argument("--case-id")
-    operator.add_argument("--prepared-input", type=Path)
-    operator.add_argument("--deploy-custom-op", action="store_true", default=False)
-    operator.add_argument("--warmup", type=_non_negative_int, default=10)
-    operator.add_argument("--iterations", type=_positive_int, default=1)
-    operator.add_argument("--output-dir", type=Path, default=Path("results"))
-    operator.add_argument("--run-name", default="operator-benchmark")
+    _benchmark_args(operator)
 
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--op", choices=list_operator_names(), required=True)
@@ -88,15 +147,32 @@ def build_parser() -> argparse.ArgumentParser:
 
     collect = subparsers.add_parser("collect")
     collect.add_argument("--endpoint", type=Path, required=True)
-    collect.add_argument("--prepared-input", type=Path, required=True)
     collect.add_argument("--output-dir", type=Path, required=True)
     collect.add_argument("--run-id")
     collect.add_argument("--capture-output", action="store_true", default=False)
     collect.add_argument("--profile-device-time", action="store_true", default=False)
     collect.add_argument("--summarize-profile", action="store_true", default=False)
+    collect.add_argument("--implementation", choices=["cann_ops_library", "simt"])
+    collect.add_argument("--op", choices=list_operator_names())
+    collect.add_argument("--dtype", default="float16")
+    collect.add_argument("--dataset", choices=["smoke", "realistic", "stress"], default="realistic")
+    collect.add_argument("--case-id")
+    collect.add_argument("--seed", type=_non_negative_int, default=0)
+    collect.add_argument("--prepared-input", type=Path)
     collect.add_argument("--warmup", type=_non_negative_int, default=10)
     collect.add_argument("--iterations", type=_positive_int, default=1)
     collect.add_argument("--deploy-custom-op", action="store_true", default=False)
+
+    publish = subparsers.add_parser("publish")
+    publish.add_argument("--source", type=Path, required=True)
+    publish.add_argument("--dest", type=Path, required=True)
+
+    serve = subparsers.add_parser("serve")
+    serve.add_argument("--frontend-dir", type=Path, default=Path("web/dist"))
+    serve.add_argument("--published-dir", type=Path, default=Path("published"))
+    serve.add_argument("--host", default="127.0.0.1")
+    serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--enable-gpu-upload", action="store_true", default=False)
 
     report = subparsers.add_parser("report")
     report.add_argument("--nvidia", type=Path, required=True)
@@ -125,34 +201,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "operator":
+    if args.command in {"bench", "operator"}:
         try:
-            if args.prepared_input is not None:
-                prepared = read_prepared_operator_input(args.prepared_input)
-                request = OperatorBenchmarkRequest(
-                    backend=args.backend,
-                    op=prepared.op,
-                    dtype=prepared.dtype,
-                    dataset=prepared.dataset,
-                    case_id=prepared.case.case_id,
-                    warmup=args.warmup,
-                    iterations=args.iterations,
-                    seed=prepared.seed,
-                    deploy_custom_op=args.deploy_custom_op,
-                )
-            else:
-                if not args.op or not args.case_id:
-                    parser.error("--op and --case-id are required unless --prepared-input is set")
-                request = OperatorBenchmarkRequest(
-                    backend=args.backend,
-                    op=args.op,
-                    dtype=args.dtype,
-                    dataset=args.dataset,
-                    case_id=args.case_id,
-                    warmup=args.warmup,
-                    iterations=args.iterations,
-                    deploy_custom_op=args.deploy_custom_op,
-                )
+            request = _build_request_from_args(args)
             backend = get_backend(args.backend)
             result = backend.run_operator(request)
             write_benchmark_outputs(
@@ -218,9 +269,24 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(str(exc))
     elif args.command == "collect":
         try:
+            prepared_input = args.prepared_input
+            if prepared_input is None:
+                if not args.op or not args.case_id:
+                    parser.error("--op and --case-id are required unless --prepared-input is set")
+                prepared = build_prepared_operator_input(
+                    op=args.op,
+                    dtype=args.dtype,
+                    dataset=args.dataset,
+                    case_id=args.case_id,
+                    seed=args.seed,
+                )
+                prepared_input = _prepared_input_path(
+                    args.output_dir, args.op, args.dataset, args.case_id, args.dtype, args.seed
+                )
+                write_prepared_operator_input(prepared_input, prepared)
             collect_remote_artifacts(
                 endpoint_path=args.endpoint,
-                prepared_input=args.prepared_input,
+                prepared_input=prepared_input,
                 output_dir=args.output_dir,
                 run_id=args.run_id,
                 capture_output=args.capture_output,
@@ -228,7 +294,9 @@ def main(argv: list[str] | None = None) -> int:
                 summarize_profile=args.summarize_profile,
                 warmup=args.warmup,
                 iterations=args.iterations,
-                deploy_custom_op=args.deploy_custom_op,
+                deploy_custom_op=_resolve_deploy_custom_op(
+                    "ascend", args.implementation, args.deploy_custom_op
+                ),
             )
         except (RuntimeError, ValueError) as exc:
             parser.error(str(exc))
@@ -239,6 +307,22 @@ def main(argv: list[str] | None = None) -> int:
                 nvidia_dir=args.nvidia,
                 ascend_dir=args.ascend,
                 accuracy_path=args.accuracy,
+            )
+        except (RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+    elif args.command == "publish":
+        try:
+            publish_run_artifacts(args.source, args.dest)
+        except (RuntimeError, ValueError) as exc:
+            parser.error(str(exc))
+    elif args.command == "serve":
+        try:
+            serve_cannbench(
+                frontend_dir=args.frontend_dir,
+                published_dir=args.published_dir,
+                host=args.host,
+                port=args.port,
+                enable_gpu_upload=args.enable_gpu_upload,
             )
         except (RuntimeError, ValueError) as exc:
             parser.error(str(exc))
