@@ -168,6 +168,6 @@ def test_write_batch_summary_and_failures(tmp_path):
     write_batch_summary_csv(csv_path, rows)
     write_batch_failures_json(failures_path, failures)
 
-    assert json.loads(summary_path.read_text())["results"][0]["case_id"] == "tiny_logits"
+    assert json.loads(summary_path.read_text())["records"][0]["case_id"] == "tiny_logits"
     assert "tiny_logits" in csv_path.read_text()
-    assert json.loads(failures_path.read_text())["failures"][0]["error"] == "boom"
+    assert json.loads(failures_path.read_text())["records"][0]["error"] == "boom"

@@ -93,9 +93,10 @@ def write_batch_summary_json(
     metadata: BatchSummaryMetadata | None = None,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    records = [asdict(row) for row in rows]
     payload = {
         "result_count": len(rows),
-        "results": [asdict(row) for row in rows],
+        "records": records,
     }
     if metadata is not None:
         payload["metadata"] = asdict(metadata)
@@ -120,9 +121,10 @@ def write_batch_failures_json(
     metadata: BatchSummaryMetadata | None = None,
 ) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
+    records = [asdict(row) for row in rows]
     payload = {
         "failure_count": len(rows),
-        "failures": [asdict(row) for row in rows],
+        "records": records,
     }
     if metadata is not None:
         payload["metadata"] = asdict(metadata)

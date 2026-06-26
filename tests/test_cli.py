@@ -961,10 +961,11 @@ def test_main_runs_batch_collect_and_writes_aggregated_artifacts(tmp_path, monke
         "success_count": 2,
         "failure_count": 0,
     }
-    assert [row["status"] for row in summary["results"]] == ["ok", "ok"]
-    assert summary["results"][0]["prepared_input"] == "prepared/softmax/smoke/tiny_logits-float16-seed1.json"
-    assert summary["results"][0]["result_path"] == "perf/softmax-smoke-tiny_logits-float16-seed1.json"
+    assert [row["status"] for row in summary["records"]] == ["ok", "ok"]
+    assert summary["records"][0]["prepared_input"] == "prepared/softmax/smoke/tiny_logits-float16-seed1.json"
+    assert summary["records"][0]["result_path"] == "perf/softmax-smoke-tiny_logits-float16-seed1.json"
     assert failures["failure_count"] == 0
+    assert failures["records"] == []
 
 
 def test_main_batch_collect_records_failures_and_continues(tmp_path, monkeypatch, capsys):
@@ -1043,10 +1044,10 @@ def test_main_batch_collect_records_failures_and_continues(tmp_path, monkeypatch
         "softmax-remote-batch/softmax-smoke-tiny_logits-float16-seed1",
         "softmax-remote-batch/softmax-stress-wide_vocab_lm_logits-float16-seed2",
     ]
-    assert [row["status"] for row in summary["results"]] == ["failed", "ok"]
+    assert [row["status"] for row in summary["records"]] == ["failed", "ok"]
     assert failures["failure_count"] == 1
-    assert failures["failures"][0]["case_id"] == "tiny_logits"
-    assert failures["failures"][0]["error"] == "ssh timeout"
+    assert failures["records"][0]["case_id"] == "tiny_logits"
+    assert failures["records"][0]["error"] == "ssh timeout"
     assert "batch collect completed with 1 failures" in captured.err
 
 
@@ -1733,9 +1734,10 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
     assert summary["metadata"]["run_name"] == "softmax-smoke-batch"
     assert summary["metadata"]["backend"] == "nvidia"
     assert summary["result_count"] == len(smoke_cases)
-    assert all(row["status"] == "ok" for row in summary["results"])
-    assert summary["results"][0]["result_path"].startswith("perf/softmax-smoke-")
+    assert all(row["status"] == "ok" for row in summary["records"])
+    assert summary["records"][0]["result_path"].startswith("perf/softmax-smoke-")
     assert failures["failure_count"] == 0
+    assert failures["records"] == []
 
 
 def test_main_runs_batch_bench_once_per_prepared_case(tmp_path, monkeypatch):
@@ -1788,7 +1790,7 @@ def test_main_runs_batch_bench_once_per_prepared_case(tmp_path, monkeypatch):
 
     assert exit_code == 0
     assert seen_case_ids == ["tiny_logits", "wide_vocab_lm_logits"]
-    assert [row["case_id"] for row in summary["results"]] == ["tiny_logits", "wide_vocab_lm_logits"]
+    assert [row["case_id"] for row in summary["records"]] == ["tiny_logits", "wide_vocab_lm_logits"]
 
 
 def test_main_batch_bench_records_failures_and_continues(tmp_path, monkeypatch, capsys):
@@ -1846,9 +1848,9 @@ def test_main_batch_bench_records_failures_and_continues(tmp_path, monkeypatch, 
 
     assert excinfo.value.code == 2
     assert seen_case_ids == ["tiny_logits", "wide_vocab_lm_logits"]
-    assert [row["status"] for row in summary["results"]] == ["failed", "ok"]
+    assert [row["status"] for row in summary["records"]] == ["failed", "ok"]
     assert failures["failure_count"] == 1
-    assert failures["failures"][0]["case_id"] == "tiny_logits"
+    assert failures["records"][0]["case_id"] == "tiny_logits"
     assert "completed with 1 failures" in captured.err
 
 
