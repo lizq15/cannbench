@@ -7,6 +7,17 @@ from cannbench.core.result import OperatorBenchmarkResult
 SUPPORTED_OUTPUT_FORMATS = frozenset({"json", "csv", "md"})
 
 
+def build_benchmark_artifact_stem(
+    *,
+    op: str,
+    dataset: str,
+    case_id: str,
+    dtype: str,
+    seed: int,
+) -> str:
+    return f"{op}-{dataset}-{case_id}-{dtype}-seed{seed}"
+
+
 def write_benchmark_outputs(
     output_dir: Path,
     run_name: str,

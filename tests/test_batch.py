@@ -91,6 +91,25 @@ def test_expand_prepared_dir_sorts_json_files(tmp_path):
     assert [plan.source_path.name for plan in plans] == ["a.json", "b.json"]
 
 
+def test_expand_prepared_dir_recurses_generated_tree(tmp_path):
+    prepared_dir = tmp_path / "prepared"
+    prepared = build_prepared_operator_input(
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        seed=7,
+    )
+    nested = prepared_dir / "softmax" / "smoke"
+    nested.mkdir(parents=True)
+    write_prepared_operator_input(nested / "tiny_logits-float16-seed7.json", prepared)
+
+    plans = expand_prepared_input_plans(op="softmax", prepared_dir=prepared_dir)
+
+    assert len(plans) == 1
+    assert plans[0].source_path == nested / "tiny_logits-float16-seed7.json"
+
+
 def test_expand_prepared_dir_rejects_empty_directory(tmp_path):
     prepared_dir = tmp_path / "prepared"
     prepared_dir.mkdir()

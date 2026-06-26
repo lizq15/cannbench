@@ -50,6 +50,16 @@ class BatchFailureRecord:
     error: str
 
 
+@dataclass(frozen=True)
+class BatchSummaryMetadata:
+    backend: str
+    run_name: str
+    implementation: str | None
+    total_cases: int
+    success_count: int
+    failure_count: int
+
+
 def expand_prepared_input_plans(
     *,
     op: str | None = None,
@@ -77,12 +87,18 @@ def expand_prepared_input_plans(
     )
 
 
-def write_batch_summary_json(path: Path, rows: list[BatchResultRecord]) -> Path:
+def write_batch_summary_json(
+    path: Path,
+    rows: list[BatchResultRecord],
+    metadata: BatchSummaryMetadata | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "result_count": len(rows),
         "results": [asdict(row) for row in rows],
     }
+    if metadata is not None:
+        payload["metadata"] = asdict(metadata)
     path.write_text(json.dumps(payload, indent=2) + "\n")
     return path
 
@@ -98,12 +114,18 @@ def write_batch_summary_csv(path: Path, rows: list[BatchResultRecord]) -> Path:
     return path
 
 
-def write_batch_failures_json(path: Path, rows: list[BatchFailureRecord]) -> Path:
+def write_batch_failures_json(
+    path: Path,
+    rows: list[BatchFailureRecord],
+    metadata: BatchSummaryMetadata | None = None,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "failure_count": len(rows),
         "failures": [asdict(row) for row in rows],
     }
+    if metadata is not None:
+        payload["metadata"] = asdict(metadata)
     path.write_text(json.dumps(payload, indent=2) + "\n")
     return path
 
@@ -136,7 +158,7 @@ def _plans_from_prepared_dir(
 ) -> list[PreparedInputPlan]:
     if not prepared_dir.is_dir():
         raise ValueError(f"prepared input directory does not exist: {prepared_dir}")
-    paths = sorted(prepared_dir.glob("*.json"))
+    paths = sorted(prepared_dir.rglob("*.json"))
     if not paths:
         raise ValueError(f"prepared input directory does not contain any json manifests: {prepared_dir}")
     return [

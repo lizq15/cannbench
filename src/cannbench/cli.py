@@ -2,7 +2,15 @@ import argparse
 from pathlib import Path
 
 from cannbench.backends import get_backend
-from cannbench.core.batch import expand_prepared_input_plans
+from cannbench.core.batch import (
+    BatchFailureRecord,
+    BatchResultRecord,
+    BatchSummaryMetadata,
+    expand_prepared_input_plans,
+    write_batch_failures_json,
+    write_batch_summary_csv,
+    write_batch_summary_json,
+)
 from cannbench.core.config import OperatorBenchmarkRequest
 from cannbench.core.cuda_events import write_cuda_event_profile_csv
 from cannbench.core.layout import build_run_layout
@@ -16,13 +24,17 @@ from cannbench.core.operator_output import (
 )
 from cannbench.core.profile import read_device_profile, write_device_profile_summary
 from cannbench.core.prepared_input import (
+    PreparedOperatorInput,
     build_prepared_operator_input,
     read_prepared_operator_input,
     write_prepared_operator_input,
 )
 from cannbench.core.remote import collect_remote_artifacts
 from cannbench.core.report import write_local_report
-from cannbench.core.output import write_benchmark_outputs
+from cannbench.core.output import (
+    build_benchmark_artifact_stem,
+    write_benchmark_outputs,
+)
 from cannbench.operators import list_operator_names
 
 
@@ -78,22 +90,36 @@ def _prepared_input_path(output_dir: Path, op: str, dataset: str, case_id: str, 
     return layout.root / op / dataset / f"{case_id}-{dtype}-seed{seed}.json"
 
 
+def _prepared_manifest_path(base_dir: Path, op: str, dataset: str, case_id: str, dtype: str, seed: int) -> Path:
+    return base_dir / op / dataset / f"{case_id}-{dtype}-seed{seed}.json"
+
+
+def _build_request_from_prepared(
+    prepared: PreparedOperatorInput,
+    args: argparse.Namespace,
+) -> OperatorBenchmarkRequest:
+    if args.op and prepared.op != args.op:
+        raise ValueError(
+            f"prepared input operator mismatch: expected {args.op}, got {prepared.op}"
+        )
+    return OperatorBenchmarkRequest(
+        backend=args.backend,
+        op=prepared.op,
+        dtype=prepared.dtype,
+        dataset=prepared.dataset,
+        case_id=prepared.case.case_id,
+        warmup=args.warmup,
+        iterations=args.iterations,
+        seed=prepared.seed,
+        deploy_custom_op=_resolve_deploy_custom_op(
+            args.backend, getattr(args, "implementation", None), args.deploy_custom_op
+        ),
+    )
+
+
 def _build_request_from_args(args: argparse.Namespace) -> OperatorBenchmarkRequest:
     if args.prepared_input is not None:
-        prepared = read_prepared_operator_input(args.prepared_input)
-        return OperatorBenchmarkRequest(
-            backend=args.backend,
-            op=prepared.op,
-            dtype=prepared.dtype,
-            dataset=prepared.dataset,
-            case_id=prepared.case.case_id,
-            warmup=args.warmup,
-            iterations=args.iterations,
-            seed=prepared.seed,
-            deploy_custom_op=_resolve_deploy_custom_op(
-                args.backend, getattr(args, "implementation", None), args.deploy_custom_op
-            ),
-        )
+        return _build_request_from_prepared(read_prepared_operator_input(args.prepared_input), args)
     if not args.op:
         raise ValueError("--op is required")
     if not args.dataset or not args.case_id:
@@ -217,10 +243,13 @@ def _validate_benchmark_selection(
     prepared_input = getattr(args, "prepared_input", None)
     prepared_dir = getattr(args, "prepared_dir", None)
     case_id = getattr(args, "case_id", None)
+    dataset = getattr(args, "dataset", None)
     op = getattr(args, "op", None)
 
     if prepared_input is not None and prepared_dir is not None:
         raise ValueError("--prepared-input and --prepared-dir are mutually exclusive")
+    if (prepared_input is not None or prepared_dir is not None) and dataset is not None:
+        raise ValueError("--dataset cannot be used with --prepared-input or --prepared-dir")
     if (prepared_input is not None or prepared_dir is not None) and case_id is not None:
         raise ValueError("--case-id cannot be used with --prepared-input or --prepared-dir")
     if prepared_dir is not None and not op:
@@ -233,6 +262,161 @@ def _validate_benchmark_selection(
         raise ValueError("--run-name is required for batch execution")
 
 
+def _relative_artifact_path(root: Path, path: Path | None) -> str | None:
+    if path is None:
+        return None
+    return path.relative_to(root).as_posix()
+
+
+def _prepared_reference_for_plan(
+    args: argparse.Namespace,
+    prepared_dir: Path,
+    layout_root: Path,
+    plan,
+) -> tuple[Path, str]:
+    if plan.source_path is not None:
+        if getattr(args, "prepared_dir", None) is not None:
+            return plan.source_path, plan.source_path.name
+        return plan.source_path, plan.source_path.name
+
+    prepared_path = _prepared_manifest_path(
+        prepared_dir,
+        plan.op,
+        plan.dataset,
+        plan.case_id,
+        plan.dtype,
+        plan.seed,
+    )
+    write_prepared_operator_input(prepared_path, plan.prepared)
+    return prepared_path, _relative_artifact_path(layout_root, prepared_path) or prepared_path.name
+
+
+def _execute_benchmark_case(
+    backend,
+    request: OperatorBenchmarkRequest,
+    *,
+    output_dir: Path,
+    run_name: str,
+) -> dict[str, Path]:
+    result = backend.run_operator(request)
+    return write_benchmark_outputs(output_dir, run_name, result, request.output_formats)
+
+
+def _validate_unique_batch_artifact_stems(plans: list) -> None:
+    seen: dict[str, str] = {}
+    for plan in plans:
+        stem = build_benchmark_artifact_stem(
+            op=plan.op,
+            dataset=plan.dataset,
+            case_id=plan.case_id,
+            dtype=plan.dtype,
+            seed=plan.seed,
+        )
+        plan_ref = (
+            plan.source_path.as_posix()
+            if plan.source_path is not None
+            else f"{plan.op}/{plan.dataset}/{plan.case_id}"
+        )
+        previous_ref = seen.get(stem)
+        if previous_ref is not None:
+            raise ValueError(
+                "duplicate batch artifact stem "
+                f"{stem!r} from prepared inputs {previous_ref!r} and {plan_ref!r}"
+            )
+        seen[stem] = plan_ref
+
+
+def _run_batch_bench(args: argparse.Namespace) -> None:
+    plans = expand_prepared_input_plans(
+        op=args.op,
+        dtype=args.dtype,
+        dataset=args.dataset,
+        case_id=args.case_id,
+        prepared_input=args.prepared_input,
+        prepared_dir=args.prepared_dir,
+    )
+    _validate_unique_batch_artifact_stems(plans)
+    layout = build_run_layout(args.output_dir, args.run_name)
+    backend = get_backend(args.backend)
+    summary_rows: list[BatchResultRecord] = []
+    failure_rows: list[BatchFailureRecord] = []
+
+    for plan in plans:
+        _, prepared_reference = _prepared_reference_for_plan(
+            args, layout.prepared_dir, layout.root, plan
+        )
+        request = _build_request_from_prepared(plan.prepared, args)
+        artifact_stem = build_benchmark_artifact_stem(
+            op=plan.op,
+            dataset=plan.dataset,
+            case_id=plan.case_id,
+            dtype=plan.dtype,
+            seed=plan.seed,
+        )
+        try:
+            outputs = _execute_benchmark_case(
+                backend,
+                request,
+                output_dir=layout.perf_dir,
+                run_name=artifact_stem,
+            )
+            result_path = outputs.get("json")
+            if result_path is None and outputs:
+                result_path = next(iter(outputs.values()))
+            summary_rows.append(
+                BatchResultRecord(
+                    op=plan.op,
+                    dataset=plan.dataset,
+                    case_id=plan.case_id,
+                    dtype=plan.dtype,
+                    seed=plan.seed,
+                    status="ok",
+                    prepared_input=prepared_reference,
+                    result_path=_relative_artifact_path(layout.root, result_path),
+                )
+            )
+        except Exception as exc:
+            summary_rows.append(
+                BatchResultRecord(
+                    op=plan.op,
+                    dataset=plan.dataset,
+                    case_id=plan.case_id,
+                    dtype=plan.dtype,
+                    seed=plan.seed,
+                    status="failed",
+                    prepared_input=prepared_reference,
+                    result_path=None,
+                )
+            )
+            failure_rows.append(
+                BatchFailureRecord(
+                    op=plan.op,
+                    dataset=plan.dataset,
+                    case_id=plan.case_id,
+                    dtype=plan.dtype,
+                    seed=plan.seed,
+                    prepared_input=prepared_reference,
+                    error=str(exc),
+                )
+            )
+
+    metadata = BatchSummaryMetadata(
+        backend=args.backend,
+        run_name=args.run_name,
+        implementation=getattr(args, "implementation", None),
+        total_cases=len(summary_rows),
+        success_count=sum(1 for row in summary_rows if row.status == "ok"),
+        failure_count=len(failure_rows),
+    )
+    write_batch_summary_json(layout.meta_dir / "summary.json", summary_rows, metadata)
+    write_batch_summary_csv(layout.meta_dir / "summary.csv", summary_rows)
+    failures_path = write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
+    if failure_rows:
+        raise RuntimeError(
+            f"batch bench completed with {len(failure_rows)} failures; see {failures_path}"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -241,15 +425,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             _validate_benchmark_selection(args, allow_batch=args.command == "bench")
             if args.command == "bench" and _is_batch_mode(args):
-                expand_prepared_input_plans(
-                    op=args.op,
-                    dtype=args.dtype,
-                    dataset=args.dataset,
-                    case_id=args.case_id,
-                    prepared_input=args.prepared_input,
-                    prepared_dir=args.prepared_dir,
-                )
-                parser.error("batch bench execution is not implemented yet")
+                _run_batch_bench(args)
+                return 0
             request = _build_request_from_args(args)
             backend = get_backend(args.backend)
             result = backend.run_operator(request)
@@ -343,6 +520,8 @@ def main(argv: list[str] | None = None) -> int:
                     args.output_dir, args.op, args.dataset, args.case_id, args.dtype, args.seed
                 )
                 write_prepared_operator_input(prepared_input, prepared)
+            elif args.op is not None:
+                _build_request_from_prepared(read_prepared_operator_input(prepared_input), args)
             collect_remote_artifacts(
                 endpoint_path=args.endpoint,
                 prepared_input=prepared_input,

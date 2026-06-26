@@ -1,16 +1,21 @@
 import runpy
 import tomllib
+import json
 from pathlib import Path
 
 import pytest
 
 from cannbench.cli import build_parser, main
+from cannbench.core.layout import build_run_layout
 from cannbench.core.cuda_events import CudaEventProfileResult
 from cannbench.core.operator_output import CapturedOperatorOutput, OutputComparisonResult
 from cannbench.core.result import (
     OperatorBenchmarkResult,
+    OperatorCase,
     build_softmax_case,
 )
+from cannbench.core.prepared_input import build_prepared_operator_input, write_prepared_operator_input
+from cannbench.datasets import get_operator_dataset
 
 
 def sample_result() -> OperatorBenchmarkResult:
@@ -32,6 +37,27 @@ def sample_result() -> OperatorBenchmarkResult:
         ),
         warmup=2,
         iterations=3,
+    )
+
+
+def result_for_request(request) -> OperatorBenchmarkResult:
+    return OperatorBenchmarkResult(
+        backend=request.backend,
+        device_name="Fake GPU",
+        op=request.op,
+        dtype=request.dtype,
+        case=OperatorCase(
+            case_id=request.case_id,
+            family=request.family,
+            source_kind=request.source_kind,
+            source_project=request.source_project,
+            source_model=request.source_model,
+            source_file=request.source_file,
+            source_op=request.source_op,
+            payload=request.case_payload,
+        ),
+        warmup=request.warmup,
+        iterations=request.iterations,
     )
 
 
@@ -1277,6 +1303,270 @@ def test_main_rejects_operator_prepared_dir(tmp_path, capsys):
     captured = capsys.readouterr()
     assert excinfo.value.code == 2
     assert "--prepared-dir is only supported for bench and collect" in captured.err
+
+
+def test_main_rejects_dataset_with_prepared_dir(tmp_path, capsys):
+    prepared_dir = tmp_path / "prepared"
+    prepared_dir.mkdir()
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "bench",
+                "--backend",
+                "nvidia",
+                "--op",
+                "softmax",
+                "--prepared-dir",
+                str(prepared_dir),
+                "--dataset",
+                "smoke",
+                "--run-name",
+                "softmax-batch",
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert excinfo.value.code == 2
+    assert "--dataset cannot be used with --prepared-input or --prepared-dir" in captured.err
+
+
+def test_main_rejects_prepared_input_operator_mismatch(tmp_path, capsys):
+    prepared_path = tmp_path / "prepared-softmax.json"
+    prepared_path.write_text(
+        """{
+  "schema_version": 1,
+  "op": "softmax",
+  "dtype": "float16",
+  "dataset": "smoke",
+  "seed": 7,
+  "case": {
+    "case_id": "tiny_logits",
+    "family": "lm_logits",
+    "source_kind": "synthetic_smoke",
+    "source_project": "cannbench",
+    "source_model": "smoke_fixture",
+    "source_file": "built-in",
+    "source_op": "softmax",
+    "payload": {
+      "dimensions": [32, 128],
+      "dim": -1
+    }
+  }
+}
+"""
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "operator",
+                "--backend",
+                "nvidia",
+                "--op",
+                "embedding",
+                "--prepared-input",
+                str(prepared_path),
+                "--run-name",
+                "prepared-run",
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert excinfo.value.code == 2
+    assert "prepared input operator mismatch: expected embedding, got softmax" in captured.err
+
+
+def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monkeypatch):
+    captured_requests: list[object] = []
+    smoke_cases = get_operator_dataset("softmax").get("smoke").cases
+
+    class FakeBackend:
+        def run_operator(self, request):
+            captured_requests.append(request)
+            return result_for_request(request)
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--dataset",
+            "smoke",
+            "--output-dir",
+            str(tmp_path),
+            "--run-name",
+            "softmax-smoke-batch",
+        ]
+    )
+
+    layout = build_run_layout(tmp_path, "softmax-smoke-batch")
+    summary = json.loads((layout.meta_dir / "summary.json").read_text())
+    failures = json.loads((layout.meta_dir / "failures.json").read_text())
+
+    assert exit_code == 0
+    assert len(captured_requests) == len(smoke_cases)
+    assert (layout.prepared_dir / "softmax" / "smoke" / "tiny_logits-float16-seed0.json").exists()
+    assert (layout.perf_dir / "softmax-smoke-tiny_logits-float16-seed0.json").exists()
+    assert summary["metadata"]["run_name"] == "softmax-smoke-batch"
+    assert summary["metadata"]["backend"] == "nvidia"
+    assert summary["result_count"] == len(smoke_cases)
+    assert all(row["status"] == "ok" for row in summary["results"])
+    assert summary["results"][0]["result_path"].startswith("perf/softmax-smoke-")
+    assert failures["failure_count"] == 0
+
+
+def test_main_runs_batch_bench_once_per_prepared_case(tmp_path, monkeypatch):
+    prepared_dir = tmp_path / "prepared"
+    prepared_dir.mkdir()
+    alpha = build_prepared_operator_input(
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        seed=1,
+    )
+    beta = build_prepared_operator_input(
+        op="softmax",
+        dtype="float16",
+        dataset="stress",
+        case_id="wide_vocab_lm_logits",
+        seed=2,
+    )
+    write_prepared_operator_input(prepared_dir / "b.json", beta)
+    write_prepared_operator_input(prepared_dir / "a.json", alpha)
+
+    seen_case_ids: list[str] = []
+
+    class FakeBackend:
+        def run_operator(self, request):
+            seen_case_ids.append(request.case_id)
+            return result_for_request(request)
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--prepared-dir",
+            str(prepared_dir),
+            "--output-dir",
+            str(tmp_path),
+            "--run-name",
+            "prepared-batch",
+        ]
+    )
+
+    layout = build_run_layout(tmp_path, "prepared-batch")
+    summary = json.loads((layout.meta_dir / "summary.json").read_text())
+
+    assert exit_code == 0
+    assert seen_case_ids == ["tiny_logits", "wide_vocab_lm_logits"]
+    assert [row["case_id"] for row in summary["results"]] == ["tiny_logits", "wide_vocab_lm_logits"]
+
+
+def test_main_batch_bench_records_failures_and_continues(tmp_path, monkeypatch, capsys):
+    prepared_dir = tmp_path / "prepared"
+    prepared_dir.mkdir()
+    alpha = build_prepared_operator_input(
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        seed=1,
+    )
+    beta = build_prepared_operator_input(
+        op="softmax",
+        dtype="float16",
+        dataset="stress",
+        case_id="wide_vocab_lm_logits",
+        seed=2,
+    )
+    write_prepared_operator_input(prepared_dir / "a.json", alpha)
+    write_prepared_operator_input(prepared_dir / "b.json", beta)
+
+    seen_case_ids: list[str] = []
+
+    class FakeBackend:
+        def run_operator(self, request):
+            seen_case_ids.append(request.case_id)
+            if request.case_id == "tiny_logits":
+                raise OSError("kernel launch failed")
+            return result_for_request(request)
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "bench",
+                "--backend",
+                "nvidia",
+                "--op",
+                "softmax",
+                "--prepared-dir",
+                str(prepared_dir),
+                "--output-dir",
+                str(tmp_path),
+                "--run-name",
+                "prepared-batch",
+            ]
+        )
+
+    layout = build_run_layout(tmp_path, "prepared-batch")
+    summary = json.loads((layout.meta_dir / "summary.json").read_text())
+    failures = json.loads((layout.meta_dir / "failures.json").read_text())
+    captured = capsys.readouterr()
+
+    assert excinfo.value.code == 2
+    assert seen_case_ids == ["tiny_logits", "wide_vocab_lm_logits"]
+    assert [row["status"] for row in summary["results"]] == ["failed", "ok"]
+    assert failures["failure_count"] == 1
+    assert failures["failures"][0]["case_id"] == "tiny_logits"
+    assert "completed with 1 failures" in captured.err
+
+
+def test_main_batch_bench_rejects_duplicate_artifact_stems(tmp_path, capsys):
+    prepared_dir = tmp_path / "prepared"
+    prepared_dir.mkdir()
+    prepared = build_prepared_operator_input(
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        seed=7,
+    )
+    write_prepared_operator_input(prepared_dir / "a.json", prepared)
+    write_prepared_operator_input(prepared_dir / "b.json", prepared)
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "bench",
+                "--backend",
+                "nvidia",
+                "--op",
+                "softmax",
+                "--prepared-dir",
+                str(prepared_dir),
+                "--output-dir",
+                str(tmp_path),
+                "--run-name",
+                "prepared-batch",
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert excinfo.value.code == 2
+    assert "duplicate batch artifact stem" in captured.err
 
 
 def test_main_converts_backend_runtime_failure_to_cli_error(monkeypatch, capsys):
