@@ -30,10 +30,10 @@ const records: BenchmarkRecord[] = [
     backend: "ascend",
     device_class: "Ascend",
     implementation: "simt",
-    implementation_version: "dynamic-ubuf",
+    implementation_version: "v1",
     metrics: { latency_ms_avg: 0.014, latency_ms_p50: 0.014, latency_ms_p95: 0.015, sample_count: 1 },
     accuracy: { passed: true, max_abs_error: 0.0004, max_rel_error: 0.0008 },
-    diff_ref: "softmax/simt/dynamic-ubuf"
+    diff_ref: "softmax/simt/v1"
   }
 ];
 
@@ -46,7 +46,7 @@ describe("buildBenchmarkViewModel", () => {
     expect(model.casesFor("softmax", "realistic")).toHaveLength(1);
     expect(model.seriesFor("softmax", "realistic").map((series) => series.name)).toEqual([
       "GPU H800",
-      "SIMT op: dynamic-ubuf"
+      "SIMT op: v1"
     ]);
   });
 });

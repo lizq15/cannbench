@@ -75,3 +75,8 @@ export interface SimtOperatorDiff {
   compare_version: string;
   patch: string;
 }
+
+export interface SimtOperatorVersionIndex {
+  operator: string;
+  versions: string[];
+}

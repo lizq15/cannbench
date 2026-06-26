@@ -115,6 +115,28 @@ def _resolve_simt_operator_dir(operator: str, version: str, datasets_root: Path 
     return target
 
 
+def list_simt_operator_versions(
+    operator: str,
+    datasets_root: Path | None = None,
+) -> tuple[str, ...]:
+    safe_operator = _validate_component(operator, "operator")
+    root = (datasets_root or _datasets_root()).resolve()
+    target = (root / safe_operator / "custom_ops" / "ascend").resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("resolved versions path escapes datasets root") from exc
+    if not target.is_dir():
+        return ()
+    return tuple(
+        sorted(
+            path.name
+            for path in target.iterdir()
+            if path.is_dir() and path.name != "__pycache__" and not path.name.startswith(".")
+        )
+    )
+
+
 def _read_text_lines(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines()
 
@@ -340,6 +362,9 @@ class CannBenchRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlsplit(self.path)
+        if parsed.path == "/api/simt-versions":
+            self._handle_simt_versions(parsed.query)
+            return
         if parsed.path == "/api/simt-diff":
             self._handle_simt_diff(parsed.query)
             return
@@ -380,6 +405,26 @@ class CannBenchRequestHandler(SimpleHTTPRequestHandler):
         output_path.write_text(json.dumps(payload, indent=2) + "\n")
 
         response = json.dumps({"ok": True, "path": str(output_path.relative_to(self._published_dir))}).encode()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(response)))
+        self.end_headers()
+        self.wfile.write(response)
+
+    def _handle_simt_versions(self, query: str) -> None:
+        params = parse_qs(query, keep_blank_values=False)
+        operator = params.get("operator", [None])[0]
+        if not operator:
+            self.send_error(HTTPStatus.BAD_REQUEST, "operator is required")
+            return
+
+        try:
+            versions = list_simt_operator_versions(operator)
+        except ValueError as exc:
+            self.send_error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
+
+        response = json.dumps({"operator": operator, "versions": versions}).encode()
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(response)))

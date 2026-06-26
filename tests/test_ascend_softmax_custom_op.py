@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 CUSTOM_OP_ROOT = Path(
-    "src/cannbench/datasets/data/softmax/custom_ops/ascend/default/"
+    "src/cannbench/datasets/data/softmax/custom_ops/ascend/v1/"
     "aten_softmax/csrc/simt"
 )
 

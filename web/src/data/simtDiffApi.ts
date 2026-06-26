@@ -1,4 +1,17 @@
-import type { SimtOperatorDiff } from "../types";
+import type { SimtOperatorDiff, SimtOperatorVersionIndex } from "../types";
+
+export async function fetchSimtOperatorVersions(
+  operator: string,
+  signal?: AbortSignal
+): Promise<SimtOperatorVersionIndex> {
+  const params = new URLSearchParams({ operator });
+  const response = await fetch(`/api/simt-versions?${params.toString()}`, { signal });
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `SIMT version request failed with status ${response.status}`);
+  }
+  return (await response.json()) as SimtOperatorVersionIndex;
+}
 
 export async function fetchSimtOperatorDiff(
   operator: string,

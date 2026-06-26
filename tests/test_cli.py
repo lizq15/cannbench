@@ -1925,10 +1925,10 @@ def test_python_m_cannbench_exits_with_main_return_code(monkeypatch):
     assert excinfo.value.code == 7
 
 
-def test_package_data_includes_ascend_custom_op_defaults():
+def test_package_data_includes_ascend_custom_op_v1():
     with open("pyproject.toml", "rb") as config:
         payload = tomllib.load(config)
 
     package_data = payload["tool"]["setuptools"]["package-data"]
 
-    assert "cannbench.datasets.data.*.custom_ops.ascend.default" in package_data
+    assert "cannbench.datasets.data.*.custom_ops.ascend.v1" in package_data

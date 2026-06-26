@@ -226,7 +226,7 @@ def test_ascend_backend_skips_custom_op_deployment_when_disabled(monkeypatch):
     assert "called" not in captured
 
 
-def test_ascend_backend_deploys_default_custom_op_when_enabled(monkeypatch, tmp_path):
+def test_ascend_backend_deploys_v1_custom_op_when_enabled(monkeypatch, tmp_path):
     captured: dict[str, object] = {}
     op_dir = (
         tmp_path
@@ -237,7 +237,7 @@ def test_ascend_backend_deploys_default_custom_op_when_enabled(monkeypatch, tmp_
         / "softmax"
         / "custom_ops"
         / "ascend"
-        / "default"
+        / "v1"
     )
     op_dir.mkdir(parents=True)
     install_script = op_dir / "install.sh"

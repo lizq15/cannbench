@@ -41,7 +41,7 @@ class AscendBackend(TorchOperatorBackend):
 
     def _custom_op_base_dir(self, op_name: str):
         return files("cannbench.datasets.data").joinpath(
-            op_name, "custom_ops", "ascend", "default"
+            op_name, "custom_ops", "ascend", "v1"
         )
 
     def _deploy_custom_op(self, request: OperatorBenchmarkRequest, op_name: str) -> None:

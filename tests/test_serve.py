@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from cannbench.serve import build_simt_operator_diff, validate_gpu_benchmark_upload
+from cannbench.serve import (
+    build_simt_operator_diff,
+    list_simt_operator_versions,
+    validate_gpu_benchmark_upload,
+)
 
 
 def _valid_gpu_upload():
@@ -73,10 +77,21 @@ def test_validate_gpu_benchmark_upload_rejects_code_snippet_in_allowed_field():
     assert "code-like content rejected at payload.records[0].implementation_version" in result.errors
 
 
+def test_list_simt_operator_versions_returns_sorted_directory_names(tmp_path: Path):
+    datasets_root = tmp_path / "datasets"
+    ascend_root = datasets_root / "softmax" / "custom_ops" / "ascend"
+    (ascend_root / "v2").mkdir(parents=True)
+    (ascend_root / "v1").mkdir(parents=True)
+
+    versions = list_simt_operator_versions("softmax", datasets_root=datasets_root)
+
+    assert versions == ("v1", "v2")
+
+
 def test_build_simt_operator_diff_uses_real_version_directories(tmp_path: Path):
     datasets_root = tmp_path / "datasets"
-    base_root = datasets_root / "softmax" / "custom_ops" / "ascend" / "dynamic-ubuf"
-    compare_root = datasets_root / "softmax" / "custom_ops" / "ascend" / "tiled-v2"
+    base_root = datasets_root / "softmax" / "custom_ops" / "ascend" / "v1"
+    compare_root = datasets_root / "softmax" / "custom_ops" / "ascend" / "v2"
     base_root.mkdir(parents=True)
     compare_root.mkdir(parents=True)
 
@@ -88,14 +103,14 @@ def test_build_simt_operator_diff_uses_real_version_directories(tmp_path: Path):
 
     diff = build_simt_operator_diff(
         "softmax",
-        "dynamic-ubuf",
-        "tiled-v2",
+        "v1",
+        "v2",
         datasets_root=datasets_root,
     )
 
     assert diff.operator == "softmax"
-    assert diff.base_version == "dynamic-ubuf"
-    assert diff.compare_version == "tiled-v2"
+    assert diff.base_version == "v1"
+    assert diff.compare_version == "v2"
     assert diff.patch.startswith(
         "diff --git a/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc "
         "b/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc"

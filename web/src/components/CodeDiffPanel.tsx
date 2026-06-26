@@ -2,33 +2,17 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Diff, Hunk, parseDiff } from "react-diff-view";
 import "react-diff-view/style/index.css";
-import { fetchSimtOperatorDiff } from "../data/simtDiffApi";
-import type { BenchmarkRecord, SimtOperatorDiff } from "../types";
+import { fetchSimtOperatorDiff, fetchSimtOperatorVersions } from "../data/simtDiffApi";
+import type { SimtOperatorDiff } from "../types";
 
 interface CodeDiffPanelProps {
   operator: string;
-  simtRecords: BenchmarkRecord[];
 }
 
 type SelectionSlot = "base" | "compare";
 
 interface SimtVersionOption {
   version: string;
-}
-
-function buildVersionOptions(records: BenchmarkRecord[]): SimtVersionOption[] {
-  const seen = new Set<string>();
-  const options: SimtVersionOption[] = [];
-  for (const record of records) {
-    if (record.implementation !== "simt" || seen.has(record.implementation_version)) {
-      continue;
-    }
-    seen.add(record.implementation_version);
-    options.push({
-      version: record.implementation_version
-    });
-  }
-  return options;
 }
 
 function countPatchLines(patch: string) {
@@ -52,17 +36,53 @@ function countPatchLines(patch: string) {
   return { additions, deletions };
 }
 
-export function CodeDiffPanel({ operator, simtRecords }: CodeDiffPanelProps) {
+export function CodeDiffPanel({ operator }: CodeDiffPanelProps) {
   const [mode, setMode] = useState<"split" | "unified">("split");
   const [open, setOpen] = useState(false);
   const [activeSlot, setActiveSlot] = useState<SelectionSlot>("compare");
-  const versionOptions = buildVersionOptions(simtRecords);
+  const [versionOptions, setVersionOptions] = useState<SimtVersionOption[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const [versionError, setVersionError] = useState<string | null>(null);
   const versionSignature = versionOptions.map((option) => option.version).join("|");
   const [baseVersion, setBaseVersion] = useState<string | null>(null);
   const [compareVersion, setCompareVersion] = useState<string | null>(null);
   const [diff, setDiff] = useState<SimtOperatorDiff | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoadingVersions(true);
+    setVersionError(null);
+    setVersionOptions([]);
+    setBaseVersion(null);
+    setCompareVersion(null);
+    setDiff(null);
+    setDiffError(null);
+    setOpen(false);
+
+    fetchSimtOperatorVersions(operator, controller.signal)
+      .then((result) => {
+        setVersionOptions(result.versions.map((version) => ({ version })));
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        const message = error instanceof Error ? error.message : "Failed to load SIMT operator versions.";
+        setVersionError(message);
+        setVersionOptions([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingVersions(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [operator]);
 
   useEffect(() => {
     if (versionOptions.length >= 2) {
@@ -83,7 +103,7 @@ export function CodeDiffPanel({ operator, simtRecords }: CodeDiffPanelProps) {
   }, [versionSignature]);
 
   useEffect(() => {
-    if (versionOptions.length < 2 || !baseVersion || !compareVersion) {
+    if (isLoadingVersions || versionOptions.length < 2 || !baseVersion || !compareVersion) {
       setDiff(null);
       setDiffError(null);
       setIsLoading(false);
@@ -149,9 +169,9 @@ export function CodeDiffPanel({ operator, simtRecords }: CodeDiffPanelProps) {
     versionOptions.length < 2
       ? {
           title: "No diff available",
-          description: "Need at least two SIMT operator versions to compare."
+          description: versionError ?? "Need at least two SIMT operator versions to compare."
         }
-      : isLoading
+      : isLoadingVersions || isLoading
         ? {
             title: "Loading diff",
             description: "Comparing repository-owned SIMT operator directories."
@@ -287,7 +307,7 @@ export function CodeDiffPanel({ operator, simtRecords }: CodeDiffPanelProps) {
       ) : (
         <>
           <div className="diff-summary-row">
-            <p className="diff-summary-inline">{isLoading ? "Loading diff summary" : "No diff summary"}</p>
+            <p className="diff-summary-inline">{isLoadingVersions || isLoading ? "Loading diff summary" : "No diff summary"}</p>
             <button type="button" className="diff-open-button" disabled>
               Details
             </button>

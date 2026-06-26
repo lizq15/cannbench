@@ -293,7 +293,7 @@ The Ascend backend is wired into the same operator framework as NVIDIA:
 - Same prepared-input flow
 - Same JSON / CSV / Markdown output writers
 
-Ascend execution requires a target machine with PyTorch and `torch_npu`. The repository includes a built-in Ascend SIMT `softmax` operator project. The SIMT deployment hook is intentionally a boolean flag:
+Ascend execution requires a target machine with PyTorch and `torch_npu`. The repository includes a built-in Ascend SIMT `softmax` operator project under version `v1`. The SIMT deployment hook is intentionally a boolean flag:
 
 ```bash
 cannbench operator \
@@ -305,7 +305,7 @@ cannbench operator \
 When `--deploy-custom-op` is set, CannBench looks for:
 
 ```text
-src/cannbench/datasets/data/<operator>/custom_ops/ascend/default/install.sh
+src/cannbench/datasets/data/<operator>/custom_ops/ascend/v1/install.sh
 ```
 
 If that path is absent, the run fails with a clear error. If `--deploy-custom-op` is not set, CannBench skips SIMT deployment and uses the default CANN ops library behavior available in the target runtime.

@@ -39,7 +39,6 @@ export function App() {
   const selectedCaseRecords = selectedCaseId
     ? viewModel.recordsForCase(selectedOperator, selectedDataset, selectedCaseId)
     : [];
-  const selectedSimtRecords = selectedCaseRecords.filter((record) => record.implementation === "simt");
   const dtypes = [...new Set(cases.map((item) => item.dtype))];
   const simtVersions = [
     ...new Set(
@@ -159,7 +158,7 @@ export function App() {
           <KernelTraceRail records={selectedCaseRecords} />
           <BenchmarkChart series={series} caseIds={cases.map((item) => item.caseId)} />
           <CaseTable cases={cases} selectedCaseId={selectedCaseId} onSelectCase={setSelectedCaseId} />
-          <CodeDiffPanel operator={selectedOperator} simtRecords={selectedSimtRecords} />
+          <CodeDiffPanel operator={selectedOperator} />
         </section>
       </div>
       <GpuBenchmarkImport uploadEnabled={false} open={importOpen} onClose={() => setImportOpen(false)} />

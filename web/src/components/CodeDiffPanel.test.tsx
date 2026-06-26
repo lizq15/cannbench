@@ -1,8 +1,7 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BenchmarkRecord } from "../types";
 import { CodeDiffPanel } from "./CodeDiffPanel";
 
 afterEach(() => {
@@ -13,13 +12,24 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        operator: "softmax",
-        base_version: "dynamic-ubuf",
-        compare_version: "tiled-v2",
-        patch: `diff --git a/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc b/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc
+    vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/simt-versions")) {
+        return {
+          ok: true,
+          json: async () => ({
+            operator: "softmax",
+            versions: ["v1", "v2"]
+          })
+        };
+      }
+      return {
+        ok: true,
+        json: async () => ({
+          operator: "softmax",
+          base_version: "v1",
+          compare_version: "v2",
+          patch: `diff --git a/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc b/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc
 --- a/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc
 +++ b/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc
 @@ -1,2 +1,2 @@
@@ -27,52 +37,25 @@ beforeEach(() => {
 +beta
  gamma
 `
-      })
-    }))
+        })
+      };
+    })
   );
 });
-
-const dynamicUbufRecord: BenchmarkRecord = {
-  schema_version: 1,
-  run_id: "softmax-realistic-ascend-simt-20260624",
-  operator: "softmax",
-  dataset: "realistic",
-  case_id: "gptj_attention",
-  shape: [32, 16, 2048],
-  dtype: "float16",
-  backend: "ascend",
-  device_class: "910b",
-  implementation: "simt",
-  implementation_version: "dynamic-ubuf",
-  metrics: {
-    latency_ms_avg: 0.12,
-    latency_ms_p50: 0.11,
-    latency_ms_p95: 0.14,
-    sample_count: 1
-  },
-  accuracy: {
-    passed: true,
-    max_abs_error: 0,
-    max_rel_error: 0
-  },
-  diff_ref: "softmax/simt/dynamic-ubuf"
-};
-
-const tiledV2Record: BenchmarkRecord = {
-  ...dynamicUbufRecord,
-  implementation_version: "tiled-v2",
-  diff_ref: "softmax/simt/tiled-v2"
-};
 
 describe("CodeDiffPanel", () => {
   it("renders version selectors and opens the diff workspace", async () => {
     const user = userEvent.setup();
 
-    render(<CodeDiffPanel operator="softmax" simtRecords={[dynamicUbufRecord, tiledV2Record]} />);
+    render(<CodeDiffPanel operator="softmax" />);
 
     expect(screen.getByText(/simt operator diff/i)).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /dynamic-ubuf/i })).toHaveLength(2);
-    expect(screen.getAllByRole("button", { name: /tiled-v2/i })).toHaveLength(2);
+    expect(await screen.findByRole("button", { name: /^v1$/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^v2$/i })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /base/i })).toHaveTextContent(/v1/i);
+      expect(screen.getByRole("button", { name: /compare/i })).toHaveTextContent(/v2/i);
+    });
     expect(await screen.findByRole("button", { name: /details/i })).toBeEnabled();
     expect(await screen.findByText(/1 files changed/i)).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: /simt operator diff workspace/i })).not.toBeInTheDocument();
@@ -84,11 +67,28 @@ describe("CodeDiffPanel", () => {
     expect(screen.getByText(/unified diff/i)).toBeInTheDocument();
   });
 
-  it("shows the empty state when only one simt version exists", () => {
-    render(<CodeDiffPanel operator="softmax" simtRecords={[dynamicUbufRecord]} />);
+  it("shows the empty state when only one simt version exists", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/api/simt-versions")) {
+          return {
+            ok: true,
+            json: async () => ({
+              operator: "softmax",
+              versions: ["v1"]
+            })
+          };
+        }
+        throw new Error("unexpected diff request");
+      })
+    );
 
-    expect(screen.getByText(/no diff available/i)).toBeInTheDocument();
-    expect(screen.getByText(/need at least two simt operator versions to compare/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /details/i })).toBeDisabled();
+    render(<CodeDiffPanel operator="softmax" />);
+
+    expect(await screen.findByText(/no diff available/i)).toBeInTheDocument();
+    expect(await screen.findByText(/need at least two simt operator versions to compare/i)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /details/i })).toBeDisabled();
   });
 });

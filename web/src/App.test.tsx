@@ -10,22 +10,19 @@ beforeAll(() => {
   } as CanvasRenderingContext2D);
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () => ({
-      ok: true,
-      json: async () => ({
-        operator: "softmax",
-        base_version: "dynamic-ubuf",
-        compare_version: "tiled-v2",
-        patch: `diff --git a/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc b/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc
---- a/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc
-+++ b/src/cannbench/datasets/data/softmax/custom_ops/ascend/aten_softmax/csrc/simt/spatial_softmax.asc
-@@ -1,2 +1,2 @@
--alpha
-+beta
- gamma
-`
-      })
-    }))
+    vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/simt-versions")) {
+        return {
+          ok: true,
+          json: async () => ({
+            operator: "softmax",
+            versions: ["v1"]
+          })
+        };
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    })
   );
 });
 
