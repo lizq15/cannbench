@@ -1,9 +1,8 @@
 export type TreasureNodeKind = "main" | "branch";
 
-export interface TreasureNode {
+interface BaseTreasureNode {
   id: string;
   label: string;
-  kind: TreasureNodeKind;
   x: number;
   y: number;
   summary: string;
@@ -11,8 +10,19 @@ export interface TreasureNode {
   guideSections: string[];
   relatedOptimizationIds: string[];
   importance?: "normal" | "high";
-  branchFrom?: string;
 }
+
+export interface MainTreasureNode extends BaseTreasureNode {
+  kind: "main";
+  branchFrom?: never;
+}
+
+export interface BranchTreasureNode extends BaseTreasureNode {
+  kind: "branch";
+  branchFrom: string;
+}
+
+export type TreasureNode = MainTreasureNode | BranchTreasureNode;
 
 export const cudaTreasureRoute: TreasureNode[] = [
   {
