@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 
 beforeAll(() => {
@@ -28,6 +28,12 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
+});
+
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2024, 0, 1, 12, 0, 0));
 });
 
 describe("App", () => {
@@ -45,25 +51,47 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: /bert_token_embedding/i })).toBeInTheDocument();
   });
 
-  it("opens the GPU JSON import dialog after three title clicks", async () => {
+  it("opens the GPU JSON import dialog after three title clicks in light theme", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     expect(screen.queryByRole("dialog", { name: /GPU benchmark import/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /CUDA operator treasure route/i })).not.toBeInTheDocument();
 
     const titleTrigger = screen.getByRole("button", { name: /^CANNBench$/i });
     await user.click(titleTrigger);
     await user.click(titleTrigger);
     expect(screen.queryByRole("dialog", { name: /GPU benchmark import/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /CUDA operator treasure route/i })).not.toBeInTheDocument();
 
     await user.click(titleTrigger);
     expect(screen.getByRole("dialog", { name: /GPU benchmark import/i })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /CUDA operator treasure route/i })).not.toBeInTheDocument();
     expect(screen.getByText(/Import GPU benchmark/i)).toBeInTheDocument();
     expect(screen.queryByText(/^Local validation required$/i)).not.toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(
       /GPU benchmark data only\. Never upload code, documents, environment details, employee IDs, or any sensitive content\. Violations are your responsibility\./i
     );
     expect(screen.getByRole("button", { name: /^Submit$/i })).toBeDisabled();
+  });
+
+  it("opens the CUDA treasure map dialog after three title clicks in dark theme", async () => {
+    vi.setSystemTime(new Date(2024, 0, 1, 22, 0, 0));
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(screen.queryByRole("dialog", { name: /CUDA operator treasure route/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /GPU benchmark import/i })).not.toBeInTheDocument();
+
+    const titleTrigger = screen.getByRole("button", { name: /^CANNBench$/i });
+    await user.click(titleTrigger);
+    await user.click(titleTrigger);
+    expect(screen.queryByRole("dialog", { name: /CUDA operator treasure route/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /GPU benchmark import/i })).not.toBeInTheDocument();
+
+    await user.click(titleTrigger);
+    expect(screen.getByRole("dialog", { name: /CUDA operator treasure route/i })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /GPU benchmark import/i })).not.toBeInTheDocument();
   });
 
   it("syncs the selected theme to document body for portaled dialogs", async () => {

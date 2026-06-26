@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { BenchmarkChart } from "./components/BenchmarkChart";
 import { CaseTable } from "./components/CaseTable";
 import { CodeDiffPanel } from "./components/CodeDiffPanel";
+import { CudaTreasureMapModal } from "./components/CudaTreasureMapModal";
 import { GpuBenchmarkImport } from "./components/GpuBenchmarkImport";
 import { KernelTraceRail } from "./components/KernelTraceRail";
 import { OperatorRail } from "./components/OperatorRail";
@@ -30,6 +31,7 @@ function themeForCurrentHour(): "light" | "dark" {
 export function App() {
   const [operatorSearch, setOperatorSearch] = useState("");
   const [importOpen, setImportOpen] = useState(false);
+  const [treasureMapOpen, setTreasureMapOpen] = useState(false);
   const [titleClickCount, setTitleClickCount] = useState(0);
   const [theme, setTheme] = useState<"light" | "dark">(themeForCurrentHour);
   const [selectedOperator, setSelectedOperator] = useState(defaultOperator);
@@ -74,11 +76,17 @@ export function App() {
   }, [selectedCaseId, selectedDataset, selectedOperator]);
 
   const datasets = viewModel.datasetsFor(selectedOperator);
-  const openImportFromTitle = () => {
+  const openHiddenModalFromTitle = () => {
     setTitleClickCount((count) => {
       const next = count + 1;
       if (next >= 3) {
-        setImportOpen(true);
+        if (theme === "dark") {
+          setImportOpen(false);
+          setTreasureMapOpen(true);
+        } else {
+          setTreasureMapOpen(false);
+          setImportOpen(true);
+        }
         return 0;
       }
       return next;
@@ -113,7 +121,7 @@ export function App() {
             type="button"
             className="brand-trigger"
             aria-label="CANNBench"
-            onClick={openImportFromTitle}
+            onClick={openHiddenModalFromTitle}
           >
             <img
               className="brand-logo"
@@ -162,6 +170,7 @@ export function App() {
         </section>
       </div>
       <GpuBenchmarkImport uploadEnabled={false} open={importOpen} onClose={() => setImportOpen(false)} />
+      <CudaTreasureMapModal open={treasureMapOpen} onClose={() => setTreasureMapOpen(false)} />
     </main>
   );
 }
