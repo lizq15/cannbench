@@ -3,15 +3,28 @@ import type { TreasureNode } from "../data/cudaOptimizationRoute";
 
 interface CudaTreasureMapProps {
   route: readonly TreasureNode[];
+  mainRouteOrder: readonly string[];
 }
 
-export function CudaTreasureMap({ route }: CudaTreasureMapProps) {
+export function CudaTreasureMap({ route, mainRouteOrder }: CudaTreasureMapProps) {
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const tooltipIdPrefix = useId();
 
   const nodesById = new Map(route.map((node) => [node.id, node]));
-  const mainRouteNodes = route.filter((node) => node.kind === "main");
+  if (nodesById.size !== route.length) {
+    throw new Error("CUDA treasure route contains duplicate node ids.");
+  }
+
+  const mainRouteNodes = mainRouteOrder.map((nodeId) => {
+    const node = nodesById.get(nodeId);
+
+    if (!node || node.kind !== "main") {
+      throw new Error(`CUDA treasure main route is missing node "${nodeId}".`);
+    }
+
+    return node;
+  });
   const branchNodes = route.filter((node) => node.kind === "branch");
   const branchConnectors = branchNodes.map((node) => {
     const parentNode = nodesById.get(node.branchFrom);

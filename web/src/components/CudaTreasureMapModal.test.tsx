@@ -102,6 +102,17 @@ describe("CudaTreasureMapModal", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it("closes when the close button is clicked", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    render(<CudaTreasureMapModal open={true} onClose={onClose} />);
+
+    await user.click(screen.getByRole("button", { name: /Close CUDA operator treasure route/i }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("moves focus into the dialog, traps it, and restores focus on close", async () => {
     const user = userEvent.setup();
 
@@ -144,8 +155,43 @@ describe("CudaTreasureMapModal", () => {
               branchFrom: "missing-parent"
             }
           ]}
+          mainRouteOrder={[]}
         />
       )
     ).toThrow(/missing branch parent/i);
+  });
+
+  it("throws when duplicate node ids are provided", () => {
+    expect(() =>
+      render(
+        <CudaTreasureMap
+          route={[
+            {
+              id: "duplicate-node",
+              label: "First node",
+              kind: "main",
+              x: 10,
+              y: 20,
+              summary: "First entry",
+              details: ["First detail."],
+              guideSections: ["1"],
+              relatedOptimizationIds: ["O1"]
+            },
+            {
+              id: "duplicate-node",
+              label: "Second node",
+              kind: "main",
+              x: 20,
+              y: 30,
+              summary: "Second entry",
+              details: ["Second detail."],
+              guideSections: ["2"],
+              relatedOptimizationIds: ["O2"]
+            }
+          ]}
+          mainRouteOrder={["duplicate-node"]}
+        />
+      )
+    ).toThrow(/duplicate node id/i);
   });
 });

@@ -38,9 +38,16 @@ type EnforceBranchParents<Route extends readonly TreasureNode[]> = {
 function defineTreasureRoute<const Route extends readonly TreasureNode[]>(
   route: Route & EnforceBranchParents<Route>
 ): Route {
+  const seenNodeIds = new Set<string>();
   const mainNodeIds = new Set(route.filter((node) => node.kind === "main").map((node) => node.id));
 
   for (const node of route) {
+    if (seenNodeIds.has(node.id)) {
+      throw new Error(`CUDA treasure route contains duplicate node id "${node.id}".`);
+    }
+
+    seenNodeIds.add(node.id);
+
     if (node.kind === "branch" && !mainNodeIds.has(node.branchFrom)) {
       throw new Error(`CUDA treasure route node "${node.id}" references missing branch parent "${node.branchFrom}".`);
     }
@@ -266,3 +273,43 @@ export const cudaTreasureRoute = defineTreasureRoute([
     branchFrom: "polish-instructions"
   }
 ] as const);
+
+export const cudaTreasureMainRouteOrder = [
+  "profile-truth",
+  "guard-correctness",
+  "shape-parallel-work",
+  "cut-data-motion",
+  "fix-global-access",
+  "stage-through-shared",
+  "tune-launch-geometry",
+  "polish-instructions"
+] as const satisfies readonly RouteMainIds<typeof cudaTreasureRoute>[];
+
+function validateMainRouteOrder(
+  route: readonly TreasureNode[],
+  mainRouteOrder: readonly string[]
+): readonly string[] {
+  const mainNodes = route.filter((node) => node.kind === "main");
+  const mainNodeIds = new Set(mainNodes.map((node) => node.id));
+  const orderedIds = new Set<string>();
+
+  for (const nodeId of mainRouteOrder) {
+    if (!mainNodeIds.has(nodeId)) {
+      throw new Error(`CUDA treasure main route order references unknown main node "${nodeId}".`);
+    }
+
+    if (orderedIds.has(nodeId)) {
+      throw new Error(`CUDA treasure main route order contains duplicate node id "${nodeId}".`);
+    }
+
+    orderedIds.add(nodeId);
+  }
+
+  if (orderedIds.size !== mainNodeIds.size) {
+    throw new Error("CUDA treasure main route order must contain every main node exactly once.");
+  }
+
+  return mainRouteOrder;
+}
+
+validateMainRouteOrder(cudaTreasureRoute, cudaTreasureMainRouteOrder);

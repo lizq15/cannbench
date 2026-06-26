@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { cudaTreasureRoute } from "../data/cudaOptimizationRoute";
+import { cudaTreasureMainRouteOrder, cudaTreasureRoute } from "../data/cudaOptimizationRoute";
 import { CudaTreasureMap } from "./CudaTreasureMap";
 
 interface CudaTreasureMapModalProps {
@@ -128,7 +128,7 @@ export function CudaTreasureMapModal({ open, onClose }: CudaTreasureMapModalProp
             close
           </button>
         </header>
-        <CudaTreasureMap route={cudaTreasureRoute} />
+        <CudaTreasureMap route={cudaTreasureRoute} mainRouteOrder={cudaTreasureMainRouteOrder} />
       </section>
     </div>,
     document.body
