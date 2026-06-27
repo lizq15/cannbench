@@ -8,8 +8,9 @@ from pathlib import Path
 
 from cannbench.backends.torch_backend_base import TorchOperatorBackend
 from cannbench.core.config import OperatorBenchmarkRequest
+from cannbench.core.execution import read_artifact_tree
 from cannbench.core.prepared_input import build_prepared_operator_input, write_prepared_operator_input
-from cannbench.core.profile import LocalDeviceProfileResult, read_device_profile
+from cannbench.core.profile import ProfileArtifacts, LocalDeviceProfileResult, read_device_profile
 from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
 
 _ASCEND_CUSTOM_OP_MODULES = {
@@ -85,18 +86,16 @@ class NvidiaBackend(TorchOperatorBackend):
                     f"ncu profiling failed (exit {result.returncode}): {result.stderr.strip()}"
                 )
             summary = read_device_profile(profile_dir, backend="nvidia")
-            artifacts = tuple(
-                (
-                    str(path.relative_to(profile_dir)),
-                    path.read_bytes(),
-                )
-                for path in sorted(profile_dir.rglob("*"))
-                if path.is_file()
+            profile = ProfileArtifacts(
+                device_name=self._device_name(torch, self._device(torch)),
+                profile_summary=summary,
+                profile_artifacts=read_artifact_tree(profile_dir),
+                perf_artifacts=read_artifact_tree(perf_dir),
             )
         return LocalDeviceProfileResult(
             benchmark_result=OperatorBenchmarkResult(
                 backend=self.name,
-                device_name=self._device_name(torch, self._device(torch)),
+                device_name=profile.device_name,
                 op=request.op,
                 dtype=request.dtype,
                 case=OperatorCase(
@@ -112,8 +111,7 @@ class NvidiaBackend(TorchOperatorBackend):
                 warmup=request.warmup,
                 iterations=request.iterations,
             ),
-            profile_summary=summary,
-            profile_artifacts=artifacts,
+            profile=profile,
         )
 
 

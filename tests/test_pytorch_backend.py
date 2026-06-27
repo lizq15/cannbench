@@ -452,10 +452,16 @@ def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path):
         captured["command"] = command
         captured["cwd"] = kwargs.get("cwd")
         profile_dir = captured["cwd"] / "profile"
+        perf_dir = captured["cwd"] / "perf"
         profile_dir.mkdir(parents=True, exist_ok=True)
+        perf_dir.mkdir(parents=True, exist_ok=True)
         (profile_dir / "ncu.csv").write_text(
             "Kernel Name,Metric Name,Metric Unit,Metric Value\n"
             "softmax,gpu__time_duration.sum,nsecond,1000000\n",
+            encoding="utf-8",
+        )
+        (perf_dir / "benchmark.json").write_text(
+            "{\"backend\":\"nvidia\",\"device_name\":\"Fake GPU\"}\n",
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(command, 0, "", "")
@@ -480,9 +486,10 @@ def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path):
 
     assert isinstance(result, LocalDeviceProfileResult)
     assert result.benchmark_result.device_name == "Fake GPU"
-    assert result.profile_summary.backend == "nvidia"
-    assert result.profile_summary.source_files == ("ncu.csv",)
-    assert result.profile_artifacts[0][0] == "ncu.csv"
+    assert result.profile.profile_summary.backend == "nvidia"
+    assert result.profile.profile_summary.source_files == ("ncu.csv",)
+    assert result.profile.profile_artifacts[0][0] == "ncu.csv"
+    assert result.profile.perf_artifacts[0][0] == "benchmark.json"
     command = captured["command"]
     assert command[0] == "ncu"
     assert "--csv" in command

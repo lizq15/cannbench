@@ -34,10 +34,17 @@ class DeviceProfileSummary:
 
 
 @dataclass(frozen=True)
+class ProfileArtifacts:
+    device_name: str
+    profile_summary: DeviceProfileSummary
+    profile_artifacts: tuple[tuple[str, bytes], ...]
+    perf_artifacts: tuple[tuple[str, bytes], ...]
+
+
+@dataclass(frozen=True)
 class LocalDeviceProfileResult:
     benchmark_result: OperatorBenchmarkResult
-    profile_summary: DeviceProfileSummary
-    profile_artifacts: tuple[tuple[str, bytes], ...] = ()
+    profile: ProfileArtifacts
 
 
 def write_profile_artifacts(

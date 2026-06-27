@@ -1,4 +1,5 @@
 import argparse
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -16,8 +17,6 @@ from cannbench.core.batch import (
 from cannbench.core.benchmark_records import (
     build_collect_benchmark_record,
     build_local_benchmark_record,
-    read_perf_result,
-    read_profile_summary,
     write_benchmark_records_json,
 )
 from cannbench.core.config import OperatorBenchmarkRequest
@@ -31,6 +30,7 @@ from cannbench.core.operator_output import (
     write_output_comparison,
 )
 from cannbench.core.profile import (
+    ProfileArtifacts,
     read_device_profile,
     write_device_profile_summary,
     write_profile_artifacts,
@@ -365,6 +365,63 @@ def _copy_batch_collect_perf_artifacts(
     return preferred_result_path
 
 
+def _write_perf_artifacts(
+    perf_dir: Path,
+    artifact_stem: str,
+    artifacts: tuple[tuple[str, bytes], ...],
+) -> Path | None:
+    if not artifacts:
+        return None
+    perf_dir.mkdir(parents=True, exist_ok=True)
+    preferred_result_path: Path | None = None
+    for relative_name, content in artifacts:
+        source_name = Path(relative_name).name
+        if source_name.startswith("benchmark."):
+            dest_path = perf_dir / f"{artifact_stem}{Path(source_name).suffix}"
+        else:
+            dest_path = perf_dir / f"{artifact_stem}-{source_name}"
+        dest_path.write_bytes(content)
+        if dest_path.suffix == ".json":
+            preferred_result_path = dest_path
+        elif preferred_result_path is None:
+            preferred_result_path = dest_path
+    return preferred_result_path
+
+
+def _finalize_profile_artifacts(
+    layout,
+    artifact_stem: str,
+    profile: ProfileArtifacts,
+) -> Path | None:
+    if layout.profile_dir is not None:
+        profile_dir = layout.profile_dir / artifact_stem
+        write_profile_artifacts(profile_dir, profile.profile_artifacts)
+        write_device_profile_summary(
+            profile_dir / "profile-summary.json",
+            profile.profile_summary,
+        )
+    return _write_perf_artifacts(layout.perf_dir, artifact_stem, profile.perf_artifacts)
+
+
+def _finalize_remote_execution_artifacts(
+    *,
+    layout,
+    artifact_stem: str,
+    execution_result,
+    capture_output: bool,
+) -> Path | None:
+    if capture_output:
+        output_dest = layout.output_dir / artifact_stem
+        write_profile_artifacts(output_dest, execution_result.artifacts.output_artifacts)
+    if execution_result.artifacts.profile is None:
+        return None
+    return _finalize_profile_artifacts(
+        layout,
+        artifact_stem,
+        execution_result.artifacts.profile,
+    )
+
+
 def _prepare_batch_run_layout(output_dir: Path, run_name: str):
     layout = build_run_layout(output_dir, run_name)
     if layout.root.exists() and any(layout.root.iterdir()):
@@ -373,6 +430,31 @@ def _prepare_batch_run_layout(output_dir: Path, run_name: str):
         )
     layout.root.mkdir(parents=True, exist_ok=True)
     return layout
+
+
+def _write_single_case_metadata(
+    *,
+    layout,
+    backend: str,
+    run_name: str,
+    implementation: str | None,
+    row: BatchResultRecord,
+    failure_rows: list[BatchFailureRecord],
+    benchmark_records: list[dict[str, object]],
+) -> None:
+    metadata = BatchSummaryMetadata(
+        backend=backend,
+        run_name=run_name,
+        implementation=implementation,
+        total_cases=1,
+        success_count=0 if failure_rows else 1,
+        failure_count=len(failure_rows),
+    )
+    write_batch_summary_json(layout.meta_dir / "summary.json", [row], metadata)
+    write_batch_summary_csv(layout.meta_dir / "summary.csv", [row])
+    if benchmark_records:
+        write_benchmark_records_json(layout.meta_dir / "benchmark-records.json", benchmark_records)
+    write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
 
 
 def _run_batch_bench(args: argparse.Namespace) -> None:
@@ -419,20 +501,21 @@ def _run_batch_bench(args: argparse.Namespace) -> None:
                 except NotImplementedError:
                     profile_result = None
                 if profile_result is not None:
-                    profile_dir = layout.profile_dir / artifact_stem
-                    write_profile_artifacts(profile_dir, profile_result.profile_artifacts)
-                    profile_summary_path = write_device_profile_summary(
-                        profile_dir / "profile-summary.json",
-                        profile_result.profile_summary,
+                    profiled_result_path = _finalize_profile_artifacts(
+                        layout,
+                        artifact_stem,
+                        profile_result.profile,
                     )
+                    if profiled_result_path is not None:
+                        result_path = profiled_result_path
                     benchmark_records.append(
                         build_local_benchmark_record(
                             run_id=f"{args.run_name}/{artifact_stem}",
                             backend=args.backend,
                             implementation=getattr(args, "implementation", None),
                             prepared=plan.prepared,
-                            device_name=profile_result.benchmark_result.device_name,
-                            profile_summary=read_profile_summary(profile_summary_path),
+                            device_name=profile_result.profile.device_name,
+                            profile_summary=profile_result.profile.profile_summary,
                         )
                     )
             summary_rows.append(
@@ -526,7 +609,7 @@ def _run_batch_collect(args: argparse.Namespace) -> None:
         try:
             with tempfile.TemporaryDirectory(prefix=f"{artifact_stem}-", dir=layout.root) as temp_dir_name:
                 temp_dir = Path(temp_dir_name)
-                collect_remote_artifacts(
+                remote_result = collect_remote_artifacts(
                     endpoint=endpoint,
                     prepared_input=prepared_path,
                     output_dir=temp_dir,
@@ -540,30 +623,18 @@ def _run_batch_collect(args: argparse.Namespace) -> None:
                         endpoint.backend, args.implementation, args.deploy_custom_op
                     ),
                 )
-
-                if args.capture_output:
-                    _copy_directory_contents(temp_dir / "output", layout.output_dir / artifact_stem)
-
-                if args.profile_device_time and layout.profile_dir is not None:
-                    profile_dest = layout.profile_dir / artifact_stem
-                    _copy_directory_contents(temp_dir / "profile", profile_dest)
-                    profile_summary = temp_dir / "profile-summary.json"
-                    if profile_summary.exists():
-                        profile_dest.mkdir(parents=True, exist_ok=True)
-                        shutil.copy2(profile_summary, profile_dest / "profile-summary.json")
-
-                result_path = _copy_batch_collect_perf_artifacts(
-                    temp_dir / "perf",
-                    layout.perf_dir,
-                    artifact_stem,
+                result_path = _finalize_remote_execution_artifacts(
+                    layout=layout,
+                    artifact_stem=artifact_stem,
+                    execution_result=remote_result,
+                    capture_output=args.capture_output,
                 )
                 if args.profile_device_time and result_path is None:
                     raise RuntimeError(
                         f"missing perf artifacts for profiled collect case {artifact_stem}"
                     )
                 if args.profile_device_time:
-                    profile_summary_path = temp_dir / "profile-summary.json"
-                    if not profile_summary_path.is_file():
+                    if remote_result.artifacts.profile is None:
                         raise RuntimeError(
                             f"missing profile summary for profiled collect case {artifact_stem}"
                         )
@@ -573,8 +644,10 @@ def _run_batch_collect(args: argparse.Namespace) -> None:
                             backend=endpoint.backend,
                             implementation=args.implementation,
                             prepared=plan.prepared,
-                            perf_payload=read_perf_result(temp_dir / "perf" / "benchmark.json"),
-                            profile_summary=read_profile_summary(profile_summary_path),
+                            perf_payload=json.loads(
+                                dict(remote_result.artifacts.profile.perf_artifacts)["benchmark.json"].decode("utf-8")
+                            ),
+                            profile_summary=remote_result.artifacts.profile.profile_summary,
                         )
                     )
 
@@ -634,6 +707,251 @@ def _run_batch_collect(args: argparse.Namespace) -> None:
         )
 
 
+def _run_single_bench(args: argparse.Namespace) -> None:
+    run_name = args.run_name or "operator-benchmark"
+    layout = _prepare_batch_run_layout(args.output_dir, run_name)
+    backend = get_backend(args.backend)
+    request = _build_request_from_args(args)
+    prepared = build_prepared_operator_input(
+        op=request.op,
+        dtype=request.dtype,
+        dataset=request.dataset,
+        case_id=request.case_id,
+        seed=request.seed,
+    )
+    artifact_stem = build_benchmark_artifact_stem(
+        op=prepared.op,
+        dataset=prepared.dataset,
+        case_id=prepared.case.case_id,
+        dtype=prepared.dtype,
+        seed=prepared.seed,
+    )
+    prepared_path = _prepared_manifest_path(
+        layout.prepared_dir,
+        prepared.op,
+        prepared.dataset,
+        prepared.case.case_id,
+        prepared.dtype,
+        prepared.seed,
+    )
+    write_prepared_operator_input(prepared_path, prepared)
+    prepared_reference = _relative_artifact_path(layout.root, prepared_path) or prepared_path.name
+    benchmark_records: list[dict[str, object]] = []
+    failure_rows: list[BatchFailureRecord] = []
+
+    try:
+        outputs = _execute_benchmark_case(
+            backend,
+            request,
+            output_dir=layout.perf_dir,
+            run_name=artifact_stem,
+        )
+        result_path = outputs.get("json")
+        if result_path is None and outputs:
+            result_path = next(iter(outputs.values()))
+        try:
+            profile_result = backend.profile_operator_device_time(request)
+        except (NotImplementedError, AttributeError):
+            profile_result = None
+        if profile_result is not None:
+            profiled_result_path = _finalize_profile_artifacts(
+                layout,
+                artifact_stem,
+                profile_result.profile,
+            )
+            if profiled_result_path is not None:
+                result_path = profiled_result_path
+            benchmark_records.append(
+                build_local_benchmark_record(
+                    run_id=f"{run_name}/{artifact_stem}",
+                    backend=args.backend,
+                    implementation=getattr(args, "implementation", None),
+                    prepared=prepared,
+                    device_name=profile_result.profile.device_name,
+                    profile_summary=profile_result.profile.profile_summary,
+                )
+            )
+        row = BatchResultRecord(
+            op=prepared.op,
+            dataset=prepared.dataset,
+            case_id=prepared.case.case_id,
+            dtype=prepared.dtype,
+            seed=prepared.seed,
+            status="ok",
+            prepared_input=prepared_reference,
+            result_path=_relative_artifact_path(layout.root, result_path),
+        )
+    except Exception as exc:
+        row = BatchResultRecord(
+            op=prepared.op,
+            dataset=prepared.dataset,
+            case_id=prepared.case.case_id,
+            dtype=prepared.dtype,
+            seed=prepared.seed,
+            status="failed",
+            prepared_input=prepared_reference,
+            result_path=None,
+        )
+        failure_rows.append(
+            BatchFailureRecord(
+                op=prepared.op,
+                dataset=prepared.dataset,
+                case_id=prepared.case.case_id,
+                dtype=prepared.dtype,
+                seed=prepared.seed,
+                prepared_input=prepared_reference,
+                error=str(exc),
+            )
+        )
+
+    _write_single_case_metadata(
+        layout=layout,
+        backend=args.backend,
+        run_name=run_name,
+        implementation=getattr(args, "implementation", None),
+        row=row,
+        failure_rows=failure_rows,
+        benchmark_records=benchmark_records,
+    )
+    if failure_rows:
+        raise RuntimeError(
+            f"single bench completed with {len(failure_rows)} failures; "
+            f"see {layout.meta_dir / 'failures.json'}"
+        )
+
+
+def _run_single_collect(args: argparse.Namespace) -> None:
+    if not args.capture_output and not args.profile_device_time:
+        raise ValueError("collect requires --capture-output or --profile-device-time")
+    run_name = args.run_name or args.run_id
+    if not run_name:
+        raise ValueError("single-case collect requires --run-name or --run-id")
+    layout = _prepare_batch_run_layout(args.output_dir, run_name)
+    endpoint = read_remote_endpoint(args.endpoint)
+    prepared_input = args.prepared_input
+    if prepared_input is None:
+        if not args.dataset or not args.case_id:
+            raise ValueError("--dataset and --case-id are required for single-case execution")
+        prepared = build_prepared_operator_input(
+            op=args.op,
+            dtype=args.dtype,
+            dataset=args.dataset,
+            case_id=args.case_id,
+            seed=args.seed,
+        )
+    else:
+        prepared = read_prepared_operator_input(prepared_input)
+        if args.op is not None:
+            _build_request_from_prepared(prepared, args)
+
+    prepared_path = _prepared_manifest_path(
+        layout.prepared_dir,
+        prepared.op,
+        prepared.dataset,
+        prepared.case.case_id,
+        prepared.dtype,
+        prepared.seed,
+    )
+    write_prepared_operator_input(prepared_path, prepared)
+    prepared_reference = _relative_artifact_path(layout.root, prepared_path) or prepared_path.name
+    artifact_stem = build_benchmark_artifact_stem(
+        op=prepared.op,
+        dataset=prepared.dataset,
+        case_id=prepared.case.case_id,
+        dtype=prepared.dtype,
+        seed=prepared.seed,
+    )
+    benchmark_records: list[dict[str, object]] = []
+    failure_rows: list[BatchFailureRecord] = []
+
+    try:
+        with tempfile.TemporaryDirectory(prefix=f"{artifact_stem}-", dir=layout.root) as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            remote_result = collect_remote_artifacts(
+                endpoint=endpoint,
+                endpoint_path=args.endpoint,
+                prepared_input=prepared_path,
+                output_dir=temp_dir,
+                run_id=args.run_id or run_name,
+                capture_output=args.capture_output,
+                profile_device_time=args.profile_device_time,
+                summarize_profile=args.summarize_profile,
+                warmup=args.warmup,
+                iterations=args.iterations,
+                deploy_custom_op=_resolve_deploy_custom_op(
+                    endpoint.backend, args.implementation, args.deploy_custom_op
+                ),
+            )
+            result_path = _finalize_remote_execution_artifacts(
+                layout=layout,
+                artifact_stem=artifact_stem,
+                execution_result=remote_result,
+                capture_output=args.capture_output,
+            )
+            if args.profile_device_time:
+                if remote_result.artifacts.profile is None:
+                    raise RuntimeError("missing profile summary for profiled collect case")
+                benchmark_records.append(
+                    build_collect_benchmark_record(
+                        run_id=args.run_id or run_name,
+                        backend=endpoint.backend,
+                        implementation=args.implementation,
+                        prepared=prepared,
+                        perf_payload=json.loads(
+                            dict(remote_result.artifacts.profile.perf_artifacts)["benchmark.json"].decode("utf-8")
+                        ),
+                        profile_summary=remote_result.artifacts.profile.profile_summary,
+                    )
+                )
+        row = BatchResultRecord(
+            op=prepared.op,
+            dataset=prepared.dataset,
+            case_id=prepared.case.case_id,
+            dtype=prepared.dtype,
+            seed=prepared.seed,
+            status="ok",
+            prepared_input=prepared_reference,
+            result_path=_relative_artifact_path(layout.root, result_path),
+        )
+    except Exception as exc:
+        row = BatchResultRecord(
+            op=prepared.op,
+            dataset=prepared.dataset,
+            case_id=prepared.case.case_id,
+            dtype=prepared.dtype,
+            seed=prepared.seed,
+            status="failed",
+            prepared_input=prepared_reference,
+            result_path=None,
+        )
+        failure_rows.append(
+            BatchFailureRecord(
+                op=prepared.op,
+                dataset=prepared.dataset,
+                case_id=prepared.case.case_id,
+                dtype=prepared.dtype,
+                seed=prepared.seed,
+                prepared_input=prepared_reference,
+                error=str(exc),
+            )
+        )
+
+    _write_single_case_metadata(
+        layout=layout,
+        backend=endpoint.backend,
+        run_name=run_name,
+        implementation=getattr(args, "implementation", None),
+        row=row,
+        failure_rows=failure_rows,
+        benchmark_records=benchmark_records,
+    )
+    if failure_rows:
+        raise RuntimeError(
+            f"single collect completed with {len(failure_rows)} failures; "
+            f"see {layout.meta_dir / 'failures.json'}"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -643,6 +961,9 @@ def main(argv: list[str] | None = None) -> int:
             _validate_benchmark_selection(args, allow_batch=args.command == "bench")
             if args.command == "bench" and _is_batch_mode(args):
                 _run_batch_bench(args)
+                return 0
+            if args.command == "bench":
+                _run_single_bench(args)
                 return 0
             request = _build_request_from_args(args)
             backend = get_backend(args.backend)
@@ -714,37 +1035,7 @@ def main(argv: list[str] | None = None) -> int:
             if _is_batch_mode(args):
                 _run_batch_collect(args)
                 return 0
-            prepared_input = args.prepared_input
-            if prepared_input is None:
-                if not args.dataset or not args.case_id:
-                    parser.error("--dataset and --case-id are required for single-case execution")
-                prepared = build_prepared_operator_input(
-                    op=args.op,
-                    dtype=args.dtype,
-                    dataset=args.dataset,
-                    case_id=args.case_id,
-                    seed=args.seed,
-                )
-                prepared_input = _prepared_input_path(
-                    args.output_dir, args.op, args.dataset, args.case_id, args.dtype, args.seed
-                )
-                write_prepared_operator_input(prepared_input, prepared)
-            elif args.op is not None:
-                _build_request_from_prepared(read_prepared_operator_input(prepared_input), args)
-            collect_remote_artifacts(
-                endpoint_path=args.endpoint,
-                prepared_input=prepared_input,
-                output_dir=args.output_dir,
-                run_id=args.run_id,
-                capture_output=args.capture_output,
-                profile_device_time=args.profile_device_time,
-                summarize_profile=args.summarize_profile,
-                warmup=args.warmup,
-                iterations=args.iterations,
-                deploy_custom_op=_resolve_deploy_custom_op(
-                    "ascend", args.implementation, args.deploy_custom_op
-                ),
-            )
+            _run_single_collect(args)
         except (RuntimeError, ValueError) as exc:
             parser.error(str(exc))
     elif args.command == "report":

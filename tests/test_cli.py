@@ -6,10 +6,11 @@ from pathlib import Path
 import pytest
 
 from cannbench.cli import build_parser, main
+from cannbench.core.execution import RemoteExecutionArtifacts, RemoteProfileArtifacts
 from cannbench.core.layout import build_run_layout
 from cannbench.core.operator_output import CapturedOperatorOutput, OutputComparisonResult
-from cannbench.core.profile import DeviceProfileSummary, LocalDeviceProfileResult
-from cannbench.core.remote import RemoteEndpoint
+from cannbench.core.profile import DeviceProfileSummary, LocalDeviceProfileResult, ProfileArtifacts
+from cannbench.core.remote import RemoteCollectionResult, RemoteEndpoint
 from cannbench.core.result import (
     OperatorBenchmarkResult,
     OperatorCase,
@@ -63,6 +64,61 @@ def result_for_request(request) -> OperatorBenchmarkResult:
         ),
         warmup=request.warmup,
         iterations=request.iterations,
+    )
+
+
+def remote_collect_result(
+    *,
+    endpoint: RemoteEndpoint,
+    run_id: str,
+    output_dir: Path,
+    prepared,
+    capture_output: bool = False,
+    profile_device_time: bool = False,
+    device_name: str = "Ascend 910B",
+    warmup: int = 10,
+    iterations: int = 1,
+    extra_perf_artifacts: tuple[tuple[str, bytes], ...] = (),
+) -> RemoteCollectionResult:
+    profile_summary = DeviceProfileSummary(
+        backend=endpoint.backend,
+        sample_count=1,
+        latency_ms_avg=1.0,
+        latency_ms_p50=1.0,
+        latency_ms_p95=1.0,
+        latency_ms_p99=1.0,
+        source_files=("op_summary.csv",),
+    )
+    perf_payload = {
+        "backend": endpoint.backend,
+        "device_name": device_name,
+        "op": prepared.op,
+        "dtype": prepared.dtype,
+        "case": prepared.case.to_json_dict(),
+        "warmup": warmup,
+        "iterations": iterations,
+    }
+    profile = None
+    if profile_device_time:
+        profile = RemoteProfileArtifacts(
+            backend=endpoint.backend,
+            device_name=device_name,
+            profile_summary=profile_summary,
+            profile_artifacts=(("op_summary.csv", b"Op Name,Task Duration(us)\nsoftmax,1000\n"),),
+            perf_artifacts=(
+                ("benchmark.json", (json.dumps(perf_payload) + "\n").encode("utf-8")),
+                *extra_perf_artifacts,
+            ),
+        )
+    return RemoteCollectionResult(
+        endpoint=endpoint,
+        run_id=run_id,
+        remote_run_dir=f"{endpoint.workdir}/.cannbench-runs/{run_id}",
+        local_output_dir=output_dir,
+        artifacts=RemoteExecutionArtifacts(
+            output_artifacts=(("tensor.json", b"{}"),) if capture_output else (),
+            profile=profile,
+        ),
     )
 
 
@@ -539,6 +595,152 @@ def test_main_runs_bench_and_maps_simt_to_custom_op_deployment(tmp_path, monkeyp
     assert captured["request"].deploy_custom_op is True
 
 
+def test_main_runs_single_bench_with_profile_layout_and_meta(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+    result = sample_result()
+
+    class FakeBackend:
+        def run_operator(self, request):
+            captured["request"] = request
+            return result
+
+        def profile_operator_device_time(self, request):
+            return LocalDeviceProfileResult(
+                benchmark_result=result_for_request(request),
+                profile=ProfileArtifacts(
+                    device_name="Fake GPU",
+                    profile_summary=DeviceProfileSummary(
+                        backend="nvidia",
+                        sample_count=1,
+                        latency_ms_avg=0.1,
+                        latency_ms_p50=0.1,
+                        latency_ms_p95=0.1,
+                        latency_ms_p99=0.1,
+                        source_files=("ncu.csv",),
+                    ),
+                    profile_artifacts=(
+                        (
+                            "ncu.csv",
+                            b"Kernel Name,Metric Name,Metric Unit,Metric Value\n"
+                            b"softmax,gpu__time_duration.sum,nsecond,100000\n",
+                        ),
+                    ),
+                    perf_artifacts=(
+                        (
+                            "benchmark.json",
+                            (
+                                json.dumps(result_for_request(request).to_json_dict()) + "\n"
+                            ).encode("utf-8"),
+                        ),
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--dtype",
+            "float16",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--output-dir",
+            str(tmp_path),
+            "--run-name",
+            "single-bench-profiled",
+        ]
+    )
+
+    layout = build_run_layout(tmp_path, "single-bench-profiled")
+    summary = json.loads((layout.meta_dir / "summary.json").read_text())
+    benchmark_records = json.loads((layout.meta_dir / "benchmark-records.json").read_text())
+    failures = json.loads((layout.meta_dir / "failures.json").read_text())
+
+    assert exit_code == 0
+    assert (layout.prepared_dir / "softmax" / "smoke" / "tiny_logits-float16-seed0.json").exists()
+    assert (layout.perf_dir / "softmax-smoke-tiny_logits-float16-seed0.json").exists()
+    assert (layout.profile_dir / "softmax-smoke-tiny_logits-float16-seed0" / "ncu.csv").exists()
+    assert summary["metadata"]["run_name"] == "single-bench-profiled"
+    assert summary["metadata"]["backend"] == "nvidia"
+    assert summary["result_count"] == 1
+    assert benchmark_records["records"][0]["implementation"] == "ncu"
+    assert failures["failure_count"] == 0
+
+
+def test_main_runs_single_collect_with_profile_layout_and_meta(tmp_path, monkeypatch):
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        workdir="/opt/cannbench",
+        python="python3",
+        env={},
+    )
+    monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
+
+    def fake_collect_remote_artifacts(**kwargs):
+        prepared = read_prepared_operator_input(kwargs["prepared_input"])
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=prepared,
+            capture_output=True,
+            profile_device_time=True,
+            warmup=kwargs["warmup"],
+            iterations=kwargs["iterations"],
+        )
+
+    monkeypatch.setattr(
+        "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
+    )
+
+    exit_code = main(
+        [
+            "collect",
+            "--endpoint",
+            str(tmp_path / "ascend.json"),
+            "--output-dir",
+            str(tmp_path),
+            "--run-id",
+            "single-collect-profiled",
+            "--op",
+            "softmax",
+            "--dtype",
+            "float16",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--capture-output",
+            "--profile-device-time",
+            "--summarize-profile",
+        ]
+    )
+
+    layout = build_run_layout(tmp_path, "single-collect-profiled")
+    summary = json.loads((layout.meta_dir / "summary.json").read_text())
+    benchmark_records = json.loads((layout.meta_dir / "benchmark-records.json").read_text())
+    failures = json.loads((layout.meta_dir / "failures.json").read_text())
+
+    assert exit_code == 0
+    assert (layout.prepared_dir / "softmax" / "smoke" / "tiny_logits-float16-seed0.json").exists()
+    assert (layout.output_dir / "softmax-smoke-tiny_logits-float16-seed0" / "tensor.json").exists()
+    assert (layout.profile_dir / "softmax-smoke-tiny_logits-float16-seed0" / "op_summary.csv").exists()
+    assert (layout.perf_dir / "softmax-smoke-tiny_logits-float16-seed0.json").exists()
+    assert summary["metadata"]["backend"] == "ascend"
+    assert summary["result_count"] == 1
+    assert benchmark_records["records"][0]["implementation"] == "cann_ops_library"
+    assert failures["failure_count"] == 0
+
+
 def test_main_passes_custom_op_deployment_flag_to_request(tmp_path, monkeypatch):
     captured: dict[str, object] = {}
     result = sample_result()
@@ -726,9 +928,38 @@ def test_main_collect_invokes_remote_collection(tmp_path, monkeypatch):
     endpoint_path = tmp_path / "ascend.json"
     prepared_path = tmp_path / "prepared.json"
     output_dir = tmp_path / "results"
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        workdir="/opt/cannbench",
+        python="python3",
+        env={},
+    )
+    write_prepared_operator_input(
+        prepared_path,
+        build_prepared_operator_input(
+            op="softmax",
+            dtype="float16",
+            dataset="smoke",
+            case_id="tiny_logits",
+            seed=0,
+        ),
+    )
+    monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
 
     def fake_collect_remote_artifacts(**kwargs):
         captured.update(kwargs)
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=read_prepared_operator_input(kwargs["prepared_input"]),
+            capture_output=True,
+            profile_device_time=True,
+            warmup=kwargs["warmup"],
+            iterations=kwargs["iterations"],
+        )
 
     monkeypatch.setattr(
         "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
@@ -756,9 +987,11 @@ def test_main_collect_invokes_remote_collection(tmp_path, monkeypatch):
     )
 
     assert exit_code == 0
+    assert captured["endpoint"] == endpoint
     assert captured["endpoint_path"] == endpoint_path
-    assert captured["prepared_input"] == prepared_path
-    assert captured["output_dir"] == output_dir
+    assert captured["endpoint_path"] == endpoint_path
+    assert Path(captured["prepared_input"]).is_relative_to(build_run_layout(output_dir, "softmax-run").prepared_dir)
+    assert captured["output_dir"].parent == build_run_layout(output_dir, "softmax-run").root
     assert captured["run_id"] == "softmax-run"
     assert captured["capture_output"] is True
     assert captured["profile_device_time"] is True
@@ -774,13 +1007,24 @@ def test_main_collect_builds_prepared_input_when_case_is_provided(tmp_path, monk
     output_dir = tmp_path / "results"
     output_dir.mkdir()
     built = object()
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        workdir="/opt/cannbench",
+        python="python3",
+        env={},
+    )
+    monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
 
     def fake_build_prepared_operator_input(**kwargs):
         captured["built_kwargs"] = kwargs
-        return built
+        return build_prepared_operator_input(**kwargs)
 
     def fake_write_prepared_operator_input(path, prepared):
         captured["written"] = (path, prepared)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(prepared.to_json_dict(), indent=2) + "\n")
         return path
 
     monkeypatch.setattr(
@@ -792,6 +1036,15 @@ def test_main_collect_builds_prepared_input_when_case_is_provided(tmp_path, monk
 
     def fake_collect_remote_artifacts(**kwargs):
         captured.update(kwargs)
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=read_prepared_operator_input(kwargs["prepared_input"]),
+            profile_device_time=True,
+            warmup=kwargs["warmup"],
+            iterations=kwargs["iterations"],
+        )
 
     monkeypatch.setattr(
         "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
@@ -829,9 +1082,8 @@ def test_main_collect_builds_prepared_input_when_case_is_provided(tmp_path, monk
         "seed": 7,
     }
     written_path, written_prepared = captured["written"]
-    assert written_path.parent == output_dir / "_prepared" / "softmax" / "smoke"
+    assert written_path.parent == build_run_layout(output_dir, "softmax-run").prepared_dir / "softmax" / "smoke"
     assert written_path.suffix == ".json"
-    assert written_prepared is built
     assert captured["prepared_input"] == written_path
 
 
@@ -870,44 +1122,18 @@ def test_main_runs_batch_collect_and_writes_aggregated_artifacts(tmp_path, monke
 
     def fake_collect_remote_artifacts(**kwargs):
         captured_calls.append(kwargs)
-        case_output_dir = kwargs["output_dir"]
-        (case_output_dir / "output").mkdir(parents=True)
-        (case_output_dir / "output" / "tensor.json").write_text("{}")
-        (case_output_dir / "profile").mkdir(parents=True)
-        (case_output_dir / "profile" / "op_summary.csv").write_text(
-            "Op Name,Task Duration(us)\nsoftmax,1000\n"
-        )
         prepared = read_prepared_operator_input(kwargs["prepared_input"])
-        (case_output_dir / "profile-summary.json").write_text(
-            json.dumps(
-                {
-                    "backend": "ascend",
-                    "sample_count": 1,
-                    "latency_ms_avg": 1.0,
-                    "latency_ms_p50": 1.0,
-                    "latency_ms_p95": 1.0,
-                    "latency_ms_p99": 1.0,
-                    "source_files": ["op_summary.csv"],
-                }
-            )
-            + "\n"
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=prepared,
+            capture_output=True,
+            profile_device_time=True,
+            warmup=kwargs["warmup"],
+            iterations=kwargs["iterations"],
+            extra_perf_artifacts=(("benchmark.csv", b"header\nvalue\n"),),
         )
-        (case_output_dir / "perf").mkdir(parents=True)
-        (case_output_dir / "perf" / "benchmark.json").write_text(
-            json.dumps(
-                {
-                    "backend": "ascend",
-                    "device_name": "Ascend 910B",
-                    "op": prepared.op,
-                    "dtype": prepared.dtype,
-                    "case": prepared.case.to_json_dict(),
-                    "warmup": kwargs["warmup"],
-                    "iterations": kwargs["iterations"],
-                }
-            )
-            + "\n"
-        )
-        (case_output_dir / "perf" / "benchmark.csv").write_text("header\nvalue\n")
 
     monkeypatch.setattr(
         "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
@@ -1014,24 +1240,14 @@ def test_main_batch_collect_records_failures_and_continues(tmp_path, monkeypatch
         prepared_input = kwargs["prepared_input"]
         if prepared_input.name == "tiny_logits-float16-seed1.json":
             raise TimeoutError("ssh timeout")
-        case_output_dir = kwargs["output_dir"]
-        (case_output_dir / "perf").mkdir(parents=True)
-        (case_output_dir / "perf" / "benchmark.json").write_text(
-            json.dumps({"status": "ok"}) + "\n"
-        )
-        (case_output_dir / "profile-summary.json").write_text(
-            json.dumps(
-                {
-                    "backend": "ascend",
-                    "sample_count": 1,
-                    "latency_ms_avg": 1.0,
-                    "latency_ms_p50": 1.0,
-                    "latency_ms_p95": 1.0,
-                    "latency_ms_p99": 1.0,
-                    "source_files": ["op_summary.csv"],
-                }
-            )
-            + "\n"
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=read_prepared_operator_input(prepared_input),
+            profile_device_time=True,
+            warmup=kwargs["warmup"],
+            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -1115,24 +1331,14 @@ def test_main_runs_batch_collect_from_selection_expansion(tmp_path, monkeypatch)
 
     def fake_collect_remote_artifacts(**kwargs):
         collected_prepared.append(kwargs["prepared_input"])
-        case_output_dir = kwargs["output_dir"]
-        (case_output_dir / "perf").mkdir(parents=True)
-        (case_output_dir / "perf" / "benchmark.json").write_text(
-            json.dumps({"status": "ok"}) + "\n"
-        )
-        (case_output_dir / "profile-summary.json").write_text(
-            json.dumps(
-                {
-                    "backend": "ascend",
-                    "sample_count": 1,
-                    "latency_ms_avg": 1.0,
-                    "latency_ms_p50": 1.0,
-                    "latency_ms_p95": 1.0,
-                    "latency_ms_p99": 1.0,
-                    "source_files": ["op_summary.csv"],
-                }
-            )
-            + "\n"
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=read_prepared_operator_input(kwargs["prepared_input"]),
+            profile_device_time=True,
+            warmup=kwargs["warmup"],
+            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -1669,20 +1875,31 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
             captured_requests.append(request)
             return LocalDeviceProfileResult(
                 benchmark_result=result_for_request(request),
-                profile_summary=DeviceProfileSummary(
-                    backend="nvidia",
-                    sample_count=1,
-                    latency_ms_avg=0.1,
-                    latency_ms_p50=0.1,
-                    latency_ms_p95=0.1,
-                    latency_ms_p99=0.1,
-                    source_files=("ncu.csv",),
-                ),
-                profile_artifacts=(
-                    (
-                        "ncu.csv",
-                        b"Kernel Name,Metric Name,Metric Unit,Metric Value\n"
-                        b"softmax,gpu__time_duration.sum,nsecond,100000\n",
+                profile=ProfileArtifacts(
+                    device_name="Fake GPU",
+                    profile_summary=DeviceProfileSummary(
+                        backend="nvidia",
+                        sample_count=1,
+                        latency_ms_avg=0.1,
+                        latency_ms_p50=0.1,
+                        latency_ms_p95=0.1,
+                        latency_ms_p99=0.1,
+                        source_files=("ncu.csv",),
+                    ),
+                    profile_artifacts=(
+                        (
+                            "ncu.csv",
+                            b"Kernel Name,Metric Name,Metric Unit,Metric Value\n"
+                            b"softmax,gpu__time_duration.sum,nsecond,100000\n",
+                        ),
+                    ),
+                    perf_artifacts=(
+                        (
+                            "benchmark.json",
+                            (
+                                json.dumps(result_for_request(request).to_json_dict()) + "\n"
+                            ).encode("utf-8"),
+                        ),
                     ),
                 ),
             )

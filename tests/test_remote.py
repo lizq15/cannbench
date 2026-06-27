@@ -1,6 +1,9 @@
 import json
 
+from cannbench.core.execution import RemoteExecutionArtifacts, RemoteProfileArtifacts
+from cannbench.core.profile import DeviceProfileSummary
 from cannbench.core.remote import (
+    RemoteCollectionResult,
     RemoteEndpoint,
     collect_remote_artifacts,
     read_remote_endpoint,
@@ -133,6 +136,24 @@ def test_collect_remote_artifacts_runs_ascend_profile_and_downloads_profile(tmp_
 
     def fake_runner(command):
         commands.append(command)
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/profile"):
+            profile_dir = tmp_path / "results" / "profile"
+            profile_dir.mkdir(parents=True)
+            (profile_dir / "op_summary.csv").write_text(
+                "Op Name,Task Duration(us)\nsoftmax,1000\n"
+            )
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/perf"):
+            perf_dir = tmp_path / "results" / "perf"
+            perf_dir.mkdir(parents=True)
+            (perf_dir / "benchmark.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "ascend",
+                        "device_name": "Ascend 910B",
+                    }
+                )
+                + "\n"
+            )
 
     endpoint = RemoteEndpoint(
         name="ascend-a2",
@@ -195,6 +216,24 @@ def test_collect_remote_artifacts_runs_nvidia_ncu_profile(tmp_path):
 
     def fake_runner(command):
         commands.append(command)
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/profile"):
+            profile_dir = tmp_path / "results" / "profile"
+            profile_dir.mkdir(parents=True)
+            (profile_dir / "ncu.csv").write_text(
+                "Kernel Name,Duration (ns)\nsoftmax,1000000\n"
+            )
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/perf"):
+            perf_dir = tmp_path / "results" / "perf"
+            perf_dir.mkdir(parents=True)
+            (perf_dir / "benchmark.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "nvidia",
+                        "device_name": "NVIDIA H800",
+                    }
+                )
+                + "\n"
+            )
 
     endpoint = RemoteEndpoint(
         name="nvidia-h100",
@@ -237,6 +276,18 @@ def test_collect_remote_artifacts_can_summarize_downloaded_profile(tmp_path):
             (profile_dir / "op_summary.csv").write_text(
                 "Op Name,Task Duration(us)\nsoftmax,1000\n"
             )
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/perf"):
+            perf_dir = tmp_path / "results" / "perf"
+            perf_dir.mkdir(parents=True)
+            (perf_dir / "benchmark.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "ascend",
+                        "device_name": "Ascend 910B",
+                    }
+                )
+                + "\n"
+            )
 
     endpoint = RemoteEndpoint(
         name="ascend-a2",
@@ -264,6 +315,62 @@ def test_collect_remote_artifacts_can_summarize_downloaded_profile(tmp_path):
     summary = tmp_path / "results" / "profile-summary.json"
     assert summary.is_file()
     assert '"latency_ms_avg": 1.0' in summary.read_text()
+
+
+def test_collect_remote_artifacts_returns_unified_artifacts(tmp_path):
+    def fake_runner(command):
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/profile"):
+            profile_dir = tmp_path / "results" / "profile"
+            profile_dir.mkdir(parents=True)
+            (profile_dir / "op_summary.csv").write_text(
+                "Op Name,Task Duration(us)\nsoftmax,1000\n"
+            )
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/perf"):
+            perf_dir = tmp_path / "results" / "perf"
+            perf_dir.mkdir(parents=True)
+            (perf_dir / "benchmark.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "ascend",
+                        "device_name": "Ascend 910B",
+                    }
+                )
+                + "\n"
+            )
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/output"):
+            output_dir = tmp_path / "results" / "output"
+            output_dir.mkdir(parents=True)
+            (output_dir / "tensor.json").write_text("{}")
+
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        port=None,
+        workdir="/opt/cannbench",
+        python="python3",
+        env={},
+    )
+    prepared_input = tmp_path / "prepared.json"
+    prepared_input.write_text("{}")
+
+    result = collect_remote_artifacts(
+        endpoint=endpoint,
+        prepared_input=prepared_input,
+        output_dir=tmp_path / "results",
+        run_id="softmax-run",
+        capture_output=True,
+        profile_device_time=True,
+        summarize_profile=True,
+        runner=fake_runner,
+    )
+
+    assert result.artifacts.output_artifacts == (("tensor.json", b"{}"),)
+    assert result.artifacts.profile is not None
+    assert result.artifacts.profile.device_name == "Ascend 910B"
+    assert result.artifacts.profile.profile_summary.backend == "ascend"
+    assert result.artifacts.profile.profile_artifacts[0][0] == "op_summary.csv"
+    assert result.artifacts.profile.perf_artifacts[0][0] == "benchmark.json"
 
 
 def test_collect_remote_artifacts_uses_ssh_and_scp_port(tmp_path):

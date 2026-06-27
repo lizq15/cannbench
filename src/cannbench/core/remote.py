@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
+from cannbench.core.execution import RemoteExecutionArtifacts, RemoteProfileArtifacts, read_artifact_tree
 from cannbench.core.profile import read_device_profile, write_device_profile_summary
 
 
@@ -32,6 +33,7 @@ class RemoteCollectionResult:
     run_id: str
     remote_run_dir: str
     local_output_dir: Path
+    artifacts: RemoteExecutionArtifacts
 
 
 def read_remote_endpoint(path: Path) -> RemoteEndpoint:
@@ -152,6 +154,9 @@ def collect_remote_artifacts(
     )
     runner(_scp_upload_command(endpoint, prepared_input, remote_prepared))
 
+    output_artifacts: tuple[tuple[str, bytes], ...] = ()
+    profile_artifacts_result: RemoteProfileArtifacts | None = None
+
     if capture_output:
         command = (
             f"{_remote_command_prefix(endpoint)}"
@@ -167,6 +172,7 @@ def collect_remote_artifacts(
         runner(
             _scp_download_command(endpoint, remote_output, output_dir / "output")
         )
+        output_artifacts = read_artifact_tree(output_dir / "output")
 
     if profile_device_time:
         base_operator = (
@@ -208,13 +214,25 @@ def collect_remote_artifacts(
             _scp_download_command(endpoint, remote_profile, output_dir / "profile")
         )
         runner(_scp_download_command(endpoint, remote_perf, output_dir / "perf"))
+        summary = read_device_profile(output_dir / "profile", backend=endpoint.backend)
         if summarize_profile:
-            summary = read_device_profile(output_dir / "profile", backend=endpoint.backend)
             write_device_profile_summary(output_dir / "profile-summary.json", summary)
+        perf_payload = json.loads((output_dir / "perf" / "benchmark.json").read_text())
+        profile_artifacts_result = RemoteProfileArtifacts(
+            backend=endpoint.backend,
+            device_name=str(perf_payload.get("device_name", "unknown")),
+            profile_summary=summary,
+            profile_artifacts=read_artifact_tree(output_dir / "profile"),
+            perf_artifacts=read_artifact_tree(output_dir / "perf"),
+        )
 
     return RemoteCollectionResult(
         endpoint=endpoint,
         run_id=actual_run_id,
         remote_run_dir=remote_run_dir,
         local_output_dir=output_dir,
+        artifacts=RemoteExecutionArtifacts(
+            output_artifacts=output_artifacts,
+            profile=profile_artifacts_result,
+        ),
     )
