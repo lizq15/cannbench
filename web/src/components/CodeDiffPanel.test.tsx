@@ -67,7 +67,7 @@ describe("CodeDiffPanel", () => {
     expect(screen.getByText(/unified diff/i)).toBeInTheDocument();
   });
 
-  it("shows the empty state when only one simt version exists", async () => {
+  it("does not render the diff panel when only one simt version exists", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
@@ -87,10 +87,9 @@ describe("CodeDiffPanel", () => {
 
     render(<CodeDiffPanel operator="softmax" />);
 
-    expect(await screen.findByText(/no diff available/i)).toBeInTheDocument();
-    expect(await screen.findByText(/need at least two simt operator versions to compare/i)).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /details/i })).toBeDisabled();
-    expect(screen.getAllByText(/no diff available/i)).toHaveLength(1);
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/simt operator diff/i)).not.toBeInTheDocument();
+    });
   });
 
   it("shows a clean service error when the api returns html instead of json", async () => {

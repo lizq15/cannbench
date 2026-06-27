@@ -236,6 +236,10 @@ export function CodeDiffPanel({ operator }: CodeDiffPanelProps) {
         )
       : null;
 
+  if (!isLoadingVersions && !versionError && versionOptions.length < 2) {
+    return null;
+  }
+
   return (
     <section className={`diff-panel${diff ? "" : " diff-panel--empty"}`} aria-label="SIMT operator diff">
       <div className="diff-head">
