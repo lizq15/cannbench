@@ -1740,6 +1740,13 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
             captured_requests.append(request)
             return result_for_request(request)
 
+        def profile_operator_device_time(self, request):
+            captured_requests.append(request)
+            return CudaEventProfileResult(
+                benchmark_result=result_for_request(request),
+                durations_ms=(0.1,),
+            )
+
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
 
     exit_code = main(
@@ -1760,10 +1767,13 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
 
     layout = build_run_layout(tmp_path, "softmax-smoke-batch")
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
+    benchmark_records = json.loads((layout.meta_dir / "benchmark-records.json").read_text())
     failures = json.loads((layout.meta_dir / "failures.json").read_text())
 
     assert exit_code == 0
-    assert len(captured_requests) == len(smoke_cases)
+    assert len(captured_requests) == len(smoke_cases) * 2
+    assert [request.case_id for request in captured_requests[::2]] == [case.case_id for case in smoke_cases]
+    assert [request.case_id for request in captured_requests[1::2]] == [case.case_id for case in smoke_cases]
     assert (layout.prepared_dir / "softmax" / "smoke" / "tiny_logits-float16-seed0.json").exists()
     assert (layout.perf_dir / "softmax-smoke-tiny_logits-float16-seed0.json").exists()
     assert summary["metadata"]["run_name"] == "softmax-smoke-batch"
@@ -1771,6 +1781,10 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
     assert summary["result_count"] == len(smoke_cases)
     assert all(row["status"] == "ok" for row in summary["records"])
     assert summary["records"][0]["result_path"].startswith("perf/softmax-smoke-")
+    assert len(benchmark_records["records"]) == len(smoke_cases)
+    assert benchmark_records["records"][0]["backend"] == "nvidia"
+    assert benchmark_records["records"][0]["implementation"] == "cuda_event"
+    assert benchmark_records["records"][0]["metrics"]["latency_ms_avg"] == 0.1
     assert failures["failure_count"] == 0
     assert failures["records"] == []
 

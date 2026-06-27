@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from cannbench.core.config import OperatorBenchmarkRequest
+from cannbench.core.cuda_events import CudaEventProfileResult
 from cannbench.core.operator_output import CapturedOperatorOutput
 from cannbench.core.result import OperatorBenchmarkResult
 
@@ -22,6 +23,11 @@ class OperatorBackend:
     def capture_operator_output(
         self, request: OperatorBenchmarkRequest
     ) -> CapturedOperatorOutput:
+        raise NotImplementedError
+
+    def profile_operator_device_time(
+        self, request: OperatorBenchmarkRequest
+    ) -> CudaEventProfileResult:
         raise NotImplementedError
 
     def run_softmax(self, request: OperatorBenchmarkRequest) -> OperatorBenchmarkResult:

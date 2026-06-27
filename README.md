@@ -166,7 +166,7 @@ cannbench bench \
   --iterations 1
 ```
 
-Use `bench` without `--dataset` or `--case-id` to expand the full built-in dataset set for one operator. The default expansion covers `smoke`, `realistic`, and `stress`, and writes one batch run directory with per-case artifacts plus `summary.json`, `summary.csv`, and `failures.json`:
+Use `bench` without `--dataset` or `--case-id` to expand the full built-in dataset set for one operator. The default expansion covers `smoke`, `realistic`, and `stress`, and writes one batch run directory with per-case artifacts plus `summary.json`, `summary.csv`, and `failures.json`. When the selected backend exposes a local device-time profiling path, batch `bench` also emits normalized frontend records to `meta/benchmark-records.json`:
 
 ```bash
 cannbench bench \

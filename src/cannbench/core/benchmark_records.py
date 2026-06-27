@@ -102,6 +102,47 @@ def build_collect_benchmark_record(
     }
 
 
+def build_local_benchmark_record(
+    *,
+    run_id: str,
+    backend: str,
+    implementation: str | None,
+    prepared: PreparedOperatorInput,
+    device_name: str,
+    profile_summary: DeviceProfileSummary,
+) -> dict[str, Any]:
+    resolved_implementation, implementation_version = _implementation_and_version(
+        backend=backend,
+        implementation=implementation,
+        profile_summary=profile_summary,
+    )
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "operator": prepared.op,
+        "dataset": prepared.dataset,
+        "case_id": prepared.case.case_id,
+        "shape": _infer_shape(prepared.case.payload),
+        "dtype": prepared.dtype,
+        "backend": backend,
+        "device_class": _device_class(device_name),
+        "implementation": resolved_implementation,
+        "implementation_version": implementation_version,
+        "metrics": {
+            "latency_ms_avg": profile_summary.latency_ms_avg,
+            "latency_ms_p50": profile_summary.latency_ms_p50,
+            "latency_ms_p95": profile_summary.latency_ms_p95,
+            "sample_count": profile_summary.sample_count,
+        },
+        "accuracy": {
+            "passed": True,
+            "max_abs_error": 0.0,
+            "max_rel_error": 0.0,
+        },
+        "diff_ref": None,
+    }
+
+
 def read_perf_result(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
 

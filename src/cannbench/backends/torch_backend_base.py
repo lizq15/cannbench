@@ -850,3 +850,8 @@ class TorchOperatorBackend(OperatorBackend):
             benchmark_result=benchmark_result,
             durations_ms=tuple(durations),
         )
+
+    def profile_operator_device_time(
+        self, request: OperatorBenchmarkRequest
+    ) -> CudaEventProfileResult:
+        return self.profile_operator_with_cuda_events(request)

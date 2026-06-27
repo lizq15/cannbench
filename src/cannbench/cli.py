@@ -15,6 +15,7 @@ from cannbench.core.batch import (
 )
 from cannbench.core.benchmark_records import (
     build_collect_benchmark_record,
+    build_local_benchmark_record,
     read_perf_result,
     read_profile_summary,
     write_benchmark_records_json,
@@ -393,6 +394,7 @@ def _run_batch_bench(args: argparse.Namespace) -> None:
     layout = _prepare_batch_run_layout(args.output_dir, args.run_name)
     backend = get_backend(args.backend)
     summary_rows: list[BatchResultRecord] = []
+    benchmark_records: list[dict[str, object]] = []
     failure_rows: list[BatchFailureRecord] = []
 
     for plan in plans:
@@ -417,6 +419,28 @@ def _run_batch_bench(args: argparse.Namespace) -> None:
             result_path = outputs.get("json")
             if result_path is None and outputs:
                 result_path = next(iter(outputs.values()))
+            if layout.profile_dir is not None:
+                try:
+                    event_result = backend.profile_operator_device_time(request)
+                except NotImplementedError:
+                    event_result = None
+                if event_result is not None:
+                    profile_dir = layout.profile_dir / artifact_stem
+                    write_cuda_event_profile_csv(profile_dir, event_result)
+                    profile_summary_path = write_device_profile_summary(
+                        profile_dir / "profile-summary.json",
+                        read_device_profile(profile_dir, backend=args.backend),
+                    )
+                    benchmark_records.append(
+                        build_local_benchmark_record(
+                            run_id=f"{args.run_name}/{artifact_stem}",
+                            backend=args.backend,
+                            implementation=getattr(args, "implementation", None),
+                            prepared=plan.prepared,
+                            device_name=event_result.benchmark_result.device_name,
+                            profile_summary=read_profile_summary(profile_summary_path),
+                        )
+                    )
             summary_rows.append(
                 BatchResultRecord(
                     op=plan.op,
@@ -464,6 +488,8 @@ def _run_batch_bench(args: argparse.Namespace) -> None:
     )
     write_batch_summary_json(layout.meta_dir / "summary.json", summary_rows, metadata)
     write_batch_summary_csv(layout.meta_dir / "summary.csv", summary_rows)
+    if benchmark_records:
+        write_benchmark_records_json(layout.meta_dir / "benchmark-records.json", benchmark_records)
     failures_path = write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
     if failure_rows:
         raise RuntimeError(
