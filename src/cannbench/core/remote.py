@@ -191,10 +191,6 @@ def collect_remote_artifacts(
             )
         elif endpoint.backend == "nvidia":
             env_prefix = _remote_command_env(endpoint.env)
-            capability_probe = (
-                f"{env_prefix}{shlex.quote(endpoint.python)} -c "
-                f"{shlex.quote('import torch; print(torch.cuda.get_device_capability(0)[0])')}"
-            )
             ncu_operator = (
                 f"{env_prefix}"
                 "ncu --target-processes all --force-overwrite "
@@ -203,24 +199,7 @@ def collect_remote_artifacts(
                 f"--export {shlex.quote(remote_profile + '/ncu-report')} "
                 f"{base_operator}"
             )
-            cuda_event_operator = (
-                f"{env_prefix}"
-                f"{shlex.quote(endpoint.python)} -m cannbench cuda-event-profile "
-                "--backend nvidia "
-                f"--prepared-input {shlex.quote(relative_prepared)} "
-                f"--warmup {warmup} "
-                f"--iterations {iterations} "
-                f"--profile-dir {shlex.quote(remote_profile)} "
-                f"--output-dir {shlex.quote(relative_perf)} "
-                "--run-name benchmark"
-            )
-            profiled_operator = (
-                f"major=$({capability_probe}); "
-                'if [ "$major" -ge 7 ]; '
-                f"then {ncu_operator}; "
-                f"else {cuda_event_operator}; "
-                "fi"
-            )
+            profiled_operator = ncu_operator
             command = f"{_remote_command_prefix(endpoint)}{profiled_operator}"
         else:
             raise ValueError(f"unsupported profiler backend: {endpoint.backend}")

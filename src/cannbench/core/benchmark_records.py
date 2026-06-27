@@ -49,9 +49,6 @@ def _implementation_and_version(
             return "simt", "v1"
         return "cann_ops_library", "cann"
     if backend == "nvidia":
-        source_files = {Path(item).name for item in profile_summary.source_files}
-        if "cuda-events.csv" in source_files:
-            return "cuda_event", "cuda-event"
         return "ncu", "ncu"
     return implementation or "unknown", implementation or "unknown"
 

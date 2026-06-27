@@ -21,7 +21,6 @@ from cannbench.core.benchmark_records import (
     write_benchmark_records_json,
 )
 from cannbench.core.config import OperatorBenchmarkRequest
-from cannbench.core.cuda_events import write_cuda_event_profile_csv
 from cannbench.core.layout import build_run_layout
 from cannbench.core.publish import publish_run_artifacts
 from cannbench.serve import serve_cannbench
@@ -31,7 +30,11 @@ from cannbench.core.operator_output import (
     write_operator_output,
     write_output_comparison,
 )
-from cannbench.core.profile import read_device_profile, write_device_profile_summary
+from cannbench.core.profile import (
+    read_device_profile,
+    write_device_profile_summary,
+    write_profile_artifacts,
+)
 from cannbench.core.prepared_input import (
     PreparedOperatorInput,
     build_prepared_operator_input,
@@ -226,15 +229,6 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_profile.add_argument("--profile-dir", type=Path, required=True)
     summarize_profile.add_argument("--output", type=Path, required=True)
 
-    cuda_event = subparsers.add_parser("cuda-event-profile")
-    cuda_event.add_argument("--backend", choices=["nvidia"], required=True)
-    cuda_event.add_argument("--prepared-input", type=Path, required=True)
-    cuda_event.add_argument("--warmup", type=_non_negative_int, default=10)
-    cuda_event.add_argument("--iterations", type=_positive_int, default=1)
-    cuda_event.add_argument("--profile-dir", type=Path, required=True)
-    cuda_event.add_argument("--output-dir", type=Path, required=True)
-    cuda_event.add_argument("--run-name", default="benchmark")
-
     return parser
 
 
@@ -421,15 +415,15 @@ def _run_batch_bench(args: argparse.Namespace) -> None:
                 result_path = next(iter(outputs.values()))
             if layout.profile_dir is not None:
                 try:
-                    event_result = backend.profile_operator_device_time(request)
+                    profile_result = backend.profile_operator_device_time(request)
                 except NotImplementedError:
-                    event_result = None
-                if event_result is not None:
+                    profile_result = None
+                if profile_result is not None:
                     profile_dir = layout.profile_dir / artifact_stem
-                    write_cuda_event_profile_csv(profile_dir, event_result)
+                    write_profile_artifacts(profile_dir, profile_result.profile_artifacts)
                     profile_summary_path = write_device_profile_summary(
                         profile_dir / "profile-summary.json",
-                        read_device_profile(profile_dir, backend=args.backend),
+                        profile_result.profile_summary,
                     )
                     benchmark_records.append(
                         build_local_benchmark_record(
@@ -437,7 +431,7 @@ def _run_batch_bench(args: argparse.Namespace) -> None:
                             backend=args.backend,
                             implementation=getattr(args, "implementation", None),
                             prepared=plan.prepared,
-                            device_name=event_result.benchmark_result.device_name,
+                            device_name=profile_result.benchmark_result.device_name,
                             profile_summary=read_profile_summary(profile_summary_path),
                         )
                     )
@@ -785,29 +779,4 @@ def main(argv: list[str] | None = None) -> int:
             write_device_profile_summary(args.output, summary)
         except (RuntimeError, ValueError) as exc:
             parser.error(str(exc))
-    elif args.command == "cuda-event-profile":
-        try:
-            prepared = read_prepared_operator_input(args.prepared_input)
-            request = OperatorBenchmarkRequest(
-                backend=args.backend,
-                op=prepared.op,
-                dtype=prepared.dtype,
-                dataset=prepared.dataset,
-                case_id=prepared.case.case_id,
-                warmup=args.warmup,
-                iterations=args.iterations,
-                seed=prepared.seed,
-            )
-            backend = get_backend(args.backend)
-            event_result = backend.profile_operator_with_cuda_events(request)
-            write_cuda_event_profile_csv(args.profile_dir, event_result)
-            write_benchmark_outputs(
-                args.output_dir,
-                args.run_name,
-                event_result.benchmark_result,
-                request.output_formats,
-            )
-        except (RuntimeError, ValueError) as exc:
-            parser.error(str(exc))
-
     return 0

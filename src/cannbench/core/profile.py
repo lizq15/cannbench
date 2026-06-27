@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from cannbench.core.result import OperatorBenchmarkResult
 from cannbench.core.timing import summarize_timings_ms
 
 
@@ -30,6 +31,27 @@ class DeviceProfileSummary:
             "latency_ms_p99": self.latency_ms_p99,
             "source_files": list(self.source_files),
         }
+
+
+@dataclass(frozen=True)
+class LocalDeviceProfileResult:
+    benchmark_result: OperatorBenchmarkResult
+    profile_summary: DeviceProfileSummary
+    profile_artifacts: tuple[tuple[str, bytes], ...] = ()
+
+
+def write_profile_artifacts(
+    profile_dir: Path,
+    artifacts: tuple[tuple[str, bytes], ...],
+) -> tuple[Path, ...]:
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    created: list[Path] = []
+    for relative_name, content in artifacts:
+        path = profile_dir / relative_name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        created.append(path)
+    return tuple(created)
 
 
 def _unit_from_text(text: str) -> str:

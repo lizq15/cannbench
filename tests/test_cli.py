@@ -7,8 +7,8 @@ import pytest
 
 from cannbench.cli import build_parser, main
 from cannbench.core.layout import build_run_layout
-from cannbench.core.cuda_events import CudaEventProfileResult
 from cannbench.core.operator_output import CapturedOperatorOutput, OutputComparisonResult
+from cannbench.core.profile import DeviceProfileSummary, LocalDeviceProfileResult
 from cannbench.core.remote import RemoteEndpoint
 from cannbench.core.result import (
     OperatorBenchmarkResult,
@@ -396,33 +396,6 @@ def test_build_parser_exposes_summarize_profile_subcommand():
 
     assert args.command == "summarize-profile"
     assert args.backend == "ascend"
-
-
-def test_build_parser_exposes_cuda_event_profile_subcommand():
-    parser = build_parser()
-    args = parser.parse_args(
-        [
-            "cuda-event-profile",
-            "--backend",
-            "nvidia",
-            "--prepared-input",
-            "prepared-softmax.json",
-            "--warmup",
-            "2",
-            "--iterations",
-            "3",
-            "--profile-dir",
-            "results/profile",
-            "--output-dir",
-            "results/perf",
-            "--run-name",
-            "benchmark",
-        ]
-    )
-
-    assert args.command == "cuda-event-profile"
-    assert args.backend == "nvidia"
-    assert args.iterations == 3
 
 
 def test_build_parser_accepts_ascend_backend():
@@ -1046,6 +1019,20 @@ def test_main_batch_collect_records_failures_and_continues(tmp_path, monkeypatch
         (case_output_dir / "perf" / "benchmark.json").write_text(
             json.dumps({"status": "ok"}) + "\n"
         )
+        (case_output_dir / "profile-summary.json").write_text(
+            json.dumps(
+                {
+                    "backend": "ascend",
+                    "sample_count": 1,
+                    "latency_ms_avg": 1.0,
+                    "latency_ms_p50": 1.0,
+                    "latency_ms_p95": 1.0,
+                    "latency_ms_p99": 1.0,
+                    "source_files": ["op_summary.csv"],
+                }
+            )
+            + "\n"
+        )
 
     monkeypatch.setattr(
         "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
@@ -1132,6 +1119,20 @@ def test_main_runs_batch_collect_from_selection_expansion(tmp_path, monkeypatch)
         (case_output_dir / "perf").mkdir(parents=True)
         (case_output_dir / "perf" / "benchmark.json").write_text(
             json.dumps({"status": "ok"}) + "\n"
+        )
+        (case_output_dir / "profile-summary.json").write_text(
+            json.dumps(
+                {
+                    "backend": "ascend",
+                    "sample_count": 1,
+                    "latency_ms_avg": 1.0,
+                    "latency_ms_p50": 1.0,
+                    "latency_ms_p95": 1.0,
+                    "latency_ms_p99": 1.0,
+                    "source_files": ["op_summary.csv"],
+                }
+            )
+            + "\n"
         )
 
     monkeypatch.setattr(
@@ -1333,82 +1334,6 @@ def test_main_summarize_profile_writes_summary(tmp_path, monkeypatch):
     assert exit_code == 0
     assert captured["output_path"] == tmp_path / "profile-summary.json"
     assert captured["actual_summary"] is summary
-
-
-def test_main_cuda_event_profile_writes_csv_and_outputs(tmp_path, monkeypatch):
-    captured: dict[str, object] = {}
-    result = sample_result()
-    prepared_path = tmp_path / "prepared.json"
-    prepared_path.write_text(
-        """{
-  "schema_version": 1,
-  "op": "softmax",
-  "dtype": "float16",
-  "dataset": "smoke",
-  "seed": 7,
-  "case": {
-    "case_id": "tiny_logits",
-    "family": "lm_logits",
-    "source_kind": "synthetic_smoke",
-    "source_project": "cannbench",
-    "source_model": "smoke_fixture",
-    "source_file": "built-in",
-    "source_op": "softmax",
-    "payload": {
-      "dimensions": [32, 128],
-      "dim": -1
-    }
-  }
-}
-"""
-    )
-
-    class FakeBackend:
-        def profile_operator_with_cuda_events(self, request):
-            captured["request"] = request
-            return CudaEventProfileResult(
-                benchmark_result=result,
-                durations_ms=(0.1, 0.2),
-            )
-
-    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
-
-    def fake_write_benchmark_outputs(output_dir, run_name, actual_result, formats):
-        captured["output_dir"] = output_dir
-        captured["run_name"] = run_name
-        captured["result"] = actual_result
-        captured["formats"] = formats
-        return {}
-
-    monkeypatch.setattr("cannbench.cli.write_benchmark_outputs", fake_write_benchmark_outputs)
-
-    exit_code = main(
-        [
-            "cuda-event-profile",
-            "--backend",
-            "nvidia",
-            "--prepared-input",
-            str(prepared_path),
-            "--warmup",
-            "2",
-            "--iterations",
-            "3",
-            "--profile-dir",
-            str(tmp_path / "profile"),
-            "--output-dir",
-            str(tmp_path / "perf"),
-            "--run-name",
-            "benchmark",
-        ]
-    )
-
-    assert exit_code == 0
-    assert captured["request"].iterations == 3
-    assert captured["output_dir"] == tmp_path / "perf"
-    assert captured["run_name"] == "benchmark"
-    assert (tmp_path / "profile" / "cuda-events.csv").read_text() == (
-        "Name,Duration(ms)\nsoftmax,0.1\nsoftmax,0.2\n"
-    )
 
 
 def test_main_runs_operator_benchmark_from_prepared_input(tmp_path, monkeypatch):
@@ -1742,9 +1667,24 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
 
         def profile_operator_device_time(self, request):
             captured_requests.append(request)
-            return CudaEventProfileResult(
+            return LocalDeviceProfileResult(
                 benchmark_result=result_for_request(request),
-                durations_ms=(0.1,),
+                profile_summary=DeviceProfileSummary(
+                    backend="nvidia",
+                    sample_count=1,
+                    latency_ms_avg=0.1,
+                    latency_ms_p50=0.1,
+                    latency_ms_p95=0.1,
+                    latency_ms_p99=0.1,
+                    source_files=("ncu.csv",),
+                ),
+                profile_artifacts=(
+                    (
+                        "ncu.csv",
+                        b"Kernel Name,Metric Name,Metric Unit,Metric Value\n"
+                        b"softmax,gpu__time_duration.sum,nsecond,100000\n",
+                    ),
+                ),
             )
 
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
@@ -1781,9 +1721,11 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
     assert summary["result_count"] == len(smoke_cases)
     assert all(row["status"] == "ok" for row in summary["records"])
     assert summary["records"][0]["result_path"].startswith("perf/softmax-smoke-")
+    assert (layout.profile_dir / "softmax-smoke-tiny_logits-float16-seed0" / "ncu.csv").exists()
     assert len(benchmark_records["records"]) == len(smoke_cases)
     assert benchmark_records["records"][0]["backend"] == "nvidia"
-    assert benchmark_records["records"][0]["implementation"] == "cuda_event"
+    assert benchmark_records["records"][0]["implementation"] == "ncu"
+    assert benchmark_records["records"][0]["implementation_version"] == "ncu"
     assert benchmark_records["records"][0]["metrics"]["latency_ms_avg"] == 0.1
     assert failures["failure_count"] == 0
     assert failures["records"] == []
@@ -1815,6 +1757,9 @@ def test_main_runs_batch_bench_once_per_prepared_case(tmp_path, monkeypatch):
         def run_operator(self, request):
             seen_case_ids.append(request.case_id)
             return result_for_request(request)
+
+        def profile_operator_device_time(self, request):
+            raise NotImplementedError
 
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
 
@@ -1870,6 +1815,9 @@ def test_main_batch_bench_records_failures_and_continues(tmp_path, monkeypatch, 
             if request.case_id == "tiny_logits":
                 raise OSError("kernel launch failed")
             return result_for_request(request)
+
+        def profile_operator_device_time(self, request):
+            raise NotImplementedError
 
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
 

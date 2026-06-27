@@ -57,7 +57,7 @@ def test_read_profile_summary_and_write_benchmark_records_json(tmp_path: Path):
             latency_ms_p50=0.2,
             latency_ms_p95=0.3,
             latency_ms_p99=0.4,
-            source_files=("cuda-events.csv",),
+            source_files=("ncu.csv",),
         ),
     )
 
@@ -65,6 +65,6 @@ def test_read_profile_summary_and_write_benchmark_records_json(tmp_path: Path):
     result = write_benchmark_records_json(payload_path, [{"schema_version": 1, "records": "ok"}])
 
     assert summary.backend == "nvidia"
-    assert summary.source_files == ("cuda-events.csv",)
+    assert summary.source_files == ("ncu.csv",)
     assert result == payload_path
     assert '"records": "ok"' in payload_path.read_text()

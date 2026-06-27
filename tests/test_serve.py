@@ -77,6 +77,16 @@ def test_validate_gpu_benchmark_upload_rejects_code_snippet_in_allowed_field():
     assert "code-like content rejected at payload.records[0].implementation_version" in result.errors
 
 
+def test_validate_gpu_benchmark_upload_rejects_non_ncu_implementation():
+    payload = _valid_gpu_upload()
+    payload["records"][0]["implementation"] = "cuda_event"
+
+    result = validate_gpu_benchmark_upload(payload)
+
+    assert result.ok is False
+    assert "records[0].implementation must be ncu" in result.errors
+
+
 def test_list_simt_operator_versions_returns_sorted_directory_names(tmp_path: Path):
     datasets_root = tmp_path / "datasets"
     ascend_root = datasets_root / "softmax" / "custom_ops" / "ascend"
