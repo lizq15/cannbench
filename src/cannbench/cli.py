@@ -13,6 +13,12 @@ from cannbench.core.batch import (
     write_batch_summary_csv,
     write_batch_summary_json,
 )
+from cannbench.core.benchmark_records import (
+    build_collect_benchmark_record,
+    read_perf_result,
+    read_profile_summary,
+    write_benchmark_records_json,
+)
 from cannbench.core.config import OperatorBenchmarkRequest
 from cannbench.core.cuda_events import write_cuda_event_profile_csv
 from cannbench.core.layout import build_run_layout
@@ -481,6 +487,7 @@ def _run_batch_collect(args: argparse.Namespace) -> None:
     layout = _prepare_batch_run_layout(args.output_dir, args.run_name)
     endpoint = read_remote_endpoint(args.endpoint)
     summary_rows: list[BatchResultRecord] = []
+    benchmark_records: list[dict[str, object]] = []
     failure_rows: list[BatchFailureRecord] = []
     remote_parent_run_id = args.run_id or args.run_name
 
@@ -534,6 +541,22 @@ def _run_batch_collect(args: argparse.Namespace) -> None:
                     raise RuntimeError(
                         f"missing perf artifacts for profiled collect case {artifact_stem}"
                     )
+                if args.profile_device_time:
+                    profile_summary_path = temp_dir / "profile-summary.json"
+                    if not profile_summary_path.is_file():
+                        raise RuntimeError(
+                            f"missing profile summary for profiled collect case {artifact_stem}"
+                        )
+                    benchmark_records.append(
+                        build_collect_benchmark_record(
+                            run_id=remote_run_id,
+                            backend=endpoint.backend,
+                            implementation=args.implementation,
+                            prepared=plan.prepared,
+                            perf_payload=read_perf_result(temp_dir / "perf" / "benchmark.json"),
+                            profile_summary=read_profile_summary(profile_summary_path),
+                        )
+                    )
 
             summary_rows.append(
                 BatchResultRecord(
@@ -582,6 +605,8 @@ def _run_batch_collect(args: argparse.Namespace) -> None:
     )
     write_batch_summary_json(layout.meta_dir / "summary.json", summary_rows, metadata)
     write_batch_summary_csv(layout.meta_dir / "summary.csv", summary_rows)
+    if benchmark_records:
+        write_benchmark_records_json(layout.meta_dir / "benchmark-records.json", benchmark_records)
     failures_path = write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
     if failure_rows:
         raise RuntimeError(

@@ -15,7 +15,11 @@ from cannbench.core.result import (
     OperatorCase,
     build_softmax_case,
 )
-from cannbench.core.prepared_input import build_prepared_operator_input, write_prepared_operator_input
+from cannbench.core.prepared_input import (
+    build_prepared_operator_input,
+    read_prepared_operator_input,
+    write_prepared_operator_input,
+)
 from cannbench.datasets import get_operator_dataset
 
 
@@ -900,10 +904,35 @@ def test_main_runs_batch_collect_and_writes_aggregated_artifacts(tmp_path, monke
         (case_output_dir / "profile" / "op_summary.csv").write_text(
             "Op Name,Task Duration(us)\nsoftmax,1000\n"
         )
-        (case_output_dir / "profile-summary.json").write_text("{}")
+        prepared = read_prepared_operator_input(kwargs["prepared_input"])
+        (case_output_dir / "profile-summary.json").write_text(
+            json.dumps(
+                {
+                    "backend": "ascend",
+                    "sample_count": 1,
+                    "latency_ms_avg": 1.0,
+                    "latency_ms_p50": 1.0,
+                    "latency_ms_p95": 1.0,
+                    "latency_ms_p99": 1.0,
+                    "source_files": ["op_summary.csv"],
+                }
+            )
+            + "\n"
+        )
         (case_output_dir / "perf").mkdir(parents=True)
         (case_output_dir / "perf" / "benchmark.json").write_text(
-            json.dumps({"status": "ok"}) + "\n"
+            json.dumps(
+                {
+                    "backend": "ascend",
+                    "device_name": "Ascend 910B",
+                    "op": prepared.op,
+                    "dtype": prepared.dtype,
+                    "case": prepared.case.to_json_dict(),
+                    "warmup": kwargs["warmup"],
+                    "iterations": kwargs["iterations"],
+                }
+            )
+            + "\n"
         )
         (case_output_dir / "perf" / "benchmark.csv").write_text("header\nvalue\n")
 
@@ -936,6 +965,7 @@ def test_main_runs_batch_collect_and_writes_aggregated_artifacts(tmp_path, monke
 
     layout = build_run_layout(output_dir, "softmax-remote-batch")
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
+    benchmark_records = json.loads((layout.meta_dir / "benchmark-records.json").read_text())
     failures = json.loads((layout.meta_dir / "failures.json").read_text())
 
     assert exit_code == 0
@@ -964,6 +994,11 @@ def test_main_runs_batch_collect_and_writes_aggregated_artifacts(tmp_path, monke
     assert [row["status"] for row in summary["records"]] == ["ok", "ok"]
     assert summary["records"][0]["prepared_input"] == "prepared/softmax/smoke/tiny_logits-float16-seed1.json"
     assert summary["records"][0]["result_path"] == "perf/softmax-smoke-tiny_logits-float16-seed1.json"
+    assert len(benchmark_records["records"]) == 2
+    assert benchmark_records["records"][0]["backend"] == "ascend"
+    assert benchmark_records["records"][0]["implementation"] == "simt"
+    assert benchmark_records["records"][0]["implementation_version"] == "v1"
+    assert benchmark_records["records"][0]["metrics"]["latency_ms_avg"] == 1.0
     assert failures["failure_count"] == 0
     assert failures["records"] == []
 

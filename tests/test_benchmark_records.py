@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from cannbench.core.benchmark_records import (
+    build_collect_benchmark_record,
+    read_profile_summary,
+    write_benchmark_records_json,
+)
+from cannbench.core.prepared_input import build_prepared_operator_input
+from cannbench.core.profile import DeviceProfileSummary, write_device_profile_summary
+
+
+def test_build_collect_benchmark_record_for_ascend_simt():
+    prepared = build_prepared_operator_input(
+        op="softmax",
+        dtype="float16",
+        dataset="realistic",
+        case_id="t5_attention",
+        seed=7,
+    )
+    profile_summary = DeviceProfileSummary(
+        backend="ascend",
+        sample_count=1,
+        latency_ms_avg=1.0,
+        latency_ms_p50=1.0,
+        latency_ms_p95=1.1,
+        latency_ms_p99=1.2,
+        source_files=("op_summary.csv",),
+    )
+
+    record = build_collect_benchmark_record(
+        run_id="softmax-realistic-simt",
+        backend="ascend",
+        implementation="simt",
+        prepared=prepared,
+        perf_payload={"device_name": "Ascend 910B"},
+        profile_summary=profile_summary,
+    )
+
+    assert record["implementation"] == "simt"
+    assert record["implementation_version"] == "v1"
+    assert record["device_class"] == "Ascend"
+    assert record["shape"] == [4, 8, 1024, 1024]
+    assert record["diff_ref"] == "softmax/simt/v1"
+
+
+def test_read_profile_summary_and_write_benchmark_records_json(tmp_path: Path):
+    summary_path = tmp_path / "profile-summary.json"
+    payload_path = tmp_path / "benchmark-records.json"
+    write_device_profile_summary(
+        summary_path,
+        DeviceProfileSummary(
+            backend="nvidia",
+            sample_count=2,
+            latency_ms_avg=0.2,
+            latency_ms_p50=0.2,
+            latency_ms_p95=0.3,
+            latency_ms_p99=0.4,
+            source_files=("cuda-events.csv",),
+        ),
+    )
+
+    summary = read_profile_summary(summary_path)
+    result = write_benchmark_records_json(payload_path, [{"schema_version": 1, "records": "ok"}])
+
+    assert summary.backend == "nvidia"
+    assert summary.source_files == ("cuda-events.csv",)
+    assert result == payload_path
+    assert '"records": "ok"' in payload_path.read_text()

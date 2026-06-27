@@ -191,7 +191,7 @@ cannbench collect \
   --profile-device-time
 ```
 
-Use `collect --prepared-dir` for remote batch execution over a prepared manifest set. The command preserves the prepared manifests under the batch run, stores per-case outputs in stable local paths, and emits the same batch summary artifacts as local `bench`:
+Use `collect --prepared-dir` for remote batch execution over a prepared manifest set. The command preserves the prepared manifests under the batch run, stores per-case outputs in stable local paths, emits the same batch summary artifacts as local `bench`, and when `--profile-device-time` is enabled it also writes normalized frontend records to `meta/benchmark-records.json`:
 
 ```bash
 cannbench collect \
@@ -203,6 +203,8 @@ cannbench collect \
   --profile-device-time
 ```
 
+`meta/benchmark-records.json` is the publish-facing artifact for frontend consumption. `meta/summary.json` remains an internal batch index for execution status, prepared-input references, and failure replay.
+
 Use `publish` to mirror selected run artifacts into `published/` without raw profiler files:
 
 ```bash
@@ -210,6 +212,8 @@ cannbench publish \
   --source runs/h800-softmax-realistic \
   --dest published/h800-softmax-realistic
 ```
+
+Because `publish` mirrors the full `meta/` directory, `published/<run>/meta/benchmark-records.json` is immediately available to the frontend or any higher-level aggregation service.
 
 Use `serve` to host the frontend and published results. GPU JSON upload is disabled unless explicitly enabled:
 
