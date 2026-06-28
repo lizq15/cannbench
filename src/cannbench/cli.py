@@ -7,6 +7,7 @@ from pathlib import Path
 from cannbench.backends import get_backend
 from cannbench.core.batch import (
     BatchFailureRecord,
+    PreparedInputPlan,
     BatchResultRecord,
     BatchSummaryMetadata,
     expand_prepared_input_plans,
@@ -471,42 +472,92 @@ def _prepare_batch_run_layout(output_dir: Path, run_name: str):
     return layout
 
 
-def _write_single_case_metadata(
+def _write_bench_metadata(
     *,
     layout,
     backend: str,
     run_name: str,
     implementation: str | None,
-    row: BatchResultRecord,
+    summary_rows: list[BatchResultRecord],
     failure_rows: list[BatchFailureRecord],
     benchmark_records: list[dict[str, object]],
-) -> None:
+) -> Path:
     metadata = BatchSummaryMetadata(
         backend=backend,
         run_name=run_name,
         implementation=implementation,
-        total_cases=1,
-        success_count=0 if failure_rows else 1,
+        total_cases=len(summary_rows),
+        success_count=sum(1 for row in summary_rows if row.status == "ok"),
         failure_count=len(failure_rows),
     )
-    write_batch_summary_json(layout.meta_dir / "summary.json", [row], metadata)
-    write_batch_summary_csv(layout.meta_dir / "summary.csv", [row])
+    write_batch_summary_json(layout.meta_dir / "summary.json", summary_rows, metadata)
+    write_batch_summary_csv(layout.meta_dir / "summary.csv", summary_rows)
     if benchmark_records:
         write_benchmark_records_json(layout.meta_dir / "benchmark-records.json", benchmark_records)
-    write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
+    return write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
 
 
-def _run_batch_local_bench(args: argparse.Namespace) -> None:
-    plans = expand_prepared_input_plans(
-        op=args.op,
-        dtype=args.dtype,
-        dataset=args.dataset,
-        case_id=args.case_id,
-        prepared_input=args.prepared_input,
-        prepared_dir=args.prepared_dir,
+def _build_success_row(
+    *,
+    plan,
+    prepared_reference: str,
+    layout_root: Path,
+    result_path: Path | None,
+) -> BatchResultRecord:
+    return BatchResultRecord(
+        op=plan.op,
+        dataset=plan.dataset,
+        case_id=plan.case_id,
+        dtype=plan.dtype,
+        seed=plan.seed,
+        status="ok",
+        prepared_input=prepared_reference,
+        result_path=_relative_artifact_path(layout_root, result_path),
     )
+
+
+def _build_failure_row(
+    *,
+    plan,
+    prepared_reference: str,
+) -> BatchResultRecord:
+    return BatchResultRecord(
+        op=plan.op,
+        dataset=plan.dataset,
+        case_id=plan.case_id,
+        dtype=plan.dtype,
+        seed=plan.seed,
+        status="failed",
+        prepared_input=prepared_reference,
+        result_path=None,
+    )
+
+
+def _build_failure_record(
+    *,
+    plan,
+    prepared_reference: str,
+    error: Exception,
+) -> BatchFailureRecord:
+    return BatchFailureRecord(
+        op=plan.op,
+        dataset=plan.dataset,
+        case_id=plan.case_id,
+        dtype=plan.dtype,
+        seed=plan.seed,
+        prepared_input=prepared_reference,
+        error=str(error),
+    )
+
+
+def _run_local_bench_with_plans(
+    args: argparse.Namespace,
+    *,
+    plans: list,
+    run_name: str,
+) -> None:
     _validate_unique_batch_artifact_stems(plans)
-    layout = _prepare_batch_run_layout(args.output_dir, args.run_name)
+    layout = _prepare_batch_run_layout(args.output_dir, run_name)
     backend = get_backend(args.backend)
     summary_rows: list[BatchResultRecord] = []
     benchmark_records: list[dict[str, object]] = []
@@ -544,7 +595,7 @@ def _run_batch_local_bench(args: argparse.Namespace) -> None:
             if execution_result.artifacts.profile is not None:
                 benchmark_records.append(
                     _build_benchmark_record_entry(
-                        run_id=f"{args.run_name}/{artifact_stem}",
+                        run_id=f"{run_name}/{artifact_stem}",
                         backend=args.backend,
                         implementation=getattr(args, "implementation", None),
                         prepared=plan.prepared,
@@ -552,78 +603,57 @@ def _run_batch_local_bench(args: argparse.Namespace) -> None:
                     )
                 )
             summary_rows.append(
-                BatchResultRecord(
-                    op=plan.op,
-                    dataset=plan.dataset,
-                    case_id=plan.case_id,
-                    dtype=plan.dtype,
-                    seed=plan.seed,
-                    status="ok",
-                    prepared_input=prepared_reference,
-                    result_path=_relative_artifact_path(layout.root, result_path),
+                _build_success_row(
+                    plan=plan,
+                    prepared_reference=prepared_reference,
+                    layout_root=layout.root,
+                    result_path=result_path,
                 )
             )
         except Exception as exc:
             summary_rows.append(
-                BatchResultRecord(
-                    op=plan.op,
-                    dataset=plan.dataset,
-                    case_id=plan.case_id,
-                    dtype=plan.dtype,
-                    seed=plan.seed,
-                    status="failed",
-                    prepared_input=prepared_reference,
-                    result_path=None,
+                _build_failure_row(
+                    plan=plan,
+                    prepared_reference=prepared_reference,
                 )
             )
             failure_rows.append(
-                BatchFailureRecord(
-                    op=plan.op,
-                    dataset=plan.dataset,
-                    case_id=plan.case_id,
-                    dtype=plan.dtype,
-                    seed=plan.seed,
-                    prepared_input=prepared_reference,
-                    error=str(exc),
+                _build_failure_record(
+                    plan=plan,
+                    prepared_reference=prepared_reference,
+                    error=exc,
                 )
             )
 
-    metadata = BatchSummaryMetadata(
+    failures_path = _write_bench_metadata(
+        layout=layout,
         backend=args.backend,
-        run_name=args.run_name,
+        run_name=run_name,
         implementation=getattr(args, "implementation", None),
-        total_cases=len(summary_rows),
-        success_count=sum(1 for row in summary_rows if row.status == "ok"),
-        failure_count=len(failure_rows),
+        summary_rows=summary_rows,
+        failure_rows=failure_rows,
+        benchmark_records=benchmark_records,
     )
-    write_batch_summary_json(layout.meta_dir / "summary.json", summary_rows, metadata)
-    write_batch_summary_csv(layout.meta_dir / "summary.csv", summary_rows)
-    if benchmark_records:
-        write_benchmark_records_json(layout.meta_dir / "benchmark-records.json", benchmark_records)
-    failures_path = write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
     if failure_rows:
+        label = "single" if len(plans) == 1 else "batch"
         raise RuntimeError(
-            f"batch bench completed with {len(failure_rows)} failures; see {failures_path}"
+            f"{label} bench completed with {len(failure_rows)} failures; see {failures_path}"
         )
 
 
-def _run_batch_remote_bench(args: argparse.Namespace) -> None:
-    plans = expand_prepared_input_plans(
-        op=args.op,
-        dtype=args.dtype,
-        dataset=args.dataset,
-        case_id=args.case_id,
-        seed=args.seed,
-        prepared_input=args.prepared_input,
-        prepared_dir=args.prepared_dir,
-    )
+def _run_remote_bench_with_plans(
+    args: argparse.Namespace,
+    *,
+    plans: list,
+    run_name: str,
+    endpoint,
+    parent_run_id: str,
+) -> None:
     _validate_unique_batch_artifact_stems(plans)
-    layout = _prepare_batch_run_layout(args.output_dir, args.run_name)
-    endpoint = read_remote_endpoint(args.endpoint)
+    layout = _prepare_batch_run_layout(args.output_dir, run_name)
     summary_rows: list[BatchResultRecord] = []
     benchmark_records: list[dict[str, object]] = []
     failure_rows: list[BatchFailureRecord] = []
-    remote_parent_run_id = args.run_id or args.run_name
 
     for plan in plans:
         prepared_path, prepared_reference = _prepared_reference_for_plan(
@@ -636,12 +666,13 @@ def _run_batch_remote_bench(args: argparse.Namespace) -> None:
             dtype=plan.dtype,
             seed=plan.seed,
         )
-        remote_run_id = f"{remote_parent_run_id}/{artifact_stem}"
+        remote_run_id = f"{parent_run_id}/{artifact_stem}" if len(plans) > 1 else parent_run_id
         try:
             with tempfile.TemporaryDirectory(prefix=f"{artifact_stem}-", dir=layout.root) as temp_dir_name:
                 temp_dir = Path(temp_dir_name)
                 remote_result = collect_remote_artifacts(
                     endpoint=endpoint,
+                    endpoint_path=args.endpoint,
                     prepared_input=prepared_path,
                     output_dir=temp_dir,
                     run_id=remote_run_id,
@@ -659,11 +690,15 @@ def _run_batch_remote_bench(args: argparse.Namespace) -> None:
                     execution_result=remote_result,
                     capture_output=args.capture_output,
                 )
-                if result_path is None:
+                execution_result = BenchCaseExecutionResult(
+                    artifacts=remote_result.artifacts,
+                    result_path=result_path,
+                )
+                if execution_result.result_path is None:
                     raise RuntimeError(
                         f"missing perf artifacts for profiled remote bench case {artifact_stem}"
                     )
-                if remote_result.artifacts.profile is None:
+                if execution_result.artifacts.profile is None:
                     raise RuntimeError(
                         f"missing profile summary for profiled remote bench case {artifact_stem}"
                     )
@@ -673,174 +708,113 @@ def _run_batch_remote_bench(args: argparse.Namespace) -> None:
                         backend=endpoint.backend,
                         implementation=args.implementation,
                         prepared=plan.prepared,
-                        execution_result=BenchCaseExecutionResult(
-                            artifacts=remote_result.artifacts,
-                        ),
+                        execution_result=execution_result,
                     )
                 )
-
             summary_rows.append(
-                BatchResultRecord(
-                    op=plan.op,
-                    dataset=plan.dataset,
-                    case_id=plan.case_id,
-                    dtype=plan.dtype,
-                    seed=plan.seed,
-                    status="ok",
-                    prepared_input=prepared_reference,
-                    result_path=_relative_artifact_path(layout.root, result_path),
+                _build_success_row(
+                    plan=plan,
+                    prepared_reference=prepared_reference,
+                    layout_root=layout.root,
+                    result_path=execution_result.result_path,
                 )
             )
         except Exception as exc:
             summary_rows.append(
-                BatchResultRecord(
-                    op=plan.op,
-                    dataset=plan.dataset,
-                    case_id=plan.case_id,
-                    dtype=plan.dtype,
-                    seed=plan.seed,
-                    status="failed",
-                    prepared_input=prepared_reference,
-                    result_path=None,
+                _build_failure_row(
+                    plan=plan,
+                    prepared_reference=prepared_reference,
                 )
             )
             failure_rows.append(
-                BatchFailureRecord(
-                    op=plan.op,
-                    dataset=plan.dataset,
-                    case_id=plan.case_id,
-                    dtype=plan.dtype,
-                    seed=plan.seed,
-                    prepared_input=prepared_reference,
-                    error=str(exc),
+                _build_failure_record(
+                    plan=plan,
+                    prepared_reference=prepared_reference,
+                    error=exc,
                 )
             )
 
-    metadata = BatchSummaryMetadata(
+    failures_path = _write_bench_metadata(
+        layout=layout,
         backend=endpoint.backend,
-        run_name=args.run_name,
+        run_name=run_name,
         implementation=getattr(args, "implementation", None),
-        total_cases=len(summary_rows),
-        success_count=sum(1 for row in summary_rows if row.status == "ok"),
-        failure_count=len(failure_rows),
+        summary_rows=summary_rows,
+        failure_rows=failure_rows,
+        benchmark_records=benchmark_records,
     )
-    write_batch_summary_json(layout.meta_dir / "summary.json", summary_rows, metadata)
-    write_batch_summary_csv(layout.meta_dir / "summary.csv", summary_rows)
-    if benchmark_records:
-        write_benchmark_records_json(layout.meta_dir / "benchmark-records.json", benchmark_records)
-    failures_path = write_batch_failures_json(layout.meta_dir / "failures.json", failure_rows, metadata)
     if failure_rows:
+        label = "single" if len(plans) == 1 else "batch"
         raise RuntimeError(
-            f"batch bench completed with {len(failure_rows)} failures; see {failures_path}"
+            f"{label} bench completed with {len(failure_rows)} failures; see {failures_path}"
         )
+
+
+def _run_batch_local_bench(args: argparse.Namespace) -> None:
+    plans = expand_prepared_input_plans(
+        op=args.op,
+        dtype=args.dtype,
+        dataset=args.dataset,
+        case_id=args.case_id,
+        prepared_input=args.prepared_input,
+        prepared_dir=args.prepared_dir,
+    )
+    _run_local_bench_with_plans(args, plans=plans, run_name=args.run_name)
+
+
+def _run_batch_remote_bench(args: argparse.Namespace) -> None:
+    plans = expand_prepared_input_plans(
+        op=args.op,
+        dtype=args.dtype,
+        dataset=args.dataset,
+        case_id=args.case_id,
+        seed=args.seed,
+        prepared_input=args.prepared_input,
+        prepared_dir=args.prepared_dir,
+    )
+    endpoint = read_remote_endpoint(args.endpoint)
+    _run_remote_bench_with_plans(
+        args,
+        plans=plans,
+        run_name=args.run_name,
+        endpoint=endpoint,
+        parent_run_id=args.run_id or args.run_name,
+    )
 
 
 def _run_single_local_bench(args: argparse.Namespace) -> None:
     run_name = args.run_name or "operator-benchmark"
-    layout = _prepare_batch_run_layout(args.output_dir, run_name)
-    backend = get_backend(args.backend)
-    request = _build_request_from_args(args)
-    prepared = build_prepared_operator_input(
-        op=request.op,
-        dtype=request.dtype,
-        dataset=request.dataset,
-        case_id=request.case_id,
-        seed=request.seed,
-    )
-    artifact_stem = build_benchmark_artifact_stem(
-        op=prepared.op,
-        dataset=prepared.dataset,
-        case_id=prepared.case.case_id,
-        dtype=prepared.dtype,
-        seed=prepared.seed,
-    )
-    prepared_path = _prepared_manifest_path(
-        layout.prepared_dir,
-        prepared.op,
-        prepared.dataset,
-        prepared.case.case_id,
-        prepared.dtype,
-        prepared.seed,
-    )
-    write_prepared_operator_input(prepared_path, prepared)
-    prepared_reference = _relative_artifact_path(layout.root, prepared_path) or prepared_path.name
-    benchmark_records: list[dict[str, object]] = []
-    failure_rows: list[BatchFailureRecord] = []
-
-    try:
-        execution_result = _execute_benchmark_case(
-            backend,
-            request,
-            output_dir=layout.perf_dir,
-            run_name=artifact_stem,
+    if args.prepared_input is None:
+        request = _build_request_from_args(args)
+        prepared = build_prepared_operator_input(
+            op=request.op,
+            dtype=request.dtype,
+            dataset=request.dataset,
+            case_id=request.case_id,
+            seed=request.seed,
         )
-        profile_artifacts = _profile_local_benchmark_case(backend, request)
-        execution_result = BenchCaseExecutionResult(
-            artifacts=profile_artifacts,
-            result_path=execution_result.result_path,
-        )
-        result_path = _finalize_local_execution_artifacts(
-            layout=layout,
-            artifact_stem=artifact_stem,
-            execution_result=execution_result,
-        )
-        if execution_result.artifacts.profile is not None:
-            benchmark_records.append(
-                _build_benchmark_record_entry(
-                    run_id=f"{run_name}/{artifact_stem}",
-                    backend=args.backend,
-                    implementation=getattr(args, "implementation", None),
-                    prepared=prepared,
-                    execution_result=execution_result,
-                )
-            )
-        row = BatchResultRecord(
-            op=prepared.op,
-            dataset=prepared.dataset,
-            case_id=prepared.case.case_id,
-            dtype=prepared.dtype,
-            seed=prepared.seed,
-            status="ok",
-            prepared_input=prepared_reference,
-            result_path=_relative_artifact_path(layout.root, result_path),
-        )
-    except Exception as exc:
-        row = BatchResultRecord(
-            op=prepared.op,
-            dataset=prepared.dataset,
-            case_id=prepared.case.case_id,
-            dtype=prepared.dtype,
-            seed=prepared.seed,
-            status="failed",
-            prepared_input=prepared_reference,
-            result_path=None,
-        )
-        failure_rows.append(
-            BatchFailureRecord(
+        plans = [
+            PreparedInputPlan(
                 op=prepared.op,
                 dataset=prepared.dataset,
                 case_id=prepared.case.case_id,
                 dtype=prepared.dtype,
                 seed=prepared.seed,
-                prepared_input=prepared_reference,
-                error=str(exc),
+                prepared=prepared,
             )
+        ]
+    else:
+        plans = expand_prepared_input_plans(
+            op=args.op,
+            dtype=args.dtype,
+            dataset=args.dataset,
+            case_id=args.case_id,
+            seed=args.seed,
+            prepared_input=args.prepared_input,
         )
-
-    _write_single_case_metadata(
-        layout=layout,
-        backend=args.backend,
-        run_name=run_name,
-        implementation=getattr(args, "implementation", None),
-        row=row,
-        failure_rows=failure_rows,
-        benchmark_records=benchmark_records,
-    )
-    if failure_rows:
-        raise RuntimeError(
-            f"single bench completed with {len(failure_rows)} failures; "
-            f"see {layout.meta_dir / 'failures.json'}"
-        )
+    if len(plans) != 1:
+        raise ValueError("single-case local bench requires exactly one prepared input plan")
+    _run_local_bench_with_plans(args, plans=plans, run_name=run_name)
 
 
 def _run_single_remote_bench(args: argparse.Namespace) -> None:
@@ -848,9 +822,7 @@ def _run_single_remote_bench(args: argparse.Namespace) -> None:
     endpoint = read_remote_endpoint(args.endpoint)
     if not run_name:
         raise ValueError("single-case remote bench requires --run-name or --run-id")
-    layout = _prepare_batch_run_layout(args.output_dir, run_name)
-    prepared_input = args.prepared_input
-    if prepared_input is None:
+    if args.prepared_input is None:
         if not args.dataset or not args.case_id:
             raise ValueError("--dataset and --case-id are required for single-case execution")
         prepared = build_prepared_operator_input(
@@ -860,114 +832,34 @@ def _run_single_remote_bench(args: argparse.Namespace) -> None:
             case_id=args.case_id,
             seed=args.seed,
         )
-    else:
-        prepared = read_prepared_operator_input(prepared_input)
-        if args.op is not None:
-            _build_request_from_prepared(prepared, args)
-
-    prepared_path = _prepared_manifest_path(
-        layout.prepared_dir,
-        prepared.op,
-        prepared.dataset,
-        prepared.case.case_id,
-        prepared.dtype,
-        prepared.seed,
-    )
-    write_prepared_operator_input(prepared_path, prepared)
-    prepared_reference = _relative_artifact_path(layout.root, prepared_path) or prepared_path.name
-    artifact_stem = build_benchmark_artifact_stem(
-        op=prepared.op,
-        dataset=prepared.dataset,
-        case_id=prepared.case.case_id,
-        dtype=prepared.dtype,
-        seed=prepared.seed,
-    )
-    benchmark_records: list[dict[str, object]] = []
-    failure_rows: list[BatchFailureRecord] = []
-
-    try:
-        with tempfile.TemporaryDirectory(prefix=f"{artifact_stem}-", dir=layout.root) as temp_dir_name:
-            temp_dir = Path(temp_dir_name)
-            remote_result = collect_remote_artifacts(
-                endpoint=endpoint,
-                endpoint_path=args.endpoint,
-                prepared_input=prepared_path,
-                output_dir=temp_dir,
-                run_id=args.run_id or run_name,
-                capture_output=args.capture_output,
-                profile_device_time=True,
-                warmup=args.warmup,
-                iterations=args.iterations,
-                deploy_custom_op=_resolve_deploy_custom_op(
-                    endpoint.backend, args.implementation, args.deploy_custom_op
-                ),
-            )
-            result_path = _finalize_remote_execution_artifacts(
-                layout=layout,
-                artifact_stem=artifact_stem,
-                execution_result=remote_result,
-                capture_output=args.capture_output,
-            )
-            if remote_result.artifacts.profile is None:
-                raise RuntimeError("missing profile summary for profiled remote bench case")
-            benchmark_records.append(
-                _build_benchmark_record_entry(
-                    run_id=args.run_id or run_name,
-                    backend=endpoint.backend,
-                    implementation=args.implementation,
-                    prepared=prepared,
-                    execution_result=BenchCaseExecutionResult(
-                        artifacts=remote_result.artifacts,
-                    ),
-                )
-            )
-        row = BatchResultRecord(
-            op=prepared.op,
-            dataset=prepared.dataset,
-            case_id=prepared.case.case_id,
-            dtype=prepared.dtype,
-            seed=prepared.seed,
-            status="ok",
-            prepared_input=prepared_reference,
-            result_path=_relative_artifact_path(layout.root, result_path),
-        )
-    except Exception as exc:
-        row = BatchResultRecord(
-            op=prepared.op,
-            dataset=prepared.dataset,
-            case_id=prepared.case.case_id,
-            dtype=prepared.dtype,
-            seed=prepared.seed,
-            status="failed",
-            prepared_input=prepared_reference,
-            result_path=None,
-        )
-        failure_rows.append(
-            BatchFailureRecord(
+        plans = [
+            PreparedInputPlan(
                 op=prepared.op,
                 dataset=prepared.dataset,
                 case_id=prepared.case.case_id,
                 dtype=prepared.dtype,
                 seed=prepared.seed,
-                prepared_input=prepared_reference,
-                error=str(exc),
+                prepared=prepared,
             )
+        ]
+    else:
+        plans = expand_prepared_input_plans(
+            op=args.op,
+            dtype=args.dtype,
+            dataset=args.dataset,
+            case_id=args.case_id,
+            seed=args.seed,
+            prepared_input=args.prepared_input,
         )
-
-    _write_single_case_metadata(
-        layout=layout,
-        backend=endpoint.backend,
+    if len(plans) != 1:
+        raise ValueError("single-case remote bench requires exactly one prepared input plan")
+    _run_remote_bench_with_plans(
+        args,
+        plans=plans,
         run_name=run_name,
-        implementation=getattr(args, "implementation", None),
-        row=row,
-        failure_rows=failure_rows,
-        benchmark_records=benchmark_records,
+        endpoint=endpoint,
+        parent_run_id=args.run_id or run_name,
     )
-    if failure_rows:
-        raise RuntimeError(
-            f"single bench completed with {len(failure_rows)} failures; "
-            f"see {layout.meta_dir / 'failures.json'}"
-        )
 
 
 def main(argv: list[str] | None = None) -> int:

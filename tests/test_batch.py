@@ -9,6 +9,7 @@ from cannbench.core.batch import (
     DEFAULT_DATASET_SPLITS,
     BatchFailureRecord,
     BatchResultRecord,
+    BatchSummaryMetadata,
     expand_prepared_input_plans,
     write_batch_failures_json,
     write_batch_summary_csv,
@@ -171,3 +172,44 @@ def test_write_batch_summary_and_failures(tmp_path):
     assert json.loads(summary_path.read_text())["records"][0]["case_id"] == "tiny_logits"
     assert "tiny_logits" in csv_path.read_text()
     assert json.loads(failures_path.read_text())["records"][0]["error"] == "boom"
+
+
+def test_write_batch_summary_and_failures_preserve_metadata(tmp_path):
+    summary_path = tmp_path / "summary.json"
+    failures_path = tmp_path / "failures.json"
+    rows = [
+        BatchResultRecord(
+            op="softmax",
+            dataset="smoke",
+            case_id="tiny_logits",
+            dtype="float16",
+            seed=0,
+            status="ok",
+            prepared_input="prepared/softmax/smoke/tiny_logits-float16-seed0.json",
+            result_path="perf/softmax-smoke-tiny_logits-float16-seed0.json",
+        )
+    ]
+    metadata = BatchSummaryMetadata(
+        backend="nvidia",
+        run_name="single-bench",
+        implementation=None,
+        total_cases=1,
+        success_count=1,
+        failure_count=0,
+    )
+
+    write_batch_summary_json(summary_path, rows, metadata)
+    write_batch_failures_json(failures_path, [], metadata)
+
+    summary_payload = json.loads(summary_path.read_text())
+    failures_payload = json.loads(failures_path.read_text())
+
+    assert summary_payload["metadata"] == {
+        "backend": "nvidia",
+        "run_name": "single-bench",
+        "implementation": None,
+        "total_cases": 1,
+        "success_count": 1,
+        "failure_count": 0,
+    }
+    assert failures_payload["metadata"] == summary_payload["metadata"]

@@ -712,6 +712,72 @@ def test_main_runs_single_remote_bench_with_profile_layout_and_meta(tmp_path, mo
     assert failures["failure_count"] == 0
 
 
+def test_main_single_bench_uses_single_result_metadata_shape(tmp_path, monkeypatch):
+    result = sample_result()
+
+    class FakeBackend:
+        def run_operator(self, request):
+            return result_for_request(request)
+
+        def profile_operator_device_time(self, request):
+            return LocalDeviceProfileResult(
+                benchmark_result=result_for_request(request),
+                profile=ProfileArtifacts(
+                    device_name="Fake GPU",
+                    profile_summary=DeviceProfileSummary(
+                        backend="nvidia",
+                        sample_count=1,
+                        latency_ms_avg=0.1,
+                        latency_ms_p50=0.1,
+                        latency_ms_p95=0.1,
+                        latency_ms_p99=0.1,
+                        source_files=("ncu.csv",),
+                    ),
+                    profile_artifacts=(("ncu.csv", b"metric\n"),),
+                    perf_artifacts=(
+                        ("benchmark.json", (json.dumps(result.to_json_dict()) + "\n").encode("utf-8")),
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--output-dir",
+            str(tmp_path),
+            "--run-name",
+            "single-shape",
+        ]
+    )
+
+    layout = build_run_layout(tmp_path, "single-shape")
+    summary = json.loads((layout.meta_dir / "summary.json").read_text())
+    failures = json.loads((layout.meta_dir / "failures.json").read_text())
+
+    assert exit_code == 0
+    assert summary["metadata"] == {
+        "backend": "nvidia",
+        "run_name": "single-shape",
+        "implementation": None,
+        "total_cases": 1,
+        "success_count": 1,
+        "failure_count": 0,
+    }
+    assert len(summary["records"]) == 1
+    assert summary["records"][0]["status"] == "ok"
+    assert failures["records"] == []
+
+
 def test_main_passes_custom_op_deployment_flag_to_internal_run_request(tmp_path, monkeypatch):
     captured: dict[str, object] = {}
     result = sample_result()
