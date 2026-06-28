@@ -178,29 +178,30 @@ cannbench bench \
   --iterations 1
 ```
 
-Use `collect` for remote single-case execution. It can either consume an existing prepared input or generate one automatically from `op/dataset/case-id/dtype/seed` before uploading it to the remote host:
+Use `bench` with `--endpoint` for remote single-case execution. It can either consume an existing prepared input or generate one automatically from `op/dataset/case-id/dtype/seed` before uploading it to the remote host:
 
 ```bash
-cannbench collect \
+cannbench bench \
+  --backend nvidia \
   --endpoint configs/h800.json \
   --op softmax \
   --dtype float16 \
   --dataset realistic \
   --case-id t5_attention \
   --output-dir runs/h800-softmax-realistic \
-  --profile-device-time
+  --run-id h800-softmax-realistic
 ```
 
-Use `collect --prepared-dir` for remote batch execution over a prepared manifest set. The command preserves the prepared manifests under the batch run, stores per-case outputs in stable local paths, emits the same batch summary artifacts as local `bench`, and when `--profile-device-time` is enabled it also writes normalized frontend records to `meta/benchmark-records.json`:
+Use `bench --prepared-dir --endpoint` for remote batch execution over a prepared manifest set. The command preserves the prepared manifests under the batch run, stores per-case outputs in stable local paths, emits the same batch summary artifacts as local `bench`, and also writes normalized frontend records to `meta/benchmark-records.json`:
 
 ```bash
-cannbench collect \
+cannbench bench \
+  --backend ascend \
   --endpoint configs/ascend.json \
   --op softmax \
   --prepared-dir prepared/softmax/realistic \
   --output-dir runs \
-  --run-name ascend-softmax-realistic \
-  --profile-device-time
+  --run-name ascend-softmax-realistic
 ```
 
 `meta/benchmark-records.json` is the publish-facing artifact for frontend consumption. `meta/summary.json` remains an internal batch index for execution status, prepared-input references, and failure replay.
@@ -230,12 +231,12 @@ cannbench serve \
   --enable-gpu-upload
 ```
 
-### Run an operator benchmark
+### Run a benchmark
 
-The lower-level `operator` path supports NVIDIA CUDA execution and an Ascend NPU backend adapter using the same dataset and materialization framework.
+`bench` is the user-facing execution command for both local and remote runs. It selects shapes from built-in operator datasets instead of raw ad hoc shape CLI arguments.
 
 ```bash
-cannbench operator \
+cannbench bench \
   --backend nvidia \
   --op softmax \
   --dtype float16 \
@@ -246,8 +247,6 @@ cannbench operator \
   --output-dir results \
   --run-name nvidia-softmax-smoke
 ```
-
-The operator path selects shapes from built-in operator datasets instead of raw ad hoc shape CLI arguments:
 
 - `smoke`: small synthetic cases for functionality checks
 - `realistic`: model-shaped cases with source metadata
@@ -278,7 +277,7 @@ cannbench prepare \
 Run the prepared input on a backend machine:
 
 ```bash
-cannbench operator \
+cannbench bench \
   --backend nvidia \
   --prepared-input prepared-softmax.json \
   --warmup 10 \
@@ -289,7 +288,7 @@ cannbench operator \
 
 ### Ascend Backend Status
 
-The Ascend backend is wired into the same operator framework as NVIDIA:
+The Ascend backend is wired into the same benchmark framework as NVIDIA:
 
 - Same operator names
 - Same dataset manifests
@@ -300,7 +299,7 @@ The Ascend backend is wired into the same operator framework as NVIDIA:
 Ascend execution requires a target machine with PyTorch and `torch_npu`. The repository includes a built-in Ascend SIMT `softmax` operator project under version `v1`. The SIMT deployment hook is intentionally a boolean flag:
 
 ```bash
-cannbench operator \
+cannbench bench \
   --backend ascend \
   --prepared-input prepared-softmax.json \
   --deploy-custom-op
@@ -377,9 +376,9 @@ cannbench report \
   --output results/softmax-report.md
 ```
 
-### Remote Collection
+### Remote Bench
 
-CannBench can also run output capture on a remote backend host over SSH and copy the artifact back to the local controller machine.
+CannBench can run output capture and device-side profiling on a remote backend host over SSH and copy the artifacts back to the local controller machine.
 
 Example endpoint config:
 
@@ -400,7 +399,8 @@ Example endpoint config:
 Collect an output artifact from the remote host:
 
 ```bash
-cannbench collect \
+cannbench bench \
+  --backend ascend \
   --endpoint configs/ascend.json \
   --prepared-input prepared-softmax.json \
   --output-dir results/ascend-softmax \
@@ -415,27 +415,26 @@ The `port` field is optional and defaults to the SSH client default when omitted
 Collect device-side profiler artifacts from the remote host:
 
 ```bash
-cannbench collect \
+cannbench bench \
+  --backend ascend \
   --endpoint configs/ascend.json \
   --prepared-input prepared-softmax.json \
   --output-dir results/ascend-softmax \
   --run-id softmax-run \
-  --profile-device-time \
-  --summarize-profile \
   --warmup 10 \
   --iterations 1
 ```
 
-For Ascend endpoints, CannBench wraps the remote operator command with `msprof op` and downloads:
+For Ascend endpoints, CannBench wraps an internal remote benchmark worker with `msprof op` and downloads:
 
 ```text
 results/ascend-softmax/profile/
 results/ascend-softmax/perf/
 ```
 
-For NVIDIA endpoints, CannBench profiles operator device time with `ncu`. Output capture and profiling can be requested in the same `collect` call by passing both `--capture-output` and `--profile-device-time`; internally they still run as separate phases.
+For NVIDIA endpoints, CannBench profiles operator device time with `ncu`. Output capture and profiling can be requested in the same `bench --endpoint ...` call by passing `--capture-output`; device-side profiling is always enabled for `bench`.
 
-When `--summarize-profile` is provided, CannBench also parses the downloaded profiler CSV artifacts on the local controller and writes:
+CannBench also parses the downloaded profiler CSV artifacts on the local controller and writes:
 
 ```text
 results/<run>/profile-summary.json
