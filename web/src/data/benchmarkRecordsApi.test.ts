@@ -14,17 +14,17 @@ describe("loadBenchmarkRecords", () => {
           ok: true,
           json: async () => ({
             runs: [
-              "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+              "opbench-ascend-950pr-cannops-softmax-realistic-float16",
               "opbench-ascend-950pr-simt-v1-softmax-realistic-float16"
             ]
           })
         };
       }
-      if (url === "/published/opbench-ascend-950pr-cann-cannops-softmax-realistic-float16/meta/benchmark-records.json") {
+      if (url === "/published/opbench-ascend-950pr-cannops-softmax-realistic-float16/meta/benchmark-records.json") {
         return {
           ok: true,
           json: async () => ({
-            records: [{ run_id: "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16" }]
+            records: [{ run_id: "opbench-ascend-950pr-cannops-softmax-realistic-float16" }]
           })
         };
       }
@@ -43,13 +43,13 @@ describe("loadBenchmarkRecords", () => {
     const records = await loadBenchmarkRecords();
 
     expect(records).toEqual([
-      { run_id: "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16" },
+      { run_id: "opbench-ascend-950pr-cannops-softmax-realistic-float16" },
       { run_id: "opbench-ascend-950pr-simt-v1-softmax-realistic-float16" }
     ]);
     expect(fetchMock).toHaveBeenNthCalledWith(1, "/published/index.json", { signal: undefined });
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      "/published/opbench-ascend-950pr-cann-cannops-softmax-realistic-float16/meta/benchmark-records.json",
+      "/published/opbench-ascend-950pr-cannops-softmax-realistic-float16/meta/benchmark-records.json",
       { signal: undefined }
     );
     expect(fetchMock).toHaveBeenNthCalledWith(

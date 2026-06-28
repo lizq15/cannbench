@@ -71,7 +71,7 @@ def test_build_collect_benchmark_record_for_ascend_cann_ops():
     )
 
     record = build_collect_benchmark_record(
-        run_id="opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+        run_id="opbench-ascend-950pr-cannops-softmax-realistic-float16",
         backend="ascend",
         implementation="cann_ops_library",
         prepared=prepared,

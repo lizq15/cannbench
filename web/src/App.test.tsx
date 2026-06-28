@@ -6,7 +6,7 @@ import { App } from "./App";
 
 const publishedRuns = {
   runs: [
-    "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+    "opbench-ascend-950pr-cannops-softmax-realistic-float16",
     "opbench-ascend-950pr-simt-v1-softmax-realistic-float16"
   ]
 };
@@ -37,7 +37,7 @@ const benchmarkPayload = {
     },
     {
       schema_version: 1,
-      run_id: "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      run_id: "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       operator: "softmax",
       family: "attention",
       dataset: "realistic",
@@ -83,9 +83,9 @@ const benchmarkPayload = {
 };
 
 const payloadByRun = {
-  "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16": {
+  "opbench-ascend-950pr-cannops-softmax-realistic-float16": {
     records: benchmarkPayload.records.filter(
-      (record) => record.run_id === "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16"
+      (record) => record.run_id === "opbench-ascend-950pr-cannops-softmax-realistic-float16"
     )
   },
   "opbench-ascend-950pr-simt-v1-softmax-realistic-float16": {
@@ -254,16 +254,16 @@ describe("App", () => {
           json: async () => publishedRuns
         } as unknown as Response;
       }
-      if (url === "/published/opbench-ascend-950pr-cann-cannops-softmax-realistic-float16/meta/benchmark-records.json") {
+      if (url === "/published/opbench-ascend-950pr-cannops-softmax-realistic-float16/meta/benchmark-records.json") {
         return {
           ok: true,
           status: 200,
           headers: {
             get: () => "application/json"
           },
-          text: async () => JSON.stringify(payloadByRun["opbench-ascend-950pr-cann-cannops-softmax-realistic-float16"]),
+          text: async () => JSON.stringify(payloadByRun["opbench-ascend-950pr-cannops-softmax-realistic-float16"]),
           json: async () => ({
-            records: payloadByRun["opbench-ascend-950pr-cann-cannops-softmax-realistic-float16"].records
+            records: payloadByRun["opbench-ascend-950pr-cannops-softmax-realistic-float16"].records
           })
         } as unknown as Response;
       }

@@ -34,7 +34,7 @@ function seriesId(record: BenchmarkRecord): string {
     return `nvidia-${record.device_class.toLowerCase()}-cuda-pytorch`;
   }
   if (record.implementation === "cann_ops_library") {
-    return `ascend-${record.device_class.toLowerCase()}-cann-cannops`;
+    return `ascend-${record.device_class.toLowerCase()}-cannops`;
   }
   return `ascend-${record.device_class.toLowerCase()}-simt-${record.implementation_version.toLowerCase()}`;
 }

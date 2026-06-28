@@ -2,7 +2,7 @@
   "records": [
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "bert_pytorch_attention",
@@ -38,7 +38,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "camembert_logits",
@@ -72,7 +72,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "convbert_attention",
@@ -108,7 +108,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "convbert_local_kernel",
@@ -143,7 +143,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "convbert_logits",
@@ -177,7 +177,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "crossvit_cls_attention",
@@ -213,7 +213,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "deberta_attention",
@@ -249,7 +249,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "electra_attention",
@@ -285,7 +285,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "gptj_attention",
@@ -321,7 +321,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "gptneo_attention",
@@ -357,7 +357,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "halonet_window_attention",
@@ -393,7 +393,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "layoutlm_attention",
@@ -429,7 +429,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "levit_global_attention",
@@ -465,7 +465,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "levit_mixed_attention",
@@ -501,7 +501,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "longformer_logits",
@@ -535,7 +535,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "m2m100_logits",
@@ -569,7 +569,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "mobilebert_attention",
@@ -605,7 +605,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "mt5_logits",
@@ -639,7 +639,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "opt_logits",
@@ -673,7 +673,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "pegasus_attention",
@@ -708,7 +708,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "plbart_attention",
@@ -743,7 +743,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "plbart_logits",
@@ -777,7 +777,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "speech_transformer_attention",
@@ -812,7 +812,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "swin_window_attention",
@@ -848,7 +848,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "t5_attention",
@@ -884,7 +884,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "t5_logits",
@@ -918,7 +918,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "trocr_attention",
@@ -953,7 +953,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "xcit_attention",
@@ -989,7 +989,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "xglm_logits",
@@ -1023,7 +1023,7 @@
     },
     {
       "schema_version": 1,
-      "run_id": "opbench-ascend-950pr-cann-cannops-softmax-realistic-float16",
+      "run_id": "opbench-ascend-950pr-cannops-softmax-realistic-float16",
       "operator": "softmax",
       "dataset": "realistic",
       "case_id": "xlnet_attention",
