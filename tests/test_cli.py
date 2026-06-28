@@ -566,6 +566,32 @@ def test_main_runs_bench_and_maps_simt_to_custom_op_deployment(tmp_path, monkeyp
     assert captured["request"].deploy_custom_op is True
 
 
+def test_main_bench_single_dispatches_through_single_bench_helper(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr("cannbench.cli._run_single_bench", lambda args: captured.setdefault("single", args))
+    monkeypatch.setattr("cannbench.cli._is_batch_mode", lambda args: False)
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--dataset",
+            "smoke",
+            "--case-id",
+            "tiny_logits",
+            "--output-dir",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["single"].command == "bench"
+
+
 def test_main_runs_single_bench_with_profile_layout_and_meta(tmp_path, monkeypatch):
     captured: dict[str, object] = {}
     result = sample_result()

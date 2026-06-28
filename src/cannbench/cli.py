@@ -795,6 +795,25 @@ def _run_single_bench(args: argparse.Namespace) -> None:
     )
 
 
+def _run_bench_command(args: argparse.Namespace) -> None:
+    if _is_batch_mode(args):
+        if args.endpoint is None:
+            _run_batch_local_bench(args)
+        else:
+            _run_batch_remote_bench(args)
+        return
+    _run_single_bench(args)
+
+
+def _run_internal_command(args: argparse.Namespace) -> None:
+    request = _build_request_from_args(args)
+    backend = get_backend(args.backend)
+    result = backend.run_operator(request)
+    write_benchmark_outputs(
+        args.output_dir, args.run_name or "internal-run-benchmark", result, request.output_formats
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -802,21 +821,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in {"bench", "internal-run"}:
         try:
             _validate_benchmark_selection(args, allow_batch=args.command == "bench")
-            if args.command == "bench" and _is_batch_mode(args):
-                if args.endpoint is None:
-                    _run_batch_local_bench(args)
-                else:
-                    _run_batch_remote_bench(args)
-                return 0
             if args.command == "bench":
-                _run_single_bench(args)
+                _run_bench_command(args)
                 return 0
-            request = _build_request_from_args(args)
-            backend = get_backend(args.backend)
-            result = backend.run_operator(request)
-            write_benchmark_outputs(
-                args.output_dir, args.run_name or "internal-run-benchmark", result, request.output_formats
-            )
+            _run_internal_command(args)
         except (RuntimeError, ValueError) as exc:
             parser.error(str(exc))
     elif args.command == "prepare":
