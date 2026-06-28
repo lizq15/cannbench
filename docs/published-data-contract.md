@@ -92,6 +92,33 @@ opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16
 - `<dtype>`
   - current values start with `float16`
 
+### Run Name Semantics
+
+`<implementation>` in `run-name` identifies the published benchmark lane, not the low-level record field vocabulary.
+
+Current mapping:
+
+- `cuda-pytorch`
+  - NVIDIA baseline lane
+  - benchmark records under this run currently use:
+    - `implementation: "ncu"`
+    - `implementation_version: "ncu"`
+- `cannops`
+  - Ascend CANN ops library baseline lane
+  - benchmark records under this run currently use:
+    - `implementation: "cann_ops_library"`
+    - `implementation_version: "cannops"`
+- `simt-v1`
+  - Ascend SIMT custom operator lane
+  - benchmark records under this run currently use:
+    - `implementation: "simt"`
+    - `implementation_version: "v1"`
+
+This distinction is intentional:
+
+- `run-name` is the publication and retrieval key
+- record-level `implementation` and `implementation_version` are the normalized frontend data fields
+
 ### Naming Rules
 
 - All segments must be lowercase ASCII.
@@ -150,6 +177,84 @@ Rules:
 - `device_class` is the normalized display and grouping key.
 - `metrics.latency_ms_avg`, `metrics.latency_ms_p50`, `metrics.latency_ms_p95`, and `metrics.sample_count` are required frontend fields.
 - `diff_ref` must be non-null only for SIMT records.
+
+### NVIDIA Published Record Example
+
+NVIDIA published records must follow the same schema:
+
+```json
+{
+  "records": [
+    {
+      "schema_version": 1,
+      "run_id": "opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16",
+      "operator": "softmax",
+      "dataset": "realistic",
+      "case_id": "gptj_attention",
+      "family": "attention",
+      "shape": [1, 16, 128, 128],
+      "dtype": "float16",
+      "backend": "nvidia",
+      "device_class": "H800",
+      "implementation": "ncu",
+      "implementation_version": "ncu",
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "GPTJForCausalLM",
+      "source_file": "hf_train/GPTJForCausalLM_train.json",
+      "source_op": "aten._softmax.default",
+      "metrics": {
+        "latency_ms_avg": 0.011,
+        "latency_ms_p50": 0.011,
+        "latency_ms_p95": 0.012,
+        "sample_count": 1
+      },
+      "accuracy": {
+        "passed": true,
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0
+      },
+      "diff_ref": null
+    }
+  ]
+}
+```
+
+NVIDIA rules:
+
+- published NVIDIA run names must currently use `cuda-pytorch` in the `run-name`
+- published NVIDIA records must currently use `implementation: "ncu"`
+- published NVIDIA records must currently use `implementation_version: "ncu"`
+- `diff_ref` must remain `null` for NVIDIA records
+
+## GPU Upload Publication Rules
+
+GPU JSON upload is a special ingestion path, but it must converge to the same published contract.
+
+Rules:
+
+- the upload endpoint accepts GPU benchmark data only
+- uploaded records must pass frontend and backend validation before publication
+- accepted uploaded records must still be published as:
+  - `published/<run-name>/meta/benchmark-records.json`
+- uploaded GPU data must not introduce a separate directory shape
+- uploaded GPU data must still be referenced through `published/index.json`
+- uploaded GPU records must remain constrained to:
+  - `backend: "nvidia"` or `backend: "gpu"`
+  - `implementation: "ncu"`
+  - `diff_ref: null`
+
+Security rules:
+
+- no source code
+- no diffs
+- no environment dumps
+- no hostnames, usernames, paths, logs, or raw profiler payloads
+
+Operational rule:
+
+- upload enablement is controlled by server configuration
+- publication shape is not allowed to change when upload is enabled
 
 ## Frontend Loading Contract
 
