@@ -333,38 +333,23 @@ GPU result import is represented as a hidden JSON text validation flow and is di
 
 ### Output Correctness Comparison
 
-CannBench can capture operator outputs separately from performance measurement. This is intended for NVIDIA-vs-Ascend consistency checks where each backend runs on its own machine and the output artifacts are copied back to the controller machine for CPU-side comparison.
-
-Capture an output artifact:
+CannBench uses `compare` for CPU-side correctness checks across backends. The command runs the same operator case on both sides, captures normalized outputs, and writes a local comparison artifact without mixing output transfer time into device profiling.
 
 ```bash
-cannbench capture-output \
-  --backend nvidia \
-  --prepared-input prepared-softmax.json \
-  --output results/nvidia-softmax-output
-```
-
-Capture the same prepared input on Ascend:
-
-```bash
-cannbench capture-output \
-  --backend ascend \
-  --prepared-input prepared-softmax.json \
-  --output results/ascend-softmax-output
-```
-
-Compare the two artifacts locally:
-
-```bash
-cannbench compare-output \
-  --left results/nvidia-softmax-output \
-  --right results/ascend-softmax-output \
+cannbench compare \
+  --left-backend nvidia \
+  --right-backend ascend \
+  --op softmax \
+  --dtype float16 \
+  --dataset smoke \
+  --case-id tiny_logits \
+  --seed 7 \
   --rtol 0.001 \
   --atol 0.001 \
   --output results/softmax-accuracy.json
 ```
 
-Output capture is not part of the performance sampling window. It runs as a separate correctness phase so CPU transfers and comparison work do not pollute device-side profiling results.
+If the Ascend side should use a SIMT implementation instead of the CANN ops library, add `--left-deploy-custom-op` or `--right-deploy-custom-op` on the corresponding side.
 
 Generate a local Markdown report from collected NVIDIA and Ascend run directories:
 
@@ -396,7 +381,7 @@ Example endpoint config:
 }
 ```
 
-Collect an output artifact from the remote host:
+Collect a remote run with device-side profiling and optional output capture:
 
 ```bash
 cannbench bench \
@@ -408,7 +393,7 @@ cannbench bench \
   --capture-output
 ```
 
-The remote host must already have CannBench installed in `workdir`. The local controller copies the prepared input to the remote run directory, runs `cannbench capture-output` remotely, and downloads the resulting `output` artifact directory to `output-dir`.
+The remote host must already have CannBench installed in `workdir`. The local controller copies the prepared input to the remote run directory, runs `cannbench internal-run` remotely, and downloads the generated `output/`, `profile/`, and `perf/` artifacts back to `output-dir` when requested.
 
 The `port` field is optional and defaults to the SSH client default when omitted.
 
@@ -434,27 +419,7 @@ results/ascend-softmax/perf/
 
 For NVIDIA endpoints, CannBench profiles operator device time with `ncu`. Output capture and profiling can be requested in the same `bench --endpoint ...` call by passing `--capture-output`; device-side profiling is always enabled for `bench`.
 
-CannBench also parses the downloaded profiler CSV artifacts on the local controller and writes:
-
-```text
-results/<run>/profile-summary.json
-```
-
-Summarize profiler CSV artifacts locally:
-
-```bash
-cannbench summarize-profile \
-  --backend ascend \
-  --profile-dir results/ascend-softmax/profile \
-  --output results/ascend-softmax/profile-summary.json
-```
-
-```bash
-cannbench summarize-profile \
-  --backend nvidia \
-  --profile-dir results/nvidia-softmax/profile \
-  --output results/nvidia-softmax/profile-summary.json
-```
+CannBench parses downloaded profiler artifacts on the controller and stores normalized device-time summaries under each run's `meta/` directory together with the frontend-facing benchmark records.
 
 ### Current Scope
 
@@ -466,11 +431,11 @@ Implemented now:
 - Timing summaries with p50/p95/p99
 - JSON / CSV / Markdown report writers
 - Prepared-input generation for cross-machine backend comparisons
-- Output artifact capture and CPU-side output comparison
-- SSH/SCP-based remote output collection from backend hosts
+- CPU-side output comparison across NVIDIA and Ascend backends
+- SSH/SCP-based remote benchmark execution and artifact collection
 - Remote device-side profiler artifact collection for Ascend and NVIDIA
 - Local Markdown report generation across NVIDIA, Ascend, and accuracy artifacts
-- Local profiler CSV summarization into normalized device-side latency metrics
+- Normalized benchmark record generation for publish and frontend loading
 - Static frontend performance viewer with chart, case table, repository diff panel, and GPU JSON upload validation
 - NVIDIA PyTorch backend for single-card operator tests
 - Ascend PyTorch backend adapter with optional default custom-op deployment hook
