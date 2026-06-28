@@ -372,6 +372,21 @@ def test_build_parser_defaults_bench_iterations_to_one():
     assert args.iterations == 1
 
 
+def test_build_parser_defaults_bench_dataset_to_realistic():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "bench",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+        ]
+    )
+
+    assert args.dataset == "realistic"
+
+
 def test_build_parser_exposes_report_subcommand():
     parser = build_parser()
     args = parser.parse_args(
@@ -834,7 +849,8 @@ def test_main_runs_single_remote_bench_with_profile_layout_and_meta(tmp_path, mo
         ]
     )
 
-    layout = build_run_layout(tmp_path, "single-collect-profiled")
+    canonical = "opbench-ascend-950pr-cannops-softmax-smoke-float16"
+    layout = build_run_layout(tmp_path, canonical)
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
     benchmark_records = json.loads((layout.meta_dir / "benchmark-records.json").read_text())
     failures = json.loads((layout.meta_dir / "failures.json").read_text())
@@ -898,6 +914,60 @@ def test_main_single_local_bench_builds_prepared_plan_from_args(tmp_path, monkey
         "case_id": "tiny_logits",
         "seed": 7,
     }
+
+
+def test_main_single_local_bench_defaults_to_canonical_run_name(tmp_path, monkeypatch):
+    result = sample_result()
+
+    class FakeBackend:
+        def run_operator(self, request):
+            return result_for_request(request)
+
+        def profile_operator_device_time(self, request):
+            return LocalDeviceProfileResult(
+                benchmark_result=result_for_request(request),
+                profile=ProfileArtifacts(
+                    device_name="Fake GPU",
+                    profile_summary=DeviceProfileSummary(
+                        backend="nvidia",
+                        sample_count=1,
+                        latency_ms_avg=0.1,
+                        latency_ms_p50=0.1,
+                        latency_ms_p95=0.1,
+                        latency_ms_p99=0.1,
+                        source_files=("ncu.csv",),
+                    ),
+                    profile_artifacts=(("ncu.csv", b"metric\n"),),
+                    perf_artifacts=(
+                        ("benchmark.json", (json.dumps(result.to_json_dict()) + "\n").encode("utf-8")),
+                    ),
+                ),
+            )
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "nvidia",
+            "--op",
+            "softmax",
+            "--case-id",
+            "t5_attention",
+            "--output-dir",
+            str(tmp_path),
+        ]
+    )
+
+    layout = build_run_layout(
+        tmp_path, "opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16"
+    )
+    summary = json.loads((layout.meta_dir / "summary.json").read_text())
+
+    assert exit_code == 0
+    assert summary["metadata"]["run_name"] == "opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16"
+    assert summary["records"][0]["dataset"] == "realistic"
 
 
 def test_main_single_bench_uses_single_result_metadata_shape(tmp_path, monkeypatch):
@@ -1195,12 +1265,13 @@ def test_main_bench_invokes_remote_collection(tmp_path, monkeypatch):
         ]
     )
 
+    canonical = "opbench-ascend-950pr-cannops-softmax-smoke-float16"
     assert exit_code == 0
     assert captured["endpoint"] == endpoint
     assert captured["endpoint_path"] == endpoint_path
     assert captured["endpoint_path"] == endpoint_path
-    assert Path(captured["prepared_input"]).is_relative_to(build_run_layout(output_dir, "softmax-run").prepared_dir)
-    assert captured["output_dir"].parent == build_run_layout(output_dir, "softmax-run").root
+    assert Path(captured["prepared_input"]).is_relative_to(build_run_layout(output_dir, canonical).prepared_dir)
+    assert captured["output_dir"].parent == build_run_layout(output_dir, canonical).root
     assert captured["run_id"] == "softmax-run"
     assert captured["capture_output"] is True
     assert captured["profile_device_time"] is True
@@ -1291,9 +1362,117 @@ def test_main_remote_bench_builds_prepared_input_when_case_is_provided(tmp_path,
         "seed": 7,
     }
     written_path, written_prepared = captured["written"]
-    assert written_path.parent == build_run_layout(output_dir, "softmax-run").prepared_dir / "softmax" / "smoke"
+    canonical = "opbench-ascend-950pr-cannops-softmax-smoke-float16"
+    assert written_path.parent == build_run_layout(output_dir, canonical).prepared_dir / "softmax" / "smoke"
     assert written_path.suffix == ".json"
     assert captured["prepared_input"] == written_path
+
+
+def test_main_remote_bench_prepared_input_defaults_to_canonical_run_name(tmp_path, monkeypatch):
+    captured: dict[str, object] = {}
+    endpoint_path = tmp_path / "ascend.json"
+    output_dir = tmp_path / "results"
+    prepared_path = tmp_path / "prepared.json"
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        workdir="/opt/cannbench",
+        python="python3",
+        env={},
+    )
+    write_prepared_operator_input(
+        prepared_path,
+        build_prepared_operator_input(
+            op="softmax",
+            dtype="float16",
+            dataset="realistic",
+            case_id="t5_attention",
+            seed=0,
+        ),
+    )
+    monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
+
+    def fake_collect_remote_artifacts(**kwargs):
+        captured.update(kwargs)
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=read_prepared_operator_input(kwargs["prepared_input"]),
+            profile_device_time=True,
+            warmup=kwargs["warmup"],
+            iterations=kwargs["iterations"],
+        )
+
+    monkeypatch.setattr(
+        "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
+    )
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "ascend",
+            "--endpoint",
+            str(endpoint_path),
+            "--prepared-input",
+            str(prepared_path),
+            "--output-dir",
+            str(output_dir),
+        ]
+    )
+
+    canonical = "opbench-ascend-950pr-cannops-softmax-realistic-float16"
+    layout = build_run_layout(output_dir, canonical)
+
+    assert exit_code == 0
+    assert captured["run_id"] == canonical
+    assert Path(captured["prepared_input"]).is_relative_to(layout.prepared_dir)
+
+
+def test_main_rejects_auto_run_name_for_mixed_prepared_dir(tmp_path, capsys):
+    prepared_dir = tmp_path / "prepared"
+    prepared_dir.mkdir()
+    write_prepared_operator_input(
+        prepared_dir / "a.json",
+        build_prepared_operator_input(
+            op="softmax",
+            dtype="float16",
+            dataset="smoke",
+            case_id="tiny_logits",
+            seed=1,
+        ),
+    )
+    write_prepared_operator_input(
+        prepared_dir / "b.json",
+        build_prepared_operator_input(
+            op="softmax",
+            dtype="float16",
+            dataset="stress",
+            case_id="wide_vocab_lm_logits",
+            seed=2,
+        ),
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "bench",
+                "--backend",
+                "nvidia",
+                "--op",
+                "softmax",
+                "--prepared-dir",
+                str(prepared_dir),
+                "--output-dir",
+                str(tmp_path),
+            ]
+        )
+
+    captured = capsys.readouterr()
+    assert excinfo.value.code == 2
+    assert "automatic run-name requires a single op/dataset/dtype combination" in captured.err
 
 
 def test_main_runs_batch_remote_bench_and_writes_aggregated_artifacts(tmp_path, monkeypatch):
@@ -1823,28 +2002,6 @@ def test_main_rejects_negative_warmup():
                 "-1",
             ]
         )
-
-
-def test_main_rejects_batch_bench_without_run_name(tmp_path, capsys):
-    prepared_dir = tmp_path / "prepared"
-    prepared_dir.mkdir()
-
-    with pytest.raises(SystemExit) as excinfo:
-        main(
-            [
-                "bench",
-                "--backend",
-                "nvidia",
-                "--op",
-                "softmax",
-                "--prepared-dir",
-                str(prepared_dir),
-            ]
-        )
-
-    captured = capsys.readouterr()
-    assert excinfo.value.code == 2
-    assert "--run-name is required for batch execution" in captured.err
 
 
 def test_main_rejects_prepared_input_and_prepared_dir_together(tmp_path, capsys):

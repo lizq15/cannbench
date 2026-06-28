@@ -159,21 +159,30 @@ Use `bench` for a single local case:
 cannbench bench \
   --backend nvidia \
   --op softmax \
-  --dtype float16 \
-  --dataset realistic \
   --case-id t5_attention \
   --warmup 10 \
   --iterations 1
 ```
 
-Use `bench` without `--dataset` or `--case-id` to expand the full built-in dataset set for one operator. The default expansion covers `smoke`, `realistic`, and `stress`, and writes one batch run directory with per-case artifacts plus `summary.json`, `summary.csv`, and `failures.json`. When the selected backend exposes a local device-time profiling path, batch `bench` also emits normalized frontend records to `meta/benchmark-records.json`:
+`bench` defaults to `--dataset realistic`. If `--run-name` is omitted, CannBench generates the canonical run name automatically:
+
+```text
+opbench-<backend>-<device>-<implementation>-<operator>-<dataset>-<dtype>
+```
+
+Example auto-generated names:
+
+- `opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16`
+- `opbench-ascend-950pr-cannops-softmax-realistic-float16`
+- `opbench-ascend-950pr-simt-v1-softmax-realistic-float16`
+
+Use `bench` without `--case-id` to expand the selected built-in dataset split for one operator. This writes one batch run directory with per-case artifacts plus `summary.json`, `summary.csv`, and `failures.json`. When the selected backend exposes a local device-time profiling path, batch `bench` also emits normalized frontend records to `meta/benchmark-records.json`:
 
 ```bash
 cannbench bench \
   --backend nvidia \
   --op softmax \
   --output-dir runs \
-  --run-name h800-softmax-all \
   --warmup 10 \
   --iterations 1
 ```
@@ -185,14 +194,12 @@ cannbench bench \
   --backend nvidia \
   --endpoint configs/h800.json \
   --op softmax \
-  --dtype float16 \
-  --dataset realistic \
   --case-id t5_attention \
-  --output-dir runs/h800-softmax-realistic \
+  --output-dir runs \
   --run-id h800-softmax-realistic
 ```
 
-Use `bench --prepared-dir --endpoint` for remote batch execution over a prepared manifest set. The command preserves the prepared manifests under the batch run, stores per-case outputs in stable local paths, emits the same batch summary artifacts as local `bench`, and also writes normalized frontend records to `meta/benchmark-records.json`:
+Use `bench --prepared-dir --endpoint` for remote batch execution over a prepared manifest set. The command preserves the prepared manifests under the batch run, stores per-case outputs in stable local paths, emits the same batch summary artifacts as local `bench`, and also writes normalized frontend records to `meta/benchmark-records.json`. If `--run-name` is omitted, automatic naming is only allowed when the prepared manifests all share the same `operator/dataset/dtype` combination:
 
 ```bash
 cannbench bench \
@@ -200,8 +207,7 @@ cannbench bench \
   --endpoint configs/ascend.json \
   --op softmax \
   --prepared-dir prepared/softmax/realistic \
-  --output-dir runs \
-  --run-name ascend-softmax-realistic
+  --output-dir runs
 ```
 
 `meta/benchmark-records.json` is the publish-facing artifact for frontend consumption. `meta/summary.json` remains an internal batch index for execution status, prepared-input references, and failure replay.
@@ -239,13 +245,10 @@ cannbench serve \
 cannbench bench \
   --backend nvidia \
   --op softmax \
-  --dtype float16 \
-  --dataset realistic \
   --case-id t5_attention \
   --warmup 10 \
   --iterations 1 \
-  --output-dir results \
-  --run-name nvidia-softmax-smoke
+  --output-dir results
 ```
 
 - `smoke`: small synthetic cases for functionality checks
@@ -254,11 +257,11 @@ cannbench bench \
 
 Dataset catalogs and case tables are documented under `src/cannbench/datasets/data/<operator>/README.md`.
 
-This command writes:
+This command writes a canonical run directory under `results/`, for example:
 
-- `results/nvidia-softmax-smoke.json`
-- `results/nvidia-softmax-smoke.csv`
-- `results/nvidia-softmax-smoke.md`
+- `results/opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16/`
+- `results/opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16/meta/summary.json`
+- `results/opbench-nvidia-h800-cuda-pytorch-softmax-realistic-float16/meta/benchmark-records.json`
 
 ### Prepare Shared Inputs
 
@@ -282,8 +285,7 @@ cannbench bench \
   --prepared-input prepared-softmax.json \
   --warmup 10 \
   --iterations 1 \
-  --output-dir results \
-  --run-name nvidia-softmax-prepared
+  --output-dir results
 ```
 
 ### Ascend Backend Status

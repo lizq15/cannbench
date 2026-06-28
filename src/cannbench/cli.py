@@ -54,6 +54,12 @@ from cannbench.core.execution import (
 from cannbench.operators import list_operator_names
 
 
+class _StoreWithPresence(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        setattr(namespace, f"{self.dest}_provided", True)
+
+
 def _non_negative_int(value: str) -> int:
     parsed = int(value)
     if parsed < 0:
@@ -76,11 +82,17 @@ def _non_negative_float(value: str) -> float:
 
 
 def _benchmark_args(parser: argparse.ArgumentParser) -> None:
+    parser.set_defaults(dataset_provided=False)
     parser.add_argument("--backend", choices=["nvidia", "ascend"], required=True)
     parser.add_argument("--implementation", choices=["cann_ops_library", "simt"])
     parser.add_argument("--op", choices=list_operator_names())
     parser.add_argument("--dtype", default="float16")
-    parser.add_argument("--dataset", choices=["smoke", "realistic", "stress"])
+    parser.add_argument(
+        "--dataset",
+        choices=["smoke", "realistic", "stress"],
+        default="realistic",
+        action=_StoreWithPresence,
+    )
     parser.add_argument("--case-id")
     parser.add_argument("--seed", type=_non_negative_int, default=0)
     parser.add_argument("--prepared-input", type=Path)
@@ -225,7 +237,7 @@ def _validate_benchmark_selection(
 
     if prepared_input is not None and prepared_dir is not None:
         raise ValueError("--prepared-input and --prepared-dir are mutually exclusive")
-    if (prepared_input is not None or prepared_dir is not None) and dataset is not None:
+    if (prepared_input is not None or prepared_dir is not None) and getattr(args, "dataset_provided", False):
         raise ValueError("--dataset cannot be used with --prepared-input or --prepared-dir")
     if (prepared_input is not None or prepared_dir is not None) and case_id is not None:
         raise ValueError("--case-id cannot be used with --prepared-input or --prepared-dir")
@@ -235,8 +247,70 @@ def _validate_benchmark_selection(
         raise ValueError("--op is required unless --prepared-input is set")
     if not allow_batch and prepared_dir is not None:
         raise ValueError("--prepared-dir is only supported for bench")
-    if allow_batch and _is_batch_mode(args) and not getattr(args, "run_name", None):
-        raise ValueError("--run-name is required for batch execution")
+
+
+def _run_name_backend_token(backend: str) -> str:
+    return backend
+
+
+def _run_name_device_token(backend: str) -> str:
+    if backend == "nvidia":
+        return "h800"
+    if backend == "ascend":
+        return "950pr"
+    raise ValueError(f"unsupported backend for run-name generation: {backend}")
+
+
+def _run_name_implementation_token(backend: str, implementation: str | None) -> str:
+    if backend == "nvidia":
+        return "cuda-pytorch"
+    if backend == "ascend":
+        if implementation == "simt":
+            return "simt-v1"
+        return "cannops"
+    raise ValueError(f"unsupported backend for run-name generation: {backend}")
+
+
+def _build_canonical_run_name(
+    *,
+    backend: str,
+    implementation: str | None,
+    op: str,
+    dataset: str,
+    dtype: str,
+) -> str:
+    return "-".join(
+        (
+            "opbench",
+            _run_name_backend_token(backend),
+            _run_name_device_token(backend),
+            _run_name_implementation_token(backend, implementation),
+            op,
+            dataset,
+            dtype,
+        )
+    )
+
+
+def _resolve_bench_run_name(
+    args: argparse.Namespace,
+    plans: list[PreparedInputPlan],
+) -> str:
+    if args.run_name:
+        return args.run_name
+    signatures = {(plan.op, plan.dataset, plan.dtype) for plan in plans}
+    if len(signatures) != 1:
+        raise ValueError(
+            "automatic run-name requires a single op/dataset/dtype combination"
+        )
+    op, dataset, dtype = next(iter(signatures))
+    return _build_canonical_run_name(
+        backend=args.backend,
+        implementation=getattr(args, "implementation", None),
+        op=op,
+        dataset=dataset,
+        dtype=dtype,
+    )
 
 
 def _relative_artifact_path(root: Path, path: Path | None) -> str | None:
@@ -710,7 +784,11 @@ def _run_batch_local_bench(args: argparse.Namespace) -> None:
         prepared_input=args.prepared_input,
         prepared_dir=args.prepared_dir,
     )
-    _run_local_bench_with_plans(args, plans=plans, run_name=args.run_name)
+    _run_local_bench_with_plans(
+        args,
+        plans=plans,
+        run_name=_resolve_bench_run_name(args, plans),
+    )
 
 
 def _run_batch_remote_bench(args: argparse.Namespace) -> None:
@@ -724,32 +802,31 @@ def _run_batch_remote_bench(args: argparse.Namespace) -> None:
         prepared_dir=args.prepared_dir,
     )
     endpoint = read_remote_endpoint(args.endpoint)
+    run_name = _resolve_bench_run_name(args, plans)
     _run_remote_bench_with_plans(
         args,
         plans=plans,
-        run_name=args.run_name,
+        run_name=run_name,
         endpoint=endpoint,
-        parent_run_id=args.run_id or args.run_name,
+        parent_run_id=args.run_id or run_name,
     )
 
 
 def _run_single_bench(args: argparse.Namespace) -> None:
-    run_name = args.run_name or "operator-benchmark"
+    plans = [_single_case_plan_from_args(args)]
+    run_name = _resolve_bench_run_name(args, plans)
     if args.endpoint is None:
         _run_local_bench_with_plans(
             args,
-            plans=[_single_case_plan_from_args(args)],
+            plans=plans,
             run_name=run_name,
         )
         return
 
-    run_name = args.run_name or args.run_id
     endpoint = read_remote_endpoint(args.endpoint)
-    if not run_name:
-        raise ValueError("single-case remote bench requires --run-name or --run-id")
     _run_remote_bench_with_plans(
         args,
-        plans=[_single_case_plan_from_args(args)],
+        plans=plans,
         run_name=run_name,
         endpoint=endpoint,
         parent_run_id=args.run_id or run_name,
