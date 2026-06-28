@@ -779,7 +779,7 @@ def test_main_runs_single_bench_with_profile_layout_and_meta(tmp_path, monkeypat
     assert summary["metadata"]["run_name"] == "single-bench-profiled"
     assert summary["metadata"]["backend"] == "nvidia"
     assert summary["result_count"] == 1
-    assert benchmark_records["records"][0]["implementation"] == "ncu"
+    assert benchmark_records["records"][0]["implementation"] == "cuda-pytorch"
     assert failures["failure_count"] == 0
 
 
@@ -2113,8 +2113,8 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
     assert (layout.profile_dir / "softmax-smoke-tiny_logits-float16-seed0" / "ncu.csv").exists()
     assert len(benchmark_records["records"]) == len(smoke_cases)
     assert benchmark_records["records"][0]["backend"] == "nvidia"
-    assert benchmark_records["records"][0]["implementation"] == "ncu"
-    assert benchmark_records["records"][0]["implementation_version"] == "ncu"
+    assert benchmark_records["records"][0]["implementation"] == "cuda-pytorch"
+    assert benchmark_records["records"][0]["implementation_version"] == "cuda-pytorch"
     assert benchmark_records["records"][0]["metrics"]["latency_ms_avg"] == 0.1
     assert failures["failure_count"] == 0
     assert failures["records"] == []

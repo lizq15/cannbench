@@ -176,8 +176,12 @@ function validateRecord(record: unknown, index: number, errors: string[]): void 
     errors.push(`${path}.backend must be nvidia or gpu`);
   }
 
-  if (record.implementation !== "ncu") {
-    errors.push(`${path}.implementation must be ncu`);
+  if (record.implementation !== "cuda-pytorch") {
+    errors.push(`${path}.implementation must be cuda-pytorch`);
+  }
+
+  if (record.implementation_version !== "cuda-pytorch") {
+    errors.push(`${path}.implementation_version must be cuda-pytorch`);
   }
 
   if (!Array.isArray(record.shape) || record.shape.length === 0 || record.shape.length > 8) {

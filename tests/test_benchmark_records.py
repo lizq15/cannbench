@@ -111,8 +111,8 @@ def test_build_benchmark_record_for_nvidia_ncu():
         profile_summary=profile_summary,
     )
 
-    assert record["implementation"] == "ncu"
-    assert record["implementation_version"] == "ncu"
+    assert record["implementation"] == "cuda-pytorch"
+    assert record["implementation_version"] == "cuda-pytorch"
     assert record["device_class"] == "H800"
     assert record["shape"] == [4, 8, 1024, 1024]
     assert record["family"] == "attention"

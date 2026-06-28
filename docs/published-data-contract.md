@@ -101,8 +101,8 @@ Current mapping:
 - `cuda-pytorch`
   - NVIDIA baseline lane
   - benchmark records under this run currently use:
-    - `implementation: "ncu"`
-    - `implementation_version: "ncu"`
+    - `implementation: "cuda-pytorch"`
+    - `implementation_version: "cuda-pytorch"`
 - `cannops`
   - Ascend CANN ops library baseline lane
   - benchmark records under this run currently use:
@@ -196,8 +196,8 @@ NVIDIA published records must follow the same schema:
       "dtype": "float16",
       "backend": "nvidia",
       "device_class": "H800",
-      "implementation": "ncu",
-      "implementation_version": "ncu",
+      "implementation": "cuda-pytorch",
+      "implementation_version": "cuda-pytorch",
       "source_kind": "real_model",
       "source_project": "TritonBench",
       "source_model": "GPTJForCausalLM",
@@ -223,8 +223,8 @@ NVIDIA published records must follow the same schema:
 NVIDIA rules:
 
 - published NVIDIA run names must currently use `cuda-pytorch` in the `run-name`
-- published NVIDIA records must currently use `implementation: "ncu"`
-- published NVIDIA records must currently use `implementation_version: "ncu"`
+- published NVIDIA records must currently use `implementation: "cuda-pytorch"`
+- published NVIDIA records must currently use `implementation_version: "cuda-pytorch"`
 - `diff_ref` must remain `null` for NVIDIA records
 
 ## GPU Upload Publication Rules
@@ -241,7 +241,8 @@ Rules:
 - uploaded GPU data must still be referenced through `published/index.json`
 - uploaded GPU records must remain constrained to:
   - `backend: "nvidia"` or `backend: "gpu"`
-  - `implementation: "ncu"`
+  - `implementation: "cuda-pytorch"`
+  - `implementation_version: "cuda-pytorch"`
   - `diff_ref: null`
 
 Security rules:

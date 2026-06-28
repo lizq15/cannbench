@@ -301,8 +301,11 @@ def _validate_record(record: Any, index: int, errors: list[str]) -> None:
     if record.get("backend") not in {"nvidia", "gpu"}:
         errors.append(f"{path}.backend must be nvidia or gpu")
 
-    if record.get("implementation") != "ncu":
-        errors.append(f"{path}.implementation must be ncu")
+    if record.get("implementation") != "cuda-pytorch":
+        errors.append(f"{path}.implementation must be cuda-pytorch")
+
+    if record.get("implementation_version") != "cuda-pytorch":
+        errors.append(f"{path}.implementation_version must be cuda-pytorch")
 
     shape = record.get("shape")
     if not isinstance(shape, list) or not shape or len(shape) > 8:

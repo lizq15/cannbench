@@ -53,7 +53,7 @@ def _implementation_and_version(
             return "simt", "v1"
         return "cann_ops_library", "cannops"
     if backend == "nvidia":
-        return "ncu", "ncu"
+        return "cuda-pytorch", "cuda-pytorch"
     return implementation or "unknown", implementation or "unknown"
 
 

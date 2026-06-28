@@ -21,8 +21,8 @@ def _valid_gpu_upload():
                 "dtype": "float16",
                 "backend": "nvidia",
                 "device_class": "H800",
-                "implementation": "ncu",
-                "implementation_version": "ncu",
+                "implementation": "cuda-pytorch",
+                "implementation_version": "cuda-pytorch",
                 "source_kind": "real_model",
                 "source_project": "TritonBench",
                 "source_model": "T5Small",
@@ -83,14 +83,14 @@ def test_validate_gpu_benchmark_upload_rejects_code_snippet_in_allowed_field():
     assert "code-like content rejected at payload.records[0].implementation_version" in result.errors
 
 
-def test_validate_gpu_benchmark_upload_rejects_non_ncu_implementation():
+def test_validate_gpu_benchmark_upload_rejects_non_cuda_pytorch_implementation():
     payload = _valid_gpu_upload()
     payload["records"][0]["implementation"] = "cuda_event"
 
     result = validate_gpu_benchmark_upload(payload)
 
     assert result.ok is False
-    assert "records[0].implementation must be ncu" in result.errors
+    assert "records[0].implementation must be cuda-pytorch" in result.errors
 
 
 def test_list_simt_operator_versions_returns_sorted_directory_names(tmp_path: Path):
