@@ -60,6 +60,10 @@ class _StoreWithPresence(argparse.Action):
         setattr(namespace, f"{self.dest}_provided", True)
 
 
+def _emit_run_event(message: str) -> None:
+    print(message, flush=True)
+
+
 def _non_negative_int(value: str) -> int:
     parsed = int(value)
     if parsed < 0:
@@ -592,8 +596,12 @@ def _run_local_bench_with_plans(
     summary_rows: list[BatchResultRecord] = []
     benchmark_records: list[dict[str, object]] = []
     failure_rows: list[BatchFailureRecord] = []
+    _emit_run_event(
+        f"[run] bench started run_name={run_name} backend={args.backend} "
+        f"mode=local-batch cases={len(plans)}"
+    )
 
-    for plan in plans:
+    for index, plan in enumerate(plans, start=1):
         _, prepared_reference = _prepared_reference_for_plan(
             args, layout.prepared_dir, layout.root, plan
         )
@@ -604,6 +612,10 @@ def _run_local_bench_with_plans(
             case_id=plan.case_id,
             dtype=plan.dtype,
             seed=plan.seed,
+        )
+        _emit_run_event(
+            f"[case] start {index}/{len(plans)} case_id={plan.case_id} "
+            f"dataset={plan.dataset} dtype={plan.dtype} backend={args.backend}"
         )
         try:
             execution_result = executor.execute_case(
@@ -626,6 +638,11 @@ def _run_local_bench_with_plans(
                         execution_result=execution_result,
                     )
                 )
+                profiler_label = "ncu" if args.backend == "nvidia" else "device-profiler"
+                _emit_run_event(
+                    f"[case] profiling completed case_id={plan.case_id} "
+                    f"backend={args.backend} profiler={profiler_label}"
+                )
             summary_rows.append(
                 _build_success_row(
                     plan=plan,
@@ -633,6 +650,9 @@ def _run_local_bench_with_plans(
                     layout_root=layout.root,
                     result_path=result_path,
                 )
+            )
+            _emit_run_event(
+                f"[case] success case_id={plan.case_id} backend={args.backend}"
             )
         except Exception as exc:
             summary_rows.append(
@@ -648,6 +668,9 @@ def _run_local_bench_with_plans(
                     error=exc,
                 )
             )
+            _emit_run_event(
+                f"[case] failed case_id={plan.case_id} backend={args.backend} error={exc}"
+            )
 
     failures_path = _write_bench_metadata(
         layout=layout,
@@ -657,6 +680,10 @@ def _run_local_bench_with_plans(
         summary_rows=summary_rows,
         failure_rows=failure_rows,
         benchmark_records=benchmark_records,
+    )
+    _emit_run_event(
+        f"[run] bench completed run_name={run_name} backend={args.backend} "
+        f"successes={len(summary_rows) - len(failure_rows)} failures={len(failure_rows)}"
     )
     if failure_rows:
         label = "single" if len(plans) == 1 else "batch"

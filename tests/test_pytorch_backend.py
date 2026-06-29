@@ -1,4 +1,5 @@
 import builtins
+import json
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -421,7 +422,7 @@ def test_backend_captures_softmax_output_once(monkeypatch):
     assert captured["synchronized"] is True
 
 
-def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path):
+def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path, capsys):
     captured: dict[str, object] = {}
 
     class FakeTensor:
@@ -449,22 +450,32 @@ def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "torch", FakeTorch())
 
     def fake_run(command, **kwargs):
-        captured["command"] = command
-        captured["cwd"] = kwargs.get("cwd")
-        profile_dir = captured["cwd"] / "profile"
-        perf_dir = captured["cwd"] / "perf"
-        profile_dir.mkdir(parents=True, exist_ok=True)
-        perf_dir.mkdir(parents=True, exist_ok=True)
-        (profile_dir / "ncu.csv").write_text(
-            "Kernel Name,Metric Name,Metric Unit,Metric Value\n"
-            "softmax,gpu__time_duration.sum,nsecond,1000000\n",
-            encoding="utf-8",
-        )
-        (perf_dir / "benchmark.json").write_text(
-            "{\"backend\":\"nvidia\",\"device_name\":\"Fake GPU\"}\n",
-            encoding="utf-8",
-        )
-        return subprocess.CompletedProcess(command, 0, "", "")
+        cwd = kwargs.get("cwd")
+        profile_dir = cwd / "profile"
+        perf_dir = cwd / "perf"
+        if "--target-processes" in command:
+            captured["profile_command"] = command
+            captured["cwd"] = cwd
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            perf_dir.mkdir(parents=True, exist_ok=True)
+            (profile_dir / "ncu-report.ncu-rep").write_text("binary-placeholder", encoding="utf-8")
+            (perf_dir / "benchmark.json").write_text(
+                "{\"backend\":\"nvidia\",\"device_name\":\"Fake GPU\"}\n",
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if "--import" in command:
+            captured["render_command"] = command
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                (
+                    "Kernel Name,Metric Name,Metric Unit,Metric Value\n"
+                    "softmax,gpu__time_duration.sum,nsecond,1000000\n"
+                ),
+                "render-warning\n",
+            )
+        raise AssertionError(f"unexpected subprocess invocation: {command}")
 
     monkeypatch.setattr("subprocess.run", fake_run)
 
@@ -488,11 +499,21 @@ def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path):
     assert result.benchmark_result.device_name == "Fake GPU"
     assert result.profile.profile_summary.backend == "nvidia"
     assert result.profile.profile_summary.source_files == ("ncu.csv",)
-    assert result.profile.profile_artifacts[0][0] == "ncu.csv"
+    assert "ncu.csv" in {name for name, _ in result.profile.profile_artifacts}
+    assert "ncu-report.ncu-rep" in {name for name, _ in result.profile.profile_artifacts}
     assert result.profile.perf_artifacts[0][0] == "benchmark.json"
-    command = captured["command"]
-    assert command[0] == "ncu"
-    assert "--csv" in command
+    profile_command = captured["profile_command"]
+    assert profile_command[0] == "ncu"
+    assert "--export" in profile_command
+    assert profile_command[profile_command.index("-m") - 1] == sys.executable
+    render_command = captured["render_command"]
+    assert render_command[:2] == ["ncu", "--import"]
+    assert "--page" in render_command
+    assert "raw" in render_command
+    assert "--csv" in render_command
+    terminal = capsys.readouterr()
+    assert "Kernel Name,Metric Name,Metric Unit,Metric Value" in terminal.out
+    assert "render-warning" in terminal.err
 
 
 def test_nvidia_backend_profile_raises_when_ncu_fails(monkeypatch):
@@ -1245,24 +1266,53 @@ def test_nvidia_profile_operator_device_time_invokes_internal_run(monkeypatch):
 
     from cannbench.backends.pytorch_backend import NvidiaBackend
 
-    def fake_run(command, cwd=None, text=None, capture_output=None, check=None):
+    def fake_run(command, cwd=None, env=None, text=None, capture_output=None, check=None):
         del text, capture_output, check
-        captured["command"] = command
-        captured["cwd"] = cwd
         profile_dir = cwd / "profile"
         perf_dir = cwd / "perf"
-        profile_dir.mkdir(parents=True, exist_ok=True)
-        perf_dir.mkdir(parents=True, exist_ok=True)
-        (profile_dir / "ncu.csv").write_text(
-            "Kernel Name,Metric Name,Metric Unit,Metric Value\n"
-            "softmax,gpu__time_duration.sum,nsecond,100000\n",
-            encoding="utf-8",
-        )
-        (perf_dir / "benchmark.json").write_text(
-            '{"device_name":"NVIDIA H800 PCIe"}\n',
-            encoding="utf-8",
-        )
-        return SimpleNamespace(returncode=0, stderr="")
+        if "--target-processes" in command:
+            captured["profile_command"] = command
+            captured["cwd"] = cwd
+            captured["env"] = env
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            perf_dir.mkdir(parents=True, exist_ok=True)
+            (profile_dir / "ncu-report.ncu-rep").write_text("binary-placeholder", encoding="utf-8")
+            (perf_dir / "benchmark.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "nvidia",
+                        "device_name": "NVIDIA H800 PCIe",
+                        "op": "softmax",
+                        "dtype": "float16",
+                        "case": {
+                            "case_id": "tiny_logits",
+                            "family": "smoke",
+                            "source_kind": "synthetic",
+                            "source_project": "CannBench",
+                            "source_model": "SmokeModel",
+                            "source_file": "smoke.json",
+                            "source_op": "aten._softmax.default",
+                            "payload": {"dimensions": [32, 128], "dim": -1},
+                        },
+                        "warmup": 2,
+                        "iterations": 3,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if "--import" in command:
+            captured["render_command"] = command
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "Kernel Name,Metric Name,Metric Unit,Metric Value\n"
+                    "softmax,gpu__time_duration.sum,nsecond,100000\n"
+                ),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected subprocess invocation: {command}")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
@@ -1280,5 +1330,10 @@ def test_nvidia_profile_operator_device_time_invokes_internal_run(monkeypatch):
     result = backend.profile_operator_device_time(request)
 
     assert result.profile.device_name == "NVIDIA H800 PCIe"
-    assert "internal-run" in " ".join(captured["command"])
-    assert " operator " not in f" {' '.join(captured['command'])} "
+    assert "internal-run" in " ".join(captured["profile_command"])
+    assert " operator " not in f" {' '.join(captured['profile_command'])} "
+    assert captured["render_command"][:2] == ["ncu", "--import"]
+    assert "--page" in captured["render_command"]
+    assert "raw" in captured["render_command"]
+    assert "--csv" in captured["render_command"]
+    assert captured["env"]["PYTHONPATH"]

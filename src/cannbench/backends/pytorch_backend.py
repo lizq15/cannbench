@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib
+import os
+import sys
 import tempfile
 import subprocess
 from importlib.resources import as_file, files
@@ -16,6 +18,17 @@ from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
 _ASCEND_CUSTOM_OP_MODULES = {
     "softmax": "aten_softmax",
 }
+
+
+def _subprocess_pythonpath() -> str:
+    src_root = str(Path(__file__).resolve().parents[2])
+    existing = os.environ.get("PYTHONPATH", "")
+    if not existing:
+        return src_root
+    parts = [entry for entry in existing.split(os.pathsep) if entry]
+    if src_root in parts:
+        return existing
+    return os.pathsep.join((src_root, existing))
 
 
 class NvidiaBackend(TorchOperatorBackend):
@@ -46,18 +59,17 @@ class NvidiaBackend(TorchOperatorBackend):
             prepared_path = temp_dir / "prepared.json"
             profile_dir = temp_dir / "profile"
             perf_dir = temp_dir / "perf"
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            perf_dir.mkdir(parents=True, exist_ok=True)
             write_prepared_operator_input(prepared_path, prepared)
             command = [
                 "ncu",
                 "--target-processes",
                 "all",
                 "--force-overwrite",
-                "--csv",
-                "--log-file",
-                str(profile_dir / "ncu.csv"),
                 "--export",
                 str(profile_dir / "ncu-report"),
-                "python3",
+                sys.executable,
                 "-m",
                 "cannbench",
                 "internal-run",
@@ -77,14 +89,54 @@ class NvidiaBackend(TorchOperatorBackend):
             result = subprocess.run(
                 command,
                 cwd=temp_dir,
+                env={**os.environ, "PYTHONPATH": _subprocess_pythonpath()},
                 text=True,
                 capture_output=True,
                 check=False,
             )
             if result.returncode != 0:
+                if result.stdout:
+                    print(result.stdout, end="", flush=True)
+                if result.stderr:
+                    print(result.stderr, end="", file=sys.stderr, flush=True)
                 raise RuntimeError(
                     f"ncu profiling failed (exit {result.returncode}): {result.stderr.strip()}"
                 )
+            if result.stdout:
+                print(result.stdout, end="", flush=True)
+            if result.stderr:
+                print(result.stderr, end="", file=sys.stderr, flush=True)
+            render_command = [
+                "ncu",
+                "--import",
+                str(profile_dir / "ncu-report.ncu-rep"),
+                "--page",
+                "raw",
+                "--csv",
+            ]
+            render_result = subprocess.run(
+                render_command,
+                cwd=temp_dir,
+                env={**os.environ, "PYTHONPATH": _subprocess_pythonpath()},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if render_result.returncode != 0:
+                if render_result.stdout:
+                    print(render_result.stdout, end="", flush=True)
+                if render_result.stderr:
+                    print(render_result.stderr, end="", file=sys.stderr, flush=True)
+                raise RuntimeError(
+                    "ncu report render failed "
+                    f"(exit {render_result.returncode}): {render_result.stderr.strip()}"
+                )
+            if render_result.stdout:
+                print(render_result.stdout, end="", flush=True)
+            if render_result.stderr:
+                print(render_result.stderr, end="", file=sys.stderr, flush=True)
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            (profile_dir / "ncu.csv").write_text(render_result.stdout)
             summary = read_device_profile(profile_dir, backend="nvidia")
             profile = ProfileArtifacts(
                 device_name=self._device_name(torch, self._device(torch)),

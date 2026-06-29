@@ -2191,7 +2191,7 @@ def test_main_rejects_prepared_input_internal_run_mismatch(tmp_path, capsys):
     assert "prepared input operator mismatch: expected embedding, got softmax" in captured.err
 
 
-def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monkeypatch):
+def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monkeypatch, capsys):
     captured_requests: list[object] = []
     smoke_cases = get_operator_dataset("softmax").get("smoke").cases
 
@@ -2255,8 +2255,13 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
     benchmark_records = json.loads((layout.meta_dir / "benchmark-records.json").read_text())
     failures = json.loads((layout.meta_dir / "failures.json").read_text())
+    captured = capsys.readouterr()
 
     assert exit_code == 0
+    assert "[run] bench started run_name=softmax-smoke-batch backend=nvidia mode=local-batch cases=3" in captured.out
+    assert "[case] start 1/3 case_id=tiny_logits dataset=smoke dtype=float16 backend=nvidia" in captured.out
+    assert "[case] profiling completed case_id=tiny_logits backend=nvidia profiler=ncu" in captured.out
+    assert "[run] bench completed run_name=softmax-smoke-batch backend=nvidia successes=3 failures=0" in captured.out
     assert len(captured_requests) == len(smoke_cases) * 2
     assert [request.case_id for request in captured_requests[::2]] == [case.case_id for case in smoke_cases]
     assert [request.case_id for request in captured_requests[1::2]] == [case.case_id for case in smoke_cases]
@@ -2390,6 +2395,10 @@ def test_main_batch_bench_records_failures_and_continues(tmp_path, monkeypatch, 
     captured = capsys.readouterr()
 
     assert excinfo.value.code == 2
+    assert "[run] bench started run_name=prepared-batch backend=nvidia mode=local-batch cases=2" in captured.out
+    assert "[case] failed case_id=tiny_logits backend=nvidia error=kernel launch failed" in captured.out
+    assert "[case] success case_id=wide_vocab_lm_logits backend=nvidia" in captured.out
+    assert "[run] bench completed run_name=prepared-batch backend=nvidia successes=1 failures=1" in captured.out
     assert seen_case_ids == ["tiny_logits", "wide_vocab_lm_logits"]
     assert [row["status"] for row in summary["records"]] == ["failed", "ok"]
     assert failures["failure_count"] == 1
