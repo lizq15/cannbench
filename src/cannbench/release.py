@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tarfile
 from dataclasses import dataclass
@@ -47,6 +48,13 @@ def stage_release_tree(
     web_dist = repo_root / "web" / "dist"
     if web_dist.is_dir():
         _copy_tree(web_dist, stage_dir / "web" / "dist")
+    published_dir = repo_root / "published"
+    if published_dir.is_dir():
+        _copy_tree(published_dir, stage_dir / "published")
+    else:
+        target_published_dir = stage_dir / "published"
+        target_published_dir.mkdir(parents=True, exist_ok=True)
+        (target_published_dir / "index.json").write_text(json.dumps({"runs": []}, indent=2) + "\n")
 
     prepared_count = 0
     for op_name in list_operator_names():
