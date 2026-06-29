@@ -504,6 +504,8 @@ def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path, capsys)
     assert result.profile.perf_artifacts[0][0] == "benchmark.json"
     profile_command = captured["profile_command"]
     assert profile_command[0] == "ncu"
+    assert profile_command[profile_command.index("--launch-skip") + 1] == "2"
+    assert profile_command[profile_command.index("--launch-count") + 1] == "1"
     assert "--export" in profile_command
     assert profile_command[profile_command.index("-m") - 1] == sys.executable
     render_command = captured["render_command"]
@@ -1331,6 +1333,8 @@ def test_nvidia_profile_operator_device_time_invokes_internal_run(monkeypatch):
 
     assert result.profile.device_name == "NVIDIA H800 PCIe"
     assert "internal-run" in " ".join(captured["profile_command"])
+    assert captured["profile_command"][captured["profile_command"].index("--launch-skip") + 1] == "2"
+    assert captured["profile_command"][captured["profile_command"].index("--launch-count") + 1] == "3"
     assert " operator " not in f" {' '.join(captured['profile_command'])} "
     assert captured["render_command"][:2] == ["ncu", "--import"]
     assert "--page" in captured["render_command"]

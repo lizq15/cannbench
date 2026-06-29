@@ -56,4 +56,41 @@ describe("BenchmarkChart", () => {
     expect(option.xAxis.data).toEqual([1, 2]);
     expect(option.xAxis.axisLabel.show).toBe(false);
   });
+
+  it("allows dense multi-series tooltips to be pinned and scrolled", async () => {
+    const series: ChartSeries[] = [
+      {
+        key: "nvidia-h800-cuda-pytorch",
+        name: "NVIDIA H800 PyTorch",
+        records: [],
+        points: [{ caseId: "bert_pytorch_attention", latencyMs: 18.5, record: null }]
+      },
+      {
+        key: "ascend-950pr-cannops",
+        name: "Ascend 950PR CANN Ops",
+        records: [],
+        points: [{ caseId: "bert_pytorch_attention", latencyMs: 0.01, record: null }]
+      },
+      {
+        key: "ascend-950pr-simt-v1",
+        name: "Ascend 950PR SIMT v1",
+        records: [],
+        points: [{ caseId: "bert_pytorch_attention", latencyMs: 0.01, record: null }]
+      }
+    ];
+    const segments: ChartSegment[] = [{ key: "realistic", label: "realistic", start: 0, end: 0 }];
+
+    render(<BenchmarkChart series={series} segments={segments} />);
+
+    await waitFor(() => {
+      expect(setOption).toHaveBeenCalled();
+    });
+
+    const option = setOption.mock.calls.at(-1)?.[0];
+    expect(option.tooltip.enterable).toBe(true);
+    expect(option.tooltip.triggerOn).toBe("mousemove|click");
+    expect(option.tooltip.alwaysShowContent).toBe(true);
+    expect(option.tooltip.extraCssText).toContain("max-height");
+    expect(option.tooltip.extraCssText).toContain("overflow-y:auto");
+  });
 });

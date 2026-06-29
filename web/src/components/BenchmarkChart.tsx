@@ -50,9 +50,13 @@ export function BenchmarkChart({ series, segments }: BenchmarkChartProps) {
       backgroundColor: "transparent",
       tooltip: {
         trigger: "axis",
+        triggerOn: "mousemove|click",
+        enterable: true,
+        alwaysShowContent: true,
         backgroundColor: "rgba(29, 32, 33, 0.92)",
         borderColor: "rgba(235, 219, 178, 0.12)",
         textStyle: { color: "#ebdbb2", fontFamily: "JetBrains Mono, monospace" },
+        extraCssText: "max-height: 260px; overflow-y:auto; max-width: 420px;",
         formatter: (params: unknown) => tooltipHtml(params as Array<{ seriesName: string; value: number | null; dataIndex: number }>, series)
       },
       legend: {
