@@ -70,6 +70,7 @@ export function BenchmarkChart({ series, segments }: BenchmarkChartProps) {
     let pinnedTooltipAnchor: [number, number] | null = null;
     const hidePinnedTooltip = () => {
       pinnedTooltipAnchor = null;
+      chart.setOption({ tooltip: { alwaysShowContent: false } });
       chart.dispatchAction({ type: "hideTip" });
     };
     const pinTooltip = (params: unknown) => {
@@ -89,6 +90,7 @@ export function BenchmarkChart({ series, segments }: BenchmarkChartProps) {
         return;
       }
       pinnedTooltipAnchor = [point.event.offsetX, point.event.offsetY];
+      chart.setOption({ tooltip: { alwaysShowContent: true } });
       chart.dispatchAction({
         type: "showTip",
         seriesIndex: point.seriesIndex,
@@ -115,7 +117,7 @@ export function BenchmarkChart({ series, segments }: BenchmarkChartProps) {
         trigger: "axis",
         triggerOn: "mousemove|click",
         enterable: true,
-        alwaysShowContent: true,
+        alwaysShowContent: false,
         backgroundColor: "rgba(29, 32, 33, 0.92)",
         borderColor: "rgba(235, 219, 178, 0.12)",
         textStyle: { color: "#ebdbb2", fontFamily: "JetBrains Mono, monospace" },

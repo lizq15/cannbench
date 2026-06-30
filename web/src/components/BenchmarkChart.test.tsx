@@ -114,7 +114,7 @@ describe("BenchmarkChart", () => {
     const option = setOption.mock.calls.at(-1)?.[0];
     expect(option.tooltip.enterable).toBe(true);
     expect(option.tooltip.triggerOn).toBe("mousemove|click");
-    expect(option.tooltip.alwaysShowContent).toBe(true);
+    expect(option.tooltip.alwaysShowContent).toBe(false);
     expect(option.tooltip.extraCssText).toContain("max-height");
     expect(option.tooltip.extraCssText).toContain("overflow-y:auto");
   });
@@ -153,6 +153,7 @@ describe("BenchmarkChart", () => {
       seriesIndex: 0,
       dataIndex: 0
     });
+    expect(setOption).toHaveBeenCalledWith({ tooltip: { alwaysShowContent: true } });
   });
 
   it("keeps pinned tooltips inside the chart viewport", async () => {
@@ -213,6 +214,7 @@ describe("BenchmarkChart", () => {
 
     fireEvent.pointerDown(document.body);
 
+    expect(setOption).toHaveBeenCalledWith({ tooltip: { alwaysShowContent: false } });
     expect(dispatchAction).toHaveBeenCalledWith({ type: "hideTip" });
   });
 });
