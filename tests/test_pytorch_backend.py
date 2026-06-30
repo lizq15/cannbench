@@ -275,6 +275,11 @@ def test_ascend_backend_deploys_v1_custom_op_when_enabled(monkeypatch, tmp_path)
         "_load_custom_op_module",
         lambda op_name: captured.setdefault("loaded", op_name),
     )
+    monkeypatch.setitem(
+        sys.modules,
+        "aten_softmax",
+        SimpleNamespace(ops=SimpleNamespace(spatial_softmax_forward=lambda tensor, dim: tensor)),
+    )
 
     request = OperatorBenchmarkRequest(
         backend="ascend",
@@ -292,6 +297,142 @@ def test_ascend_backend_deploys_v1_custom_op_when_enabled(monkeypatch, tmp_path)
 
     assert captured["script"] == install_script
     assert captured["loaded"] == "softmax"
+
+
+def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
+    captured: dict[str, object] = {"torch_softmax_calls": 0, "simt_calls": 0}
+
+    class FakeTensor:
+        def reshape(self, shape):
+            del shape
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.npu = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake Ascend",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.tensor = lambda *args, **kwargs: FakeTensor()
+            self.softmax = self._softmax
+
+        def _softmax(self, tensor, dim):
+            del tensor, dim
+            captured["torch_softmax_calls"] += 1
+            return FakeTensor()
+
+    fake_ops_module = SimpleNamespace(
+        spatial_softmax_forward=lambda tensor, dim: captured.__setitem__(
+            "simt_calls", captured["simt_calls"] + 1
+        )
+        or tensor
+    )
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "aten_softmax", SimpleNamespace(ops=fake_ops_module))
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_deploy_custom_op", lambda request, op_name: None)
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        warmup=2,
+        iterations=3,
+        seed=7,
+        deploy_custom_op=True,
+    )
+
+    backend.run_softmax(request)
+
+    assert captured["simt_calls"] == 5
+    assert captured["torch_softmax_calls"] == 0
+
+
+def test_ascend_backend_captures_simt_softmax_through_registered_op(monkeypatch):
+    captured: dict[str, object] = {"torch_softmax_calls": 0, "simt_calls": 0}
+
+    class FakeTensor:
+        shape = (2,)
+
+        def reshape(self, shape):
+            del shape
+            return self
+
+        def detach(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def to(self, dtype=None):
+            del dtype
+            return self
+
+        def flatten(self):
+            return self
+
+        def tolist(self):
+            return [0.25, 0.75]
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.npu = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake Ascend",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.float32 = "float32"
+            self.tensor = lambda *args, **kwargs: FakeTensor()
+            self.softmax = self._softmax
+
+        def _softmax(self, tensor, dim):
+            del tensor, dim
+            captured["torch_softmax_calls"] += 1
+            return FakeTensor()
+
+    fake_ops_module = SimpleNamespace(
+        spatial_softmax_forward=lambda tensor, dim: captured.__setitem__(
+            "simt_calls", captured["simt_calls"] + 1
+        )
+        or tensor
+    )
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "aten_softmax", SimpleNamespace(ops=fake_ops_module))
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_deploy_custom_op", lambda request, op_name: None)
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        warmup=0,
+        iterations=1,
+        seed=7,
+        deploy_custom_op=True,
+    )
+
+    output = backend.capture_operator_output(request)
+
+    assert output.values == (0.25, 0.75)
+    assert captured["simt_calls"] == 1
+    assert captured["torch_softmax_calls"] == 0
 
 
 def test_backend_materializes_softmax_inputs_from_seed(monkeypatch):

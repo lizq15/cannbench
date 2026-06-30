@@ -1,6 +1,9 @@
 import json
 
+import pytest
+
 from cannbench.core.execution import RemoteExecutionArtifacts, RemoteProfileArtifacts
+from cannbench.core.prepared_input import build_prepared_operator_input, write_prepared_operator_input
 from cannbench.core.profile import DeviceProfileSummary
 from cannbench.core.remote import (
     RemoteCollectionResult,
@@ -8,6 +11,19 @@ from cannbench.core.remote import (
     collect_remote_artifacts,
     read_remote_endpoint,
 )
+
+
+def _write_softmax_prepared(path):
+    return write_prepared_operator_input(
+        path,
+        build_prepared_operator_input(
+            op="softmax",
+            dtype="float16",
+            dataset="smoke",
+            case_id="tiny_logits",
+            seed=0,
+        ),
+    )
 
 
 def test_read_remote_endpoint_config(tmp_path):
@@ -92,7 +108,7 @@ def test_collect_remote_artifacts_runs_capture_and_downloads_output(tmp_path):
         env={"ASCEND_VISIBLE_DEVICES": "0"},
     )
     prepared_input = tmp_path / "prepared.json"
-    prepared_input.write_text("{}")
+    _write_softmax_prepared(prepared_input)
 
     result = collect_remote_artifacts(
         endpoint=endpoint,
@@ -166,7 +182,7 @@ def test_collect_remote_artifacts_runs_ascend_profile_and_downloads_profile(tmp_
         env={"ASCEND_VISIBLE_DEVICES": "0"},
     )
     prepared_input = tmp_path / "prepared.json"
-    prepared_input.write_text("{}")
+    _write_softmax_prepared(prepared_input)
 
     collect_remote_artifacts(
         endpoint=endpoint,
@@ -247,7 +263,7 @@ def test_collect_remote_artifacts_runs_nvidia_ncu_profile(tmp_path):
         env={"CUDA_VISIBLE_DEVICES": "0"},
     )
     prepared_input = tmp_path / "prepared.json"
-    prepared_input.write_text("{}")
+    _write_softmax_prepared(prepared_input)
 
     collect_remote_artifacts(
         endpoint=endpoint,
@@ -301,7 +317,7 @@ def test_collect_remote_artifacts_can_summarize_downloaded_profile(tmp_path):
         env={},
     )
     prepared_input = tmp_path / "prepared.json"
-    prepared_input.write_text("{}")
+    _write_softmax_prepared(prepared_input)
 
     collect_remote_artifacts(
         endpoint=endpoint,
@@ -354,7 +370,7 @@ def test_collect_remote_artifacts_returns_unified_artifacts(tmp_path):
         env={},
     )
     prepared_input = tmp_path / "prepared.json"
-    prepared_input.write_text("{}")
+    _write_softmax_prepared(prepared_input)
 
     result = collect_remote_artifacts(
         endpoint=endpoint,
@@ -373,6 +389,51 @@ def test_collect_remote_artifacts_returns_unified_artifacts(tmp_path):
     assert result.artifacts.profile.profile_summary.backend == "ascend"
     assert result.artifacts.profile.profile_artifacts[0][0] == "op_summary.csv"
     assert result.artifacts.profile.perf_artifacts[0][0] == "benchmark.json"
+
+
+def test_collect_remote_artifacts_rejects_unexpected_profile_kernel(tmp_path):
+    def fake_runner(command):
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/profile"):
+            profile_dir = tmp_path / "results" / "profile"
+            profile_dir.mkdir(parents=True)
+            (profile_dir / "op_summary.csv").write_text(
+                "Op Name,Task Duration(us)\nStatelessRandomNormalV3,1000\n"
+            )
+        if command[:2] == ["scp", "-r"] and command[-1].endswith("/perf"):
+            perf_dir = tmp_path / "results" / "perf"
+            perf_dir.mkdir(parents=True)
+            (perf_dir / "benchmark.json").write_text(
+                json.dumps(
+                    {
+                        "backend": "ascend",
+                        "device_name": "Ascend 910B",
+                    }
+                )
+                + "\n"
+            )
+
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        port=None,
+        workdir="/opt/cannbench",
+        python="python3",
+        env={},
+    )
+    prepared_input = tmp_path / "prepared.json"
+    _write_softmax_prepared(prepared_input)
+
+    with pytest.raises(ValueError, match="expected profiler kernel"):
+        collect_remote_artifacts(
+            endpoint=endpoint,
+            prepared_input=prepared_input,
+            output_dir=tmp_path / "results",
+            run_id="softmax-run",
+            capture_output=False,
+            profile_device_time=True,
+            runner=fake_runner,
+        )
 
 
 def test_collect_remote_artifacts_uses_ssh_and_scp_port(tmp_path):

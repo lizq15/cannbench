@@ -102,6 +102,36 @@ def _parse_float(value: object) -> float | None:
     return parsed
 
 
+def expected_kernel_name_patterns(
+    *,
+    backend: str,
+    op: str,
+    implementation: str | None = None,
+) -> tuple[str, ...]:
+    del backend, implementation
+    if op.lower() != "softmax":
+        return ()
+    return ("softmax",)
+
+
+def _kernel_name_from_row(row: dict[str, str]) -> str | None:
+    lower = {key.strip().lower(): value for key, value in row.items()}
+    for key in ("kernel name", "op name", "name"):
+        value = lower.get(key)
+        if value:
+            return value.strip()
+    return None
+
+
+def _matches_kernel_name(kernel_name: str | None, patterns: tuple[str, ...]) -> bool:
+    if not patterns:
+        return True
+    if not kernel_name:
+        return False
+    lowered = kernel_name.lower()
+    return any(pattern.lower() in lowered for pattern in patterns)
+
+
 def _duration_from_metric_row(row: dict[str, str], *, backend: str) -> float | None:
     lower = {key.strip().lower(): value for key, value in row.items()}
     metric_name = lower.get("metric name") or lower.get("metric")
@@ -148,8 +178,8 @@ def _looks_like_ncu_unit_row(row: dict[str, str]) -> bool:
     return value is not None and _parse_float(value) is None and _unit_from_text(value) != "ms"
 
 
-def _read_csv_durations(path: Path, *, backend: str) -> list[float]:
-    durations: list[float] = []
+def _read_csv_duration_rows(path: Path, *, backend: str) -> list[tuple[float, str | None]]:
+    durations: list[tuple[float, str | None]] = []
     with path.open(newline="") as handle:
         reader = csv.DictReader(handle)
         units: dict[str, str] = {}
@@ -163,20 +193,41 @@ def _read_csv_durations(path: Path, *, backend: str) -> list[float]:
             if duration is None:
                 duration = _duration_from_wide_row(normalized_row, backend=backend, units=units)
             if duration is not None:
-                durations.append(duration)
+                durations.append((duration, _kernel_name_from_row(row)))
     return durations
 
 
-def read_device_profile(profile_dir: Path, *, backend: str) -> DeviceProfileSummary:
+def read_device_profile(
+    profile_dir: Path,
+    *,
+    backend: str,
+    expected_kernel_name_patterns: tuple[str, ...] = (),
+) -> DeviceProfileSummary:
     csv_files = sorted(profile_dir.rglob("*.csv"))
     samples: list[float] = []
     source_files: list[str] = []
+    observed_kernel_names: set[str] = set()
     for csv_file in csv_files:
-        durations = _read_csv_durations(csv_file, backend=backend)
+        duration_rows = _read_csv_duration_rows(csv_file, backend=backend)
+        observed_kernel_names.update(
+            kernel_name for _, kernel_name in duration_rows if kernel_name
+        )
+        durations = [
+            duration
+            for duration, kernel_name in duration_rows
+            if _matches_kernel_name(kernel_name, expected_kernel_name_patterns)
+        ]
         if durations:
             samples.extend(durations)
             source_files.append(str(csv_file.relative_to(profile_dir)))
     if not samples:
+        if expected_kernel_name_patterns and observed_kernel_names:
+            observed = ", ".join(sorted(observed_kernel_names))
+            expected = ", ".join(expected_kernel_name_patterns)
+            raise ValueError(
+                "expected profiler kernel matching "
+                f"{expected!r}, but observed: {observed}"
+            )
         raise ValueError(f"no duration samples found in profiler CSV files under {profile_dir}")
     summary = summarize_timings_ms(samples)
     return DeviceProfileSummary(

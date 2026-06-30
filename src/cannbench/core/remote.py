@@ -9,7 +9,12 @@ from pathlib import Path
 from typing import Callable
 
 from cannbench.core.execution import RemoteExecutionArtifacts, RemoteProfileArtifacts, read_artifact_tree
-from cannbench.core.profile import read_device_profile, write_device_profile_summary
+from cannbench.core.prepared_input import read_prepared_operator_input
+from cannbench.core.profile import (
+    expected_kernel_name_patterns,
+    read_device_profile,
+    write_device_profile_summary,
+)
 
 
 CommandRunner = Callable[[list[str]], None]
@@ -215,7 +220,17 @@ def collect_remote_artifacts(
             _scp_download_command(endpoint, remote_profile, output_dir / "profile")
         )
         runner(_scp_download_command(endpoint, remote_perf, output_dir / "perf"))
-        summary = read_device_profile(output_dir / "profile", backend=endpoint.backend)
+        prepared = read_prepared_operator_input(prepared_input)
+        implementation = "simt" if deploy_custom_op else None
+        summary = read_device_profile(
+            output_dir / "profile",
+            backend=endpoint.backend,
+            expected_kernel_name_patterns=expected_kernel_name_patterns(
+                backend=endpoint.backend,
+                op=prepared.op,
+                implementation=implementation,
+            ),
+        )
         if summarize_profile:
             write_device_profile_summary(output_dir / "profile-summary.json", summary)
         perf_payload = json.loads((output_dir / "perf" / "benchmark.json").read_text())

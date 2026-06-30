@@ -1,6 +1,12 @@
 import json
 
-from cannbench.core.profile import read_device_profile, write_device_profile_summary
+import pytest
+
+from cannbench.core.profile import (
+    expected_kernel_name_patterns,
+    read_device_profile,
+    write_device_profile_summary,
+)
 
 
 def test_read_ascend_msprof_csv_duration_summary(tmp_path):
@@ -54,6 +60,55 @@ def test_read_nvidia_ncu_wide_csv_uses_avg_duration_and_unit_row(tmp_path):
     assert summary.sample_count == 1
     assert summary.latency_ms_avg == 0.060125
     assert summary.source_files == ("ncu.csv",)
+
+
+def test_read_device_profile_filters_to_expected_kernel_name(tmp_path):
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir()
+    (profile_dir / "OpBasicInfo.csv").write_text(
+        "Op Name,Task Duration(us)\n"
+        "StatelessRandomNormalV3,400\n"
+        "SoftmaxV2_float16_high_precision_1000,58\n"
+    )
+
+    summary = read_device_profile(
+        profile_dir,
+        backend="ascend",
+        expected_kernel_name_patterns=("softmax",),
+    )
+
+    assert summary.sample_count == 1
+    assert summary.latency_ms_avg == 0.058
+    assert summary.source_files == ("OpBasicInfo.csv",)
+
+
+def test_read_device_profile_rejects_unexpected_kernel_name(tmp_path):
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir()
+    (profile_dir / "OpBasicInfo.csv").write_text(
+        "Op Name,Task Duration(us)\n"
+        "StatelessRandomNormalV3,400\n"
+    )
+
+    with pytest.raises(ValueError, match="expected profiler kernel"):
+        read_device_profile(
+            profile_dir,
+            backend="ascend",
+            expected_kernel_name_patterns=("softmax",),
+        )
+
+
+def test_expected_kernel_name_patterns_match_softmax_case_insensitively():
+    assert expected_kernel_name_patterns(
+        backend="ascend",
+        op="softmax",
+        implementation="cann_ops_library",
+    ) == ("softmax",)
+    assert expected_kernel_name_patterns(
+        backend="ascend",
+        op="SoftMax",
+        implementation="simt",
+    ) == ("softmax",)
 
 
 def test_write_device_profile_summary_json(tmp_path):

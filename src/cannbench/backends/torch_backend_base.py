@@ -80,6 +80,10 @@ class TorchOperatorBackend(OperatorBackend):
     def _tensor(self, torch, values, *, device, dtype):
         return torch.tensor(values, device=device, dtype=dtype)
 
+    def _softmax(self, torch, tensor, dim: int | None, request: OperatorBenchmarkRequest):
+        del request
+        return torch.softmax(tensor, dim=dim)
+
     def _captured_output_from_tensor(
         self,
         *,
@@ -121,7 +125,7 @@ class TorchOperatorBackend(OperatorBackend):
                 device=device,
                 dtype=dtype,
             ).reshape(payload["shape"])
-            return torch.softmax(tensor, dim=request.dim)
+            return self._softmax(torch, tensor, request.dim, request)
 
         if request.op == "embedding":
             payload = materialize_embedding_inputs(case, dtype=request.dtype, seed=request.seed)
@@ -396,11 +400,11 @@ class TorchOperatorBackend(OperatorBackend):
             ).reshape(payload["shape"])
 
             for _ in range(request.warmup):
-                torch.softmax(tensor, dim=request.dim)
+                self._softmax(torch, tensor, request.dim, request)
             self._synchronize(torch)
 
             for _ in range(request.iterations):
-                torch.softmax(tensor, dim=request.dim)
+                self._softmax(torch, tensor, request.dim, request)
                 self._synchronize(torch)
             return OperatorBenchmarkResult(
                 backend=self.name,

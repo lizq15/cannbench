@@ -12,7 +12,12 @@ from cannbench.backends.torch_backend_base import TorchOperatorBackend
 from cannbench.core.config import OperatorBenchmarkRequest
 from cannbench.core.execution import read_artifact_tree
 from cannbench.core.prepared_input import build_prepared_operator_input, write_prepared_operator_input
-from cannbench.core.profile import ProfileArtifacts, LocalDeviceProfileResult, read_device_profile
+from cannbench.core.profile import (
+    ProfileArtifacts,
+    LocalDeviceProfileResult,
+    expected_kernel_name_patterns,
+    read_device_profile,
+)
 from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
 
 _ASCEND_CUSTOM_OP_MODULES = {
@@ -141,7 +146,14 @@ class NvidiaBackend(TorchOperatorBackend):
                 print(render_result.stderr, end="", file=sys.stderr, flush=True)
             profile_dir.mkdir(parents=True, exist_ok=True)
             (profile_dir / "ncu.csv").write_text(render_result.stdout)
-            summary = read_device_profile(profile_dir, backend="nvidia")
+            summary = read_device_profile(
+                profile_dir,
+                backend="nvidia",
+                expected_kernel_name_patterns=expected_kernel_name_patterns(
+                    backend="nvidia",
+                    op=request.op,
+                ),
+            )
             profile = ProfileArtifacts(
                 device_name=self._device_name(torch, self._device(torch)),
                 profile_summary=summary,
@@ -238,3 +250,14 @@ class AscendBackend(TorchOperatorBackend):
                 "Ascend custom op deployment failed "
                 f"({script_path}, exit {result.returncode}): {result.stderr.strip()}"
             )
+
+    def _softmax(self, torch, tensor, dim: int | None, request: OperatorBenchmarkRequest):
+        if request.deploy_custom_op:
+            try:
+                from aten_softmax import ops as aten_softmax_ops
+            except ModuleNotFoundError as exc:
+                raise RuntimeError(
+                    "Ascend SIMT softmax requested but aten_softmax is not importable"
+                ) from exc
+            return aten_softmax_ops.spatial_softmax_forward(tensor, int(dim))
+        return torch.softmax(tensor, dim=dim)
