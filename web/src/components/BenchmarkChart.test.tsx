@@ -1,9 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import { BenchmarkChart } from "./BenchmarkChart";
 import type { ChartSegment, ChartSeries } from "../types";
 
 const setOption = vi.fn();
+const on = vi.fn();
+const off = vi.fn();
+const zrOn = vi.fn();
+const zrOff = vi.fn();
+const dispatchAction = vi.fn();
 const resize = vi.fn();
 const dispose = vi.fn();
 
@@ -11,6 +16,13 @@ vi.mock("echarts/core", () => ({
   use: vi.fn(),
   init: vi.fn(() => ({
     setOption,
+    on,
+    off,
+    getZr: () => ({
+      on: zrOn,
+      off: zrOff
+    }),
+    dispatchAction,
     resize,
     dispose
   }))
@@ -32,6 +44,17 @@ vi.mock("echarts/renderers", () => ({
 }));
 
 describe("BenchmarkChart", () => {
+  beforeEach(() => {
+    setOption.mockClear();
+    on.mockClear();
+    off.mockClear();
+    zrOn.mockClear();
+    zrOff.mockClear();
+    dispatchAction.mockClear();
+    resize.mockClear();
+    dispose.mockClear();
+  });
+
   it("hides raw case labels on the x-axis", async () => {
     const series: ChartSeries[] = [
       {
@@ -59,7 +82,7 @@ describe("BenchmarkChart", () => {
     expect(option.series[0].data).toEqual([10, 710]);
   });
 
-  it("allows dense multi-series tooltips to be pinned and scrolled", async () => {
+  it("keeps dense multi-series tooltips enterable and scrollable", async () => {
     const series: ChartSeries[] = [
       {
         key: "nvidia-h800-cuda-pytorch",
@@ -94,5 +117,41 @@ describe("BenchmarkChart", () => {
     expect(option.tooltip.alwaysShowContent).toBe(true);
     expect(option.tooltip.extraCssText).toContain("max-height");
     expect(option.tooltip.extraCssText).toContain("overflow-y:auto");
+  });
+
+  it("pins tooltip position after clicking a chart point", async () => {
+    const series: ChartSeries[] = [
+      {
+        key: "nvidia-h800-cuda-pytorch",
+        name: "NVIDIA H800 PyTorch",
+        records: [],
+        points: [{ caseId: "bert_pytorch_attention", latencyMs: 0.01, record: null }]
+      }
+    ];
+    const segments: ChartSegment[] = [{ key: "realistic", label: "realistic", start: 0, end: 0 }];
+
+    render(<BenchmarkChart series={series} segments={segments} />);
+
+    await waitFor(() => {
+      expect(setOption).toHaveBeenCalled();
+    });
+
+    const option = setOption.mock.calls.at(-1)?.[0];
+    const clickHandler = on.mock.calls.find(([eventName]) => eventName === "click")?.[1];
+
+    expect(option.tooltip.position([40, 50])).toEqual([52, 62]);
+    clickHandler({
+      componentType: "series",
+      seriesIndex: 0,
+      dataIndex: 0,
+      event: { offsetX: 100, offsetY: 120 }
+    });
+
+    expect(option.tooltip.position([40, 50])).toEqual([112, 132]);
+    expect(dispatchAction).toHaveBeenCalledWith({
+      type: "showTip",
+      seriesIndex: 0,
+      dataIndex: 0
+    });
   });
 });

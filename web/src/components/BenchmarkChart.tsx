@@ -9,6 +9,7 @@ echarts.use([GridComponent, LegendComponent, TooltipComponent, MarkLineComponent
 
 const SERIES_COLORS = ["#b8bb26", "#fe8019", "#83a598", "#689d6a", "#d3869b"];
 const MS_TO_US = 1000;
+const TOOLTIP_OFFSET = 12;
 
 interface BenchmarkChartProps {
   series: ChartSeries[];
@@ -45,6 +46,36 @@ export function BenchmarkChart({ series, segments }: BenchmarkChartProps) {
     }
 
     const chart = echarts.init(chartRef.current, undefined, { renderer: "svg" });
+    let pinnedTooltipPosition: [number, number] | null = null;
+    const pinTooltip = (params: unknown) => {
+      const point = params as {
+        componentType?: string;
+        seriesIndex?: number;
+        dataIndex?: number;
+        event?: { offsetX?: number; offsetY?: number };
+      };
+      if (
+        point.componentType !== "series" ||
+        typeof point.seriesIndex !== "number" ||
+        typeof point.dataIndex !== "number" ||
+        typeof point.event?.offsetX !== "number" ||
+        typeof point.event?.offsetY !== "number"
+      ) {
+        return;
+      }
+      pinnedTooltipPosition = [point.event.offsetX + TOOLTIP_OFFSET, point.event.offsetY + TOOLTIP_OFFSET];
+      chart.dispatchAction({
+        type: "showTip",
+        seriesIndex: point.seriesIndex,
+        dataIndex: point.dataIndex
+      });
+    };
+    const clearPinnedTooltip = (event?: { target?: unknown }) => {
+      if (event?.target) {
+        return;
+      }
+      pinnedTooltipPosition = null;
+    };
     const caseMarkers = series[0]?.points.map((_, index) => index + 1) ?? [];
     chart.setOption({
       color: SERIES_COLORS,
@@ -58,6 +89,8 @@ export function BenchmarkChart({ series, segments }: BenchmarkChartProps) {
         borderColor: "rgba(235, 219, 178, 0.12)",
         textStyle: { color: "#ebdbb2", fontFamily: "JetBrains Mono, monospace" },
         extraCssText: "max-height: 260px; overflow-y:auto; max-width: 420px;",
+        position: (point: number[]) =>
+          pinnedTooltipPosition ?? [point[0] + TOOLTIP_OFFSET, point[1] + TOOLTIP_OFFSET],
         formatter: (params: unknown) => tooltipHtml(params as Array<{ seriesName: string; value: number | null; dataIndex: number }>, series)
       },
       legend: {
@@ -98,11 +131,15 @@ export function BenchmarkChart({ series, segments }: BenchmarkChartProps) {
             : undefined
       }))
     });
+    chart.on("click", pinTooltip);
+    chart.getZr().on("click", clearPinnedTooltip);
 
     const resize = () => chart.resize();
     window.addEventListener("resize", resize);
     return () => {
       window.removeEventListener("resize", resize);
+      chart.off("click", pinTooltip);
+      chart.getZr().off("click", clearPinnedTooltip);
       chart.dispose();
     };
   }, [segments, series]);
