@@ -176,3 +176,17 @@ SIMT V1:
     dtype and half_to_float select fp16/fp32 input-output handling, but row-wise
     still has only one SIMT kernel path.
 ```
+
+## Thread And Grid Configuration Comparison
+
+| Shape scenario | PyTorch CUDA | Ascend SIMT V1 | Same configuration? |
+| --- | --- | --- | --- |
+| `inner_size == 1`, `dim_size <= 2048` | Persistent warp softmax. One warp processes one or two rows depending on `dim_size`. | Single row-wise SIMT kernel. `block_x <= 32`, `grid_x <= 32768`. | No. The high-level scenario matches, but CUDA uses persistent warp variants while SIMT V1 uses one fixed row-wise policy. |
+| `inner_size == 1`, large row | Multiple possible paths: 512-thread fast path, register path, shared-memory path, or generic row-wise path. `block_x` can grow up to `1024` in generic paths. | Single row-wise SIMT kernel. `block_x <= 32`, `grid_x <= 32768`. | No. This is the largest current mismatch. |
+| `inner_size > 1`, spatial softmax | `block_y = min(inner_size, 1024)`. `block_x * block_y <= 1024`. `grid_x` and `grid_y` tile `outer_size` and `inner_size` with occupancy limits. | Similar spatial shape policy. `block_y = min(inner_size, 1024)`. `block_x * block_y <= 1024`. `grid_x` and `grid_y` tile `outer_size` and `inner_size` using occupancy estimates. | Close in shape, but not guaranteed identical because CUDA and Ascend use different occupancy and launch constraints. |
+| dtype / `half_to_float` branch | Selects output dtype and kernel template. It does not remove CUDA's row-wise subpath diversity. | Selects fp16/fp32 input-output handling. Row-wise still has only one SIMT kernel path. | No. Dtype behavior is similar at a high level, but row-wise dispatch diversity differs. |
+
+Key takeaway: the main mismatch is row-wise softmax. Most realistic attention
+and logits cases have `inner_size == 1`, so CUDA can choose from several
+row-wise optimized kernels while SIMT V1 currently uses one row-wise SIMT kernel
+with `block_x <= 32`.
