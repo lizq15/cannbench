@@ -21,7 +21,8 @@ from cannbench.core.profile import (
 from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
 
 _ASCEND_CUSTOM_OP_MODULES = {
-    "softmax": "aten_softmax",
+    ("softmax", "v1"): "aten_softmax",
+    ("softmax", "v2"): "aten_softmax_v2",
 }
 
 
@@ -225,10 +226,13 @@ class AscendBackend(TorchOperatorBackend):
             )
         with as_file(install_script) as script_path:
             self._run_custom_op_install(script_path)
-        self._load_custom_op_module(op_name)
+        self._load_custom_op_module(request, op_name)
 
-    def _load_custom_op_module(self, op_name: str) -> None:
-        module_name = _ASCEND_CUSTOM_OP_MODULES.get(op_name)
+    def _custom_op_module_name(self, op_name: str, version: str | None) -> str | None:
+        return _ASCEND_CUSTOM_OP_MODULES.get((op_name, version or "v1"))
+
+    def _load_custom_op_module(self, request: OperatorBenchmarkRequest, op_name: str) -> None:
+        module_name = self._custom_op_module_name(op_name, request.implementation_version)
         if module_name is None:
             return
         importlib.invalidate_caches()
@@ -256,11 +260,17 @@ class AscendBackend(TorchOperatorBackend):
 
     def _softmax(self, torch, tensor, dim: int | None, request: OperatorBenchmarkRequest):
         if request.deploy_custom_op:
+            module_name = self._custom_op_module_name(request.op, request.implementation_version)
+            if module_name is None:
+                raise RuntimeError(
+                    "Ascend SIMT softmax requested but no custom op module is "
+                    f"registered for version {request.implementation_version or 'v1'}"
+                )
             try:
-                from aten_softmax import ops as aten_softmax_ops
+                aten_softmax_module = importlib.import_module(module_name)
             except ModuleNotFoundError as exc:
                 raise RuntimeError(
-                    "Ascend SIMT softmax requested but aten_softmax is not importable"
+                    f"Ascend SIMT softmax requested but {module_name} is not importable"
                 ) from exc
-            return aten_softmax_ops.spatial_softmax_forward(tensor, int(dim))
+            return aten_softmax_module.ops.spatial_softmax_forward(tensor, int(dim))
         return torch.softmax(tensor, dim=dim)

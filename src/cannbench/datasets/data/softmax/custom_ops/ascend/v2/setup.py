@@ -12,7 +12,7 @@ import torch.utils.cpp_extension as cpp_extension
 import torch_npu
 
 
-library_name = "aten_softmax"
+library_name = "aten_softmax_v2"
 
 BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 EXTENSIONS_DIR = os.path.join(BASE_DIR, library_name, "csrc")

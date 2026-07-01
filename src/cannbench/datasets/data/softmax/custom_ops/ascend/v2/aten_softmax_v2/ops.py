@@ -21,19 +21,19 @@ def is_extension_loaded() -> bool:
 
 def has_spatial_softmax_forward_op() -> bool:
     try:
-        return hasattr(torch.ops.aten_softmax, "spatial_softmax_forward")
+        return hasattr(torch.ops.aten_softmax_v2, "spatial_softmax_forward")
     except Exception:
         return False
 
 
 def _require_cpp_op(op_name: str):
     if not is_extension_loaded():
-        raise RuntimeError("aten_softmax C++ extension is not loaded")
+        raise RuntimeError("aten_softmax_v2 C++ extension is not loaded")
     try:
-        namespace = torch.ops.aten_softmax
+        namespace = torch.ops.aten_softmax_v2
         return getattr(namespace, op_name)
     except Exception as exc:
-        raise RuntimeError(f"aten_softmax::{op_name} is not registered") from exc
+        raise RuntimeError(f"aten_softmax_v2::{op_name} is not registered") from exc
 
 
 def spatial_softmax_forward(

@@ -273,7 +273,9 @@ def test_ascend_backend_deploys_v1_custom_op_when_enabled(monkeypatch, tmp_path)
     monkeypatch.setattr(
         backend,
         "_load_custom_op_module",
-        lambda op_name: captured.setdefault("loaded", op_name),
+        lambda request, op_name: captured.setdefault(
+            "loaded", (op_name, request.implementation_version or "v1")
+        ),
     )
     monkeypatch.setitem(
         sys.modules,
@@ -296,7 +298,7 @@ def test_ascend_backend_deploys_v1_custom_op_when_enabled(monkeypatch, tmp_path)
     backend.run_softmax(request)
 
     assert captured["script"] == install_script
-    assert captured["loaded"] == "softmax"
+    assert captured["loaded"] == ("softmax", "v1")
 
 
 def test_ascend_backend_deploys_requested_custom_op_version(monkeypatch, tmp_path):
@@ -328,7 +330,9 @@ def test_ascend_backend_deploys_requested_custom_op_version(monkeypatch, tmp_pat
     monkeypatch.setattr(
         backend,
         "_load_custom_op_module",
-        lambda op_name: captured.setdefault("loaded", op_name),
+        lambda request, op_name: captured.setdefault(
+            "loaded", (op_name, request.implementation_version)
+        ),
     )
 
     request = OperatorBenchmarkRequest(
@@ -347,7 +351,7 @@ def test_ascend_backend_deploys_requested_custom_op_version(monkeypatch, tmp_pat
     backend._deploy_custom_op(request, "softmax")
 
     assert captured["script"] == install_script
-    assert captured["loaded"] == "softmax"
+    assert captured["loaded"] == ("softmax", "v2")
 
 
 def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
@@ -405,6 +409,77 @@ def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
     backend.run_softmax(request)
 
     assert captured["simt_calls"] == 5
+    assert captured["torch_softmax_calls"] == 0
+
+
+def test_ascend_backend_runs_simt_softmax_v2_through_versioned_module(monkeypatch):
+    captured: dict[str, object] = {
+        "torch_softmax_calls": 0,
+        "simt_v1_calls": 0,
+        "simt_v2_calls": 0,
+    }
+
+    class FakeTensor:
+        def reshape(self, shape):
+            del shape
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.npu = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake Ascend",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.tensor = lambda *args, **kwargs: FakeTensor()
+            self.softmax = self._softmax
+
+        def _softmax(self, tensor, dim):
+            del tensor, dim
+            captured["torch_softmax_calls"] += 1
+            return FakeTensor()
+
+    fake_v1_ops = SimpleNamespace(
+        spatial_softmax_forward=lambda tensor, dim: captured.__setitem__(
+            "simt_v1_calls", captured["simt_v1_calls"] + 1
+        )
+        or tensor
+    )
+    fake_v2_ops = SimpleNamespace(
+        spatial_softmax_forward=lambda tensor, dim: captured.__setitem__(
+            "simt_v2_calls", captured["simt_v2_calls"] + 1
+        )
+        or tensor
+    )
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "aten_softmax", SimpleNamespace(ops=fake_v1_ops))
+    monkeypatch.setitem(sys.modules, "aten_softmax_v2", SimpleNamespace(ops=fake_v2_ops))
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_deploy_custom_op", lambda request, op_name: None)
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        warmup=2,
+        iterations=3,
+        seed=7,
+        deploy_custom_op=True,
+        implementation_version="v2",
+    )
+
+    backend.run_softmax(request)
+
+    assert captured["simt_v2_calls"] == 5
+    assert captured["simt_v1_calls"] == 0
     assert captured["torch_softmax_calls"] == 0
 
 

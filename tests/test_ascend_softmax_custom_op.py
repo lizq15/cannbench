@@ -5,6 +5,9 @@ CUSTOM_OP_ROOT = Path(
     "src/cannbench/datasets/data/softmax/custom_ops/ascend/v1/"
     "aten_softmax/csrc/simt"
 )
+CUSTOM_OP_V2_ROOT = Path(
+    "src/cannbench/datasets/data/softmax/custom_ops/ascend/v2/"
+)
 
 
 def test_ascend_softmax_keeps_dim_parallel_launch_policy():
@@ -23,3 +26,21 @@ def test_ascend_softmax_reduction_uses_dynamic_ubuf_not_global_scratch():
     assert "launch.dynamic_ubuf_bytes" in source
     assert "accscalar_t* reduce_workspace" not in source
     assert "at::empty(\n      {\n          launch.grid_x * launch.grid_y" not in source
+
+
+def test_ascend_softmax_v2_uses_versioned_python_package_and_torch_namespace():
+    setup_py = (CUSTOM_OP_V2_ROOT / "setup.py").read_text()
+    ops_py = (CUSTOM_OP_V2_ROOT / "aten_softmax_v2" / "ops.py").read_text()
+    source = (
+        CUSTOM_OP_V2_ROOT
+        / "aten_softmax_v2"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+
+    assert 'library_name = "aten_softmax_v2"' in setup_py
+    assert "torch.ops.aten_softmax_v2" in ops_py
+    assert "namespace aten_softmax_v2" in source
+    assert "TORCH_LIBRARY_FRAGMENT(aten_softmax_v2, m)" in source
+    assert "TORCH_LIBRARY_IMPL(aten_softmax_v2, PrivateUse1, m)" in source

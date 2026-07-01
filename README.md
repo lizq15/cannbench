@@ -330,6 +330,8 @@ When `--implementation simt` is set, CannBench deploys the selected SIMT version
 src/cannbench/datasets/data/<operator>/custom_ops/ascend/<version>/install.sh
 ```
 
+SIMT operator versions use versioned Python packages and torch namespaces, for example `aten_softmax` for `v1` and `aten_softmax_v2` for `v2`. This allows different SIMT versions to be installed and profiled concurrently in the same Python environment when the target devices and profiler output directories are isolated.
+
 If that path is absent, the run fails with a clear error. If `--implementation cann_ops_library` is set, CannBench skips SIMT deployment and uses the default CANN ops library behavior available in the target runtime.
 
 ### Performance Viewer
