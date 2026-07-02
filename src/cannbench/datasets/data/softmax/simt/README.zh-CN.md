@@ -191,3 +191,29 @@ SIMT V1:
 关键结论：主要差异在 row-wise softmax。大多数 realistic attention 和
 logits case 都是 `inner_size == 1`，CUDA 可以从多条 row-wise 优化 kernel
 中选择，而 SIMT V1 当前只使用一条 `block_x <= 32` 的 row-wise SIMT kernel。
+
+## V2 第一步 Row-Wise 拆分
+
+V2 先把 row-wise 路径拆成 CUDA 风格的分发分支：
+
+```text
+inner_size == 1:
+    如果 dim_size <= 2048 且 dim_size * sizeof(dtype) <= 8192:
+        row_softmax_persistent_forward
+    否则如果选择 large-row fast path:
+        row_softmax_fast_forward
+    否则:
+        row_softmax_generic_forward
+```
+
+第一步只对齐 dispatch 和 launch policy，不声称 kernel 内部已经完全等价
+CUDA：
+
+| V2 路径 | Launch policy | 目的 |
+| --- | --- | --- |
+| `row_softmax_persistent_forward` | `block_x <= 32` | 保留 V1 已验证正确的小/中 row 保守策略。 |
+| `row_softmax_fast_forward` | `block_x = 512` | 开始对齐 CUDA large-row fast path 的线程形态。 |
+| `row_softmax_generic_forward` | `block_x = round_up_to_32(min(dim_size, 1024))` | 开始对齐 CUDA generic row-wise 的 block-size 形态。 |
+
+后续 V2 迭代再逐步替换各路径的 kernel 内部实现，包括 shuffle reduction、
+ILP/vectorized load，以及 Ascend SIMT 支持场景下的寄存器驻留 row buffering。

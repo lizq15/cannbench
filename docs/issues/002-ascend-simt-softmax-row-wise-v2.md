@@ -260,6 +260,39 @@ should explicitly design the row-wise softmax launch policy:
    - PyTorch CUDA softmax on H800;
    - previous SIMT versions.
 
+## V2 First Step: CUDA-Style Row Dispatch Split
+
+V2 now separates row-wise dispatch into CUDA-inspired paths while keeping the
+first implementation small enough to debug:
+
+```text
+inner_size != 1:
+    spatial_softmax_forward
+
+inner_size == 1:
+    if dim_size <= 2048 and dim_size * sizeof(dtype) <= 8192:
+        row_softmax_persistent_forward
+    else if large-row fast path is selected:
+        row_softmax_fast_forward
+    else:
+        row_softmax_generic_forward
+```
+
+The first V2 step does not yet claim CUDA kernel-internal equivalence. The three
+row paths currently reuse the same SIMT row reduction kernel with different
+launch policies and profiler-visible API names:
+
+- `row_softmax_persistent_forward` keeps the V1 32-lane correctness-oriented
+  policy.
+- `row_softmax_fast_forward` uses a CUDA-like `512` thread row policy for large
+  rows.
+- `row_softmax_generic_forward` rounds `min(dim_size, 1024)` up to a 32-lane
+  multiple, matching the CUDA generic block-size shape.
+
+This lets profiling and accuracy tests identify which CUDA-style row path each
+case exercises before V2 adds deeper kernel-internal optimizations such as
+shuffle reduction, ILP/vectorized loads, and register-resident row buffering.
+
 ## Current Policy
 
 Treat V1 as a correctness-oriented baseline for the row-wise path, not as the

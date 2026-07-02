@@ -190,3 +190,31 @@ Key takeaway: the main mismatch is row-wise softmax. Most realistic attention
 and logits cases have `inner_size == 1`, so CUDA can choose from several
 row-wise optimized kernels while SIMT V1 currently uses one row-wise SIMT kernel
 with `block_x <= 32`.
+
+## V2 First-Step Row-Wise Split
+
+V2 starts closing the row-wise gap by splitting the row path into CUDA-style
+dispatch lanes:
+
+```text
+inner_size == 1:
+    if dim_size <= 2048 and dim_size * sizeof(dtype) <= 8192:
+        row_softmax_persistent_forward
+    else if large-row fast path is selected:
+        row_softmax_fast_forward
+    else:
+        row_softmax_generic_forward
+```
+
+The first step aligns dispatch and launch policy, not full CUDA kernel internals:
+
+| V2 path | Launch policy | Purpose |
+| --- | --- | --- |
+| `row_softmax_persistent_forward` | `block_x <= 32` | Preserve the V1 correctness-oriented lane policy for small/medium rows. |
+| `row_softmax_fast_forward` | `block_x = 512` | Start matching CUDA's large-row fast path shape. |
+| `row_softmax_generic_forward` | `block_x = round_up_to_32(min(dim_size, 1024))` | Start matching CUDA's generic row-wise block-size shape. |
+
+Later V2 iterations should replace the shared row kernel internals with
+path-specific implementations, including shuffle reduction, ILP/vectorized
+loads, and register-resident buffering where the Ascend SIMT model supports
+them.

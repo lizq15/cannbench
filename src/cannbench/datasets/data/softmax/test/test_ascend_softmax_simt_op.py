@@ -54,3 +54,38 @@ def test_ascend_softmax_v2_uses_versioned_python_package_and_torch_namespace():
     assert "aten_softmax_v2_v2" not in header
     assert "TORCH_LIBRARY_FRAGMENT(aten_softmax_v2, m)" in source
     assert "TORCH_LIBRARY_IMPL(aten_softmax_v2, PrivateUse1, m)" in source
+
+
+def test_ascend_softmax_v2_splits_rowwise_dispatch_like_cuda():
+    source = (
+        SIMT_OP_V2_ROOT
+        / "aten_softmax_v2"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+
+    assert "enum class RowSoftmaxPath" in source
+    assert "PersistentLike" in source
+    assert "FastLike" in source
+    assert "GenericLike" in source
+    assert "dim_size <= 2048 && dim_size * scalar_size <= 8192" in source
+    assert "aten_softmax_v2::row_softmax_persistent_forward" in source
+    assert "aten_softmax_v2::row_softmax_fast_forward" in source
+    assert "aten_softmax_v2::row_softmax_generic_forward" in source
+
+
+def test_ascend_softmax_v2_rowwise_launch_policy_is_not_fixed_to_32_threads():
+    source = (
+        SIMT_OP_V2_ROOT
+        / "aten_softmax_v2"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+
+    assert "row_softmax_persistent_block_x" in source
+    assert "row_softmax_fast_block_x" in source
+    assert "row_softmax_generic_block_x" in source
+    assert "constexpr int64_t kCudaFastPathThreads = 512" in source
+    assert "constexpr int64_t kCudaGenericMaxThreads = 1024" in source
