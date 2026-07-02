@@ -292,13 +292,14 @@ use correctness-first 32-lane group reductions:
   vector access and consumes two `half2` values per loop iteration, giving an
   x4-style memory access granularity while keeping max/sum accumulation in
   float. Other dtype and non-aligned fp16 rows keep the scalar fallback.
-- `row_softmax_generic_forward` uses a CUDA-like `1024` total-thread shape,
-  split as `block_x = 32` and `block_y = 32`. The current float16 benchmark
-  manifest does not exercise this path.
+- `row_softmax_generic_forward` is reserved as a fail-fast TODO. The current
+  float16/float32 benchmark manifests do not exercise this path, and the
+  previous fallback implementation was disabled because it had no accuracy
+  coverage.
 
 This lets profiling and accuracy tests identify which CUDA-style row path each
-case exercises before V2 adds deeper generic optimizations such as block-wide
-reductions, ILP/vectorized loads, and shared/register row buffering.
+case exercises. Generic should be implemented only after adding cases that
+force this path and after verifying the implementation on Ascend.
 
 Remote Ascend verification after the persistent CUDA-style register/shuffle
 alignment step:
@@ -342,7 +343,8 @@ The spatial path keeps the CUDA `cunn_SpatialSoftMaxForward` structure:
 - `grid.y` covers `inner_size / block.y`.
 - shared/UBUF storage is allocated only when `block.x > 1`.
 
-Remote Ascend verification after the generic/spatial alignment step:
+Remote Ascend verification after the generic fail-fast cleanup and spatial
+alignment step:
 
 ```text
 python ascend_softmax_accuracy.py --dataset ALL --dtype float16 \
@@ -356,8 +358,8 @@ Current float16 manifest path coverage:
 - `persistent`: covered by benchmark cases.
 - `fast`: covered by benchmark cases.
 - `spatial`: covered by benchmark cases.
-- `generic`: not covered by current benchmark cases; reviewed by white-box
-  launch-policy tests and CUDA source comparison.
+- `generic`: not covered by current benchmark cases; intentionally fails fast
+  until coverage and an implementation are added.
 
 ## Current Policy
 

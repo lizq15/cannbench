@@ -213,13 +213,14 @@ V2 已对齐所有 row-wise 路径的 dispatch 和 launch policy。其中 persis
 | --- | --- | --- |
 | `row_softmax_persistent_forward` | `block_x <= 32`, `block_y = 128 / block_x`, `WARP_BATCH = 2 if next_power_of_two <= 128 else 1` | 对齐 CUDA persistent softmax：`log2_elements` dispatch、寄存器驻留 elements、`asc_shfl_xor` warp reduction。 |
 | `row_softmax_fast_forward` | `block_x = 512`, `block_y = 1` | 对齐 CUDA fast softmax 形态：每行一个 block、warp-first block-wide reduction、inverse-sum reduction、CUDA 等价的 reduction UBUF 大小，以及 fp16 `half2` 向量访问。 |
-| `row_softmax_generic_forward` | `block_x = 32`, `block_y = 32` | 使用 CUDA-like 1024 总线程 generic 形态，同时把每行归约限制在一个 32-lane group 内。 |
+| `row_softmax_generic_forward` | 仅保留入口 | 显式 fail-fast TODO。当前 benchmark shape 不覆盖该路径，因此故意禁用未验证的 fallback 实现。 |
 
 fast fp16 路径使用 CANN SIMT `half2` 表达 x2 向量访问。x4 风格处理通过
 每个线程每轮消费两个 `half2` 实现，归约仍然使用 float。非 fp16 row，
 以及 `dim_size` 不能被 4 整除的 fp16 row，继续走标量 fallback。
 
-后续 V2 迭代再逐步替换 generic 的 correctness-first 内部实现。
+后续 V2 迭代需要先补充能强制进入 generic 路径的真实或合成 case，并在
+Ascend 上验证精度后，再实现 generic。
 
 spatial 路径保持 CUDA `cunn_SpatialSoftMaxForward` 结构：`block.x` 沿
 softmax 维度做归约，`block.y` 覆盖独立 inner 位置，`grid.x/grid.y`

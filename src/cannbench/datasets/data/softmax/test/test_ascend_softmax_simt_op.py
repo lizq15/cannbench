@@ -99,12 +99,15 @@ def test_ascend_softmax_v2_persistent_path_uses_multi_row_block_shape():
         / "simt"
         / "spatial_softmax.asc"
     ).read_text()
+    persistent_start = source.index("row_softmax_persistent_forward_kernel")
+    fast_start = source.index("row_softmax_fast_forward_kernel")
+    persistent_source = source[persistent_start:fast_start]
 
     assert "row_softmax_persistent_forward_kernel" in source
     assert "row_softmax_persistent_block_y" in source
-    assert "threadIdx.y" in source
+    assert "threadIdx.y" in persistent_source
     assert "dim3(block_x, block_y)" in source
-    assert "blockIdx.x * blockDim.y + threadIdx.y" in source
+    assert "blockDim.y * blockIdx.x + threadIdx.y" in persistent_source
 
 
 def test_ascend_softmax_v2_persistent_path_uses_cuda_style_register_warp_kernel():
@@ -192,7 +195,7 @@ def test_ascend_softmax_v2_fast_path_has_fp16_half2_x4_vector_path():
     assert "std::is_same_v<scalar_t, __fp16>" in fast_source
 
 
-def test_ascend_softmax_v2_generic_path_has_dedicated_multi_row_kernel():
+def test_ascend_softmax_v2_generic_path_is_explicitly_unimplemented():
     source = (
         SIMT_OP_V2_ROOT
         / "aten_softmax_v2"
@@ -200,11 +203,16 @@ def test_ascend_softmax_v2_generic_path_has_dedicated_multi_row_kernel():
         / "simt"
         / "spatial_softmax.asc"
     ).read_text()
+    generic_start = source.index("row_softmax_generic_forward_kernel")
+    spatial_start = source.index("cunn_spatial_softmax_forward_kernel")
+    generic_source = source[generic_start:spatial_start]
 
     assert "row_softmax_generic_forward_kernel" in source
-    assert "row_softmax_generic_block_y" in source
     assert "path == RowSoftmaxPath::GenericLike" in source
     assert "aten_softmax_v2::row_softmax_generic_forward" in source
+    assert "generic row-wise softmax is not implemented or accuracy-verified" in source
+    assert "spatial_block_reduce_x" not in generic_source
+    assert "output[row_offset + d]" not in generic_source
 
 
 def test_ascend_softmax_v2_spatial_path_keeps_cuda_style_launch_policy():
