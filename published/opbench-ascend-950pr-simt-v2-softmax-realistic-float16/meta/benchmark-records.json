@@ -1,0 +1,1061 @@
+{
+  "records": [
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "bert_pytorch_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.161652985,
+        "latency_ms_p50": 0.161652985,
+        "latency_ms_p95": 0.161652985,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        16,
+        12,
+        128,
+        128
+      ],
+      "source_file": "torchbench_train/BERT_pytorch_train.json",
+      "source_kind": "real_model",
+      "source_model": "BERT_pytorch",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "camembert_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 4.874109862999999,
+        "latency_ms_p50": 4.874109862999999,
+        "latency_ms_p95": 4.874109862999999,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        8192,
+        32005
+      ],
+      "source_file": "hf_train/CamemBert_train.json",
+      "source_kind": "real_model",
+      "source_model": "CamemBert",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "convbert_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.012302002,
+        "latency_ms_p50": 1.012302002,
+        "latency_ms_p95": 1.012302002,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        16,
+        6,
+        512,
+        512
+      ],
+      "source_file": "hf_train/YituTechConvBert_train.json",
+      "source_kind": "real_model",
+      "source_model": "YituTechConvBert",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "convbert_local_kernel",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "local_attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.089112,
+        "latency_ms_p50": 0.089112,
+        "latency_ms_p95": 0.089112,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        49152,
+        9,
+        1
+      ],
+      "source_file": "hf_train/YituTechConvBert_train.json",
+      "source_kind": "real_model",
+      "source_model": "YituTechConvBert",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "convbert_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 4.427040527,
+        "latency_ms_p50": 4.427040527,
+        "latency_ms_p95": 4.427040527,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        8192,
+        30522
+      ],
+      "source_file": "hf_train/YituTechConvBert_train.json",
+      "source_kind": "real_model",
+      "source_model": "YituTechConvBert",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "crossvit_cls_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "vision_attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.012414999999999999,
+        "latency_ms_p50": 0.012414999999999999,
+        "latency_ms_p95": 0.012414999999999999,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        256,
+        4,
+        1,
+        197
+      ],
+      "source_file": "timm_train/crossvit_9_240_train.json",
+      "source_kind": "real_model",
+      "source_model": "crossvit_9_240",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "deberta_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.5077799989999999,
+        "latency_ms_p50": 0.5077799989999999,
+        "latency_ms_p95": 0.5077799989999999,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        2,
+        24,
+        512,
+        512
+      ],
+      "source_file": "hf_train/DebertaV2ForMaskedLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "DebertaV2ForMaskedLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "electra_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.349522949,
+        "latency_ms_p50": 1.349522949,
+        "latency_ms_p95": 1.349522949,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        32,
+        4,
+        512,
+        512
+      ],
+      "source_file": "hf_train/ElectraForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "ElectraForCausalLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "gptj_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.01477,
+        "latency_ms_p50": 0.01477,
+        "latency_ms_p95": 0.01477,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        1,
+        16,
+        128,
+        128
+      ],
+      "source_file": "hf_train/GPTJForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "GPTJForCausalLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "gptneo_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.4235,
+        "latency_ms_p50": 0.4235,
+        "latency_ms_p95": 0.4235,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        32,
+        16,
+        128,
+        128
+      ],
+      "source_file": "hf_train/GPTNeoForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "GPTNeoForCausalLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "halonet_window_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "vision_attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.891640015,
+        "latency_ms_p50": 1.891640015,
+        "latency_ms_p95": 1.891640015,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        1024,
+        4,
+        64,
+        144
+      ],
+      "source_file": "timm_train/eca_halonext26ts_train.json",
+      "source_kind": "real_model",
+      "source_model": "eca_halonext26ts",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "layoutlm_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 2.035182007,
+        "latency_ms_p50": 2.035182007,
+        "latency_ms_p95": 2.035182007,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        16,
+        12,
+        512,
+        512
+      ],
+      "source_file": "hf_train/LayoutLMForMaskedLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "LayoutLMForMaskedLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "levit_global_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "vision_attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 5.852583008,
+        "latency_ms_p50": 5.852583008,
+        "latency_ms_p95": 5.852583008,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        1024,
+        4,
+        196,
+        196
+      ],
+      "source_file": "timm_train/levit_128_train.json",
+      "source_kind": "real_model",
+      "source_model": "levit_128",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "levit_mixed_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "vision_attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 3.1640451659999997,
+        "latency_ms_p50": 3.1640451659999997,
+        "latency_ms_p95": 3.1640451659999997,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        1024,
+        8,
+        49,
+        196
+      ],
+      "source_file": "timm_train/levit_128_train.json",
+      "source_kind": "real_model",
+      "source_model": "levit_128",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "longformer_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 3.9673740229999996,
+        "latency_ms_p50": 3.9673740229999996,
+        "latency_ms_p95": 3.9673740229999996,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        4096,
+        50265
+      ],
+      "source_file": "hf_train/AllenaiLongformerBase_train.json",
+      "source_kind": "real_model",
+      "source_model": "AllenaiLongformerBase",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "m2m100_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 2.192049805,
+        "latency_ms_p50": 2.192049805,
+        "latency_ms_p95": 2.192049805,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        2048,
+        128112
+      ],
+      "source_file": "hf_train/M2M100ForConditionalGeneration_train.json",
+      "source_kind": "real_model",
+      "source_model": "M2M100ForConditionalGeneration",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "mobilebert_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.42317199699999997,
+        "latency_ms_p50": 0.42317199699999997,
+        "latency_ms_p95": 0.42317199699999997,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        128,
+        4,
+        128,
+        128
+      ],
+      "source_file": "hf_train/MobileBertForMaskedLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "MobileBertForMaskedLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "mt5_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 4.150608887000001,
+        "latency_ms_p50": 4.150608887000001,
+        "latency_ms_p95": 4.150608887000001,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        2048,
+        250112
+      ],
+      "source_file": "hf_train/MT5ForConditionalGeneration_train.json",
+      "source_kind": "real_model",
+      "source_model": "MT5ForConditionalGeneration",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "opt_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.584885986,
+        "latency_ms_p50": 1.584885986,
+        "latency_ms_p95": 1.584885986,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        4094,
+        50272
+      ],
+      "source_file": "hf_train/OPTForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "OPTForCausalLM",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "pegasus_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.421110016,
+        "latency_ms_p50": 0.421110016,
+        "latency_ms_p95": 0.421110016,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        512,
+        128,
+        128
+      ],
+      "source_file": "hf_train/PegasusForConditionalGeneration_train.json",
+      "source_kind": "real_model",
+      "source_model": "PegasusForConditionalGeneration",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "plbart_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 4.213658691,
+        "latency_ms_p50": 4.213658691,
+        "latency_ms_p95": 4.213658691,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        96,
+        1024,
+        1024
+      ],
+      "source_file": "hf_train/PLBartForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "PLBartForCausalLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "plbart_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 7.85110498,
+        "latency_ms_p50": 7.85110498,
+        "latency_ms_p95": 7.85110498,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        8192,
+        50005
+      ],
+      "source_file": "hf_train/PLBartForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "PLBartForCausalLM",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "speech_transformer_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.18120700099999998,
+        "latency_ms_p50": 0.18120700099999998,
+        "latency_ms_p95": 0.18120700099999998,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        80,
+        204,
+        204
+      ],
+      "source_file": "torchbench_train/speech_transformer_train.json",
+      "source_kind": "real_model",
+      "source_model": "speech_transformer",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "swin_window_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "vision_attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.7815419920000001,
+        "latency_ms_p50": 0.7815419920000001,
+        "latency_ms_p95": 0.7815419920000001,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        256,
+        16,
+        49,
+        49
+      ],
+      "source_file": "timm_train/swin_base_patch4_window7_224_train.json",
+      "source_kind": "real_model",
+      "source_model": "swin_base_patch4_window7_224",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "t5_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.404716064,
+        "latency_ms_p50": 1.404716064,
+        "latency_ms_p95": 1.404716064,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        4,
+        8,
+        1024,
+        1024
+      ],
+      "source_file": "hf_train/T5Small_train.json",
+      "source_kind": "real_model",
+      "source_model": "T5Small",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "t5_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.03862793,
+        "latency_ms_p50": 1.03862793,
+        "latency_ms_p95": 1.03862793,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        4096,
+        32128
+      ],
+      "source_file": "hf_train/T5Small_train.json",
+      "source_kind": "real_model",
+      "source_model": "T5Small",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "trocr_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.649875,
+        "latency_ms_p50": 1.649875,
+        "latency_ms_p95": 1.649875,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        512,
+        256,
+        256
+      ],
+      "source_file": "hf_train/TrOCRForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "TrOCRForCausalLM",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "xcit_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 0.014291,
+        "latency_ms_p50": 0.014291,
+        "latency_ms_p95": 0.014291,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        4,
+        16,
+        48,
+        48
+      ],
+      "source_file": "timm_train/xcit_large_24_p8_224_train.json",
+      "source_kind": "real_model",
+      "source_model": "xcit_large_24_p8_224",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "xglm_logits",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "lm_logits",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 2.186951904,
+        "latency_ms_p50": 2.186951904,
+        "latency_ms_p95": 2.186951904,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        1024,
+        256008
+      ],
+      "source_file": "hf_train/XGLMForCausalLM_train.json",
+      "source_kind": "real_model",
+      "source_model": "XGLMForCausalLM",
+      "source_op": "aten._log_softmax.default",
+      "source_project": "TritonBench"
+    },
+    {
+      "accuracy": {
+        "max_abs_error": 0.0,
+        "max_rel_error": 0.0,
+        "passed": true
+      },
+      "backend": "ascend",
+      "case_id": "xlnet_attention",
+      "dataset": "realistic",
+      "device_class": "950PR",
+      "diff_ref": "softmax/simt/v2",
+      "dtype": "float16",
+      "family": "attention",
+      "implementation": "simt",
+      "implementation_version": "v2",
+      "metrics": {
+        "latency_ms_avg": 1.346787964,
+        "latency_ms_p50": 1.346787964,
+        "latency_ms_p95": 1.346787964,
+        "sample_count": 1
+      },
+      "operator": "softmax",
+      "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
+      "schema_version": 1,
+      "shape": [
+        8,
+        16,
+        512,
+        512
+      ],
+      "source_file": "hf_train/XLNetLMHeadModel_train.json",
+      "source_kind": "real_model",
+      "source_model": "XLNetLMHeadModel",
+      "source_op": "aten._softmax.default",
+      "source_project": "TritonBench"
+    }
+  ]
+}
