@@ -129,10 +129,36 @@ def test_build_simt_operator_diff_uses_real_version_directories(tmp_path: Path):
     assert diff.base_version == "v1"
     assert diff.compare_version == "v2"
     assert diff.patch.startswith(
-        "diff --git a/src/cannbench/datasets/data/softmax/simt/aten_softmax/csrc/simt/spatial_softmax.asc "
-        "b/src/cannbench/datasets/data/softmax/simt/aten_softmax/csrc/simt/spatial_softmax.asc"
+        "diff --git a/src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc "
+        "b/src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc"
     )
-    assert "src/cannbench/datasets/data/softmax/simt/aten_softmax/csrc/simt/spatial_softmax.asc" in diff.patch
+    assert "src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc" in diff.patch
+    assert "-beta" in diff.patch
+    assert "+gamma" in diff.patch
+
+
+def test_build_simt_operator_diff_normalizes_version_project_directory_names(tmp_path: Path):
+    datasets_root = tmp_path / "datasets"
+    base_root = datasets_root / "softmax" / "simt" / "v1"
+    compare_root = datasets_root / "softmax" / "simt" / "v2"
+
+    base_file = base_root / "aten_softmax" / "csrc" / "simt" / "spatial_softmax.asc"
+    compare_file = compare_root / "aten_softmax_v2" / "csrc" / "simt" / "spatial_softmax.asc"
+    base_file.parent.mkdir(parents=True)
+    compare_file.parent.mkdir(parents=True)
+    base_file.write_text("alpha\nbeta\n", encoding="utf-8")
+    compare_file.write_text("alpha\ngamma\n", encoding="utf-8")
+
+    diff = build_simt_operator_diff(
+        "softmax",
+        "v1",
+        "v2",
+        datasets_root=datasets_root,
+    )
+
+    expected_path = "src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc"
+    assert f"diff --git a/{expected_path} b/{expected_path}" in diff.patch
+    assert "aten_softmax" not in diff.patch
     assert "-beta" in diff.patch
     assert "+gamma" in diff.patch
 

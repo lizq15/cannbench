@@ -147,14 +147,31 @@ def _read_text_lines(path: Path) -> list[str]:
     return path.read_text(encoding="utf-8").splitlines()
 
 
+def _version_project_root(version_dir: Path) -> Path:
+    children = [
+        child
+        for child in version_dir.iterdir()
+        if child.is_dir() and child.name != "__pycache__" and not child.name.startswith(".")
+    ]
+    project_children = [
+        child
+        for child in children
+        if child.name not in {"scripts", "test", "tests"}
+    ]
+    if len(project_children) == 1:
+        return project_children[0]
+    return version_dir
+
+
 def _iter_version_files(version_dir: Path) -> dict[Path, Path]:
     files: dict[Path, Path] = {}
-    for path in sorted(version_dir.rglob("*")):
+    project_root = _version_project_root(version_dir)
+    for path in sorted(project_root.rglob("*")):
         if not path.is_file():
             continue
         if "__pycache__" in path.parts:
             continue
-        files[path.relative_to(version_dir)] = path
+        files[path.relative_to(project_root)] = path
     return files
 
 
@@ -170,7 +187,7 @@ def build_simt_operator_diff(
     compare_files = _iter_version_files(compare_dir)
     patch_chunks: list[str] = []
 
-    logical_root = Path("src") / "cannbench" / "datasets" / "data" / operator / "simt"
+    logical_root = Path("src") / "cannbench" / "datasets" / "data" / operator / "simt" / operator
     for relative_path in sorted(set(base_files) | set(compare_files)):
         base_path = base_files.get(relative_path)
         compare_path = compare_files.get(relative_path)
