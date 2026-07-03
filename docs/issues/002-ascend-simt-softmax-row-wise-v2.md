@@ -197,7 +197,7 @@ policy for V1, but it is not yet a principled occupancy model.
 The repository includes a reusable accuracy validation script:
 
 ```text
-src/cannbench/datasets/data/softmax/test/ascend_softmax_accuracy.py
+src/cannbench/datasets/data/softmax/simt/test/ascend_softmax_accuracy.py
 ```
 
 It compares CANN ops library softmax and the installed SIMT softmax operator on
@@ -208,7 +208,7 @@ files.
 Recommended V2 correctness gate:
 
 ```bash
-python src/cannbench/datasets/data/softmax/test/ascend_softmax_accuracy.py \
+python src/cannbench/datasets/data/softmax/simt/test/ascend_softmax_accuracy.py \
   --mode both \
   --dataset ALL \
   --case ALL \
@@ -252,7 +252,7 @@ should explicitly design the row-wise softmax launch policy:
    based on measured safe limits. V1 currently uses `32768` as the row-wise
    `grid.x` cap.
 3. Preserve correctness first by requiring all 30 realistic fp16 cases to pass.
-4. Use `src/cannbench/datasets/data/softmax/test/ascend_softmax_accuracy.py` as the V2 correctness regression
+4. Use `src/cannbench/datasets/data/softmax/simt/test/ascend_softmax_accuracy.py` as the V2 correctness regression
    gate across smoke, realistic, and stress cases.
 5. Add profiler validation to ensure SIMT runs profile the SIMT kernel name.
 6. Then optimize performance against:
@@ -397,5 +397,5 @@ threadIdx.x lane cap: 32
 grid.x cap: 32768
 ```
 
-Use this issue and `src/cannbench/datasets/data/softmax/test/ascend_softmax_accuracy.py` as the input checklist
+Use this issue and `src/cannbench/datasets/data/softmax/simt/test/ascend_softmax_accuracy.py` as the input checklist
 for the next SIMT softmax V2 implementation.

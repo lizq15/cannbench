@@ -351,7 +351,7 @@ def test_ascend_softmax_v2_spatial_reduce_helper_applies_y_offset_like_cuda():
 
 def test_ascend_softmax_accuracy_script_targets_v2_by_default():
     source = (
-        Path("src/cannbench/datasets/data/softmax/test")
+        Path("src/cannbench/datasets/data/softmax/simt/test")
         / "ascend_softmax_accuracy.py"
     ).read_text()
 
