@@ -23,6 +23,7 @@ from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
 _ASCEND_SIMT_OP_MODULES = {
     ("softmax", "v1"): "aten_softmax",
     ("softmax", "v2"): "aten_softmax_v2",
+    ("softmax", "v3"): "aten_softmax_v3",
 }
 
 

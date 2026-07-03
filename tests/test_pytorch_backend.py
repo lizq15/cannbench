@@ -410,11 +410,24 @@ def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
     assert captured["torch_softmax_calls"] == 0
 
 
-def test_ascend_backend_runs_simt_softmax_v2_through_versioned_module(monkeypatch):
+@pytest.mark.parametrize(
+    ("implementation_version", "module_name", "expected_counter"),
+    [
+        ("v2", "aten_softmax_v2", "simt_v2_calls"),
+        ("v3", "aten_softmax_v3", "simt_v3_calls"),
+    ],
+)
+def test_ascend_backend_runs_simt_softmax_through_versioned_module(
+    monkeypatch,
+    implementation_version,
+    module_name,
+    expected_counter,
+):
     captured: dict[str, object] = {
         "torch_softmax_calls": 0,
         "simt_v1_calls": 0,
         "simt_v2_calls": 0,
+        "simt_v3_calls": 0,
     }
 
     class FakeTensor:
@@ -451,11 +464,18 @@ def test_ascend_backend_runs_simt_softmax_v2_through_versioned_module(monkeypatc
         )
         or tensor
     )
+    fake_v3_ops = SimpleNamespace(
+        spatial_softmax_forward=lambda tensor, dim: captured.__setitem__(
+            "simt_v3_calls", captured["simt_v3_calls"] + 1
+        )
+        or tensor
+    )
 
     monkeypatch.setitem(sys.modules, "torch", FakeTorch())
     monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
     monkeypatch.setitem(sys.modules, "aten_softmax", SimpleNamespace(ops=fake_v1_ops))
     monkeypatch.setitem(sys.modules, "aten_softmax_v2", SimpleNamespace(ops=fake_v2_ops))
+    monkeypatch.setitem(sys.modules, "aten_softmax_v3", SimpleNamespace(ops=fake_v3_ops))
 
     from cannbench.backends.pytorch_backend import AscendBackend
 
@@ -471,13 +491,17 @@ def test_ascend_backend_runs_simt_softmax_v2_through_versioned_module(monkeypatc
         iterations=3,
         seed=7,
         deploy_simt_op=True,
-        implementation_version="v2",
+        implementation_version=implementation_version,
     )
 
     backend.run_softmax(request)
 
-    assert captured["simt_v2_calls"] == 5
+    assert captured[expected_counter] == 5
     assert captured["simt_v1_calls"] == 0
+    if expected_counter != "simt_v2_calls":
+        assert captured["simt_v2_calls"] == 0
+    if expected_counter != "simt_v3_calls":
+        assert captured["simt_v3_calls"] == 0
     assert captured["torch_softmax_calls"] == 0
 
 
