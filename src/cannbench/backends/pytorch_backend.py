@@ -30,6 +30,8 @@ _ASCEND_SIMT_OP_MODULES = {
     ("softmax", "v2"): "aten_softmax_v2",
     ("softmax", "v3"): "aten_softmax_v3",
 }
+_CUDA_DSA_ADAPTER_ENV = "CANNBENCH_CUDA_DSA_ADAPTER"
+_DEFAULT_CUDA_DSA_ADAPTER_MODULE = "cannbench_cuda_dsa"
 
 
 def _subprocess_pythonpath() -> str:
@@ -51,14 +53,23 @@ class NvidiaBackend(TorchOperatorBackend):
         return "CUDA is required for the nvidia backend"
 
     def _operator_callable(self, torch, request, case, *, device, dtype):
-        if request.implementation == "cuda_library" and request.op in {
-            "lightning_indexer",
-            "sparse_attention",
-        }:
-            raise RuntimeError(
-                "cuda_library DSA benchmarking requires a FlashMLA/DeepGEMM "
-                "adapter before it can be benchmarked"
-            )
+        if request.implementation == "cuda_library":
+            if request.op == "lightning_indexer":
+                return self._cuda_library_lightning_indexer_callable(
+                    torch,
+                    request,
+                    case,
+                    device=device,
+                    dtype=dtype,
+                )
+            if request.op == "sparse_attention":
+                return self._cuda_library_sparse_attention_callable(
+                    torch,
+                    request,
+                    case,
+                    device=device,
+                    dtype=dtype,
+                )
         return super()._operator_callable(
             torch,
             request,
@@ -119,6 +130,10 @@ class NvidiaBackend(TorchOperatorBackend):
                 "--run-name",
                 "benchmark",
             ]
+            if request.implementation is not None:
+                command.extend(("--implementation", request.implementation))
+            if request.implementation_version is not None:
+                command.extend(("--implementation-version", request.implementation_version))
             result = subprocess.run(
                 command,
                 cwd=temp_dir,
@@ -205,6 +220,131 @@ class NvidiaBackend(TorchOperatorBackend):
             ),
             profile=profile,
         )
+
+    def _resolve_cuda_dsa_adapter(self, op_name: str):
+        module_name = os.environ.get(_CUDA_DSA_ADAPTER_ENV) or _DEFAULT_CUDA_DSA_ADAPTER_MODULE
+        try:
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name != module_name:
+                raise
+            raise RuntimeError(
+                "cuda_library DSA benchmarking requires an external FlashMLA/DeepGEMM "
+                f"adapter. Install {_DEFAULT_CUDA_DSA_ADAPTER_MODULE} or set "
+                f"{_CUDA_DSA_ADAPTER_ENV}=<module> with callable {op_name}."
+            ) from exc
+        op_callable = getattr(module, op_name, None)
+        if not callable(op_callable):
+            raise RuntimeError(
+                f"CUDA DSA adapter {module_name} must expose callable {op_name}"
+            )
+        return op_callable
+
+    def _cuda_library_lightning_indexer_callable(
+        self,
+        torch,
+        request: OperatorBenchmarkRequest,
+        case,
+        *,
+        device,
+        dtype,
+    ):
+        adapter_op = self._resolve_cuda_dsa_adapter("lightning_indexer")
+        payload = materialize_lightning_indexer_inputs(
+            case, dtype=request.dtype, seed=request.seed
+        )
+        query = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["query"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["query_shape"])
+        keys = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["keys"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["key_shape"])
+        weights = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["weights"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["weight_shape"])
+
+        def operator():
+            return adapter_op(
+                torch=torch,
+                request=request,
+                case=case,
+                payload=payload,
+                device=device,
+                dtype=dtype,
+                query=query,
+                keys=keys,
+                weights=weights,
+                top_k=payload["top_k"],
+            )
+
+        return operator
+
+    def _cuda_library_sparse_attention_callable(
+        self,
+        torch,
+        request: OperatorBenchmarkRequest,
+        case,
+        *,
+        device,
+        dtype,
+    ):
+        adapter_op = self._resolve_cuda_dsa_adapter("sparse_attention")
+        payload = materialize_sparse_attention_inputs(
+            case, dtype=request.dtype, seed=request.seed
+        )
+        query = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["query"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["query_shape"])
+        keys = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["keys"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["key_shape"])
+        values = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["values"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["value_shape"])
+        indices = self._tensor(
+            torch,
+            payload["indices"],
+            device=device,
+            dtype=torch.int32,
+        ).reshape(payload["indices_shape"])
+        softmax_scale = payload["query_shape"][-1] ** -0.5
+
+        def operator():
+            return adapter_op(
+                torch=torch,
+                request=request,
+                case=case,
+                payload=payload,
+                device=device,
+                dtype=dtype,
+                query=query,
+                keys=keys,
+                values=values,
+                indices=indices,
+                causal=payload["causal"],
+                phase=payload["phase"],
+                softmax_scale=softmax_scale,
+            )
+
+        return operator
 
 
 class AscendBackend(TorchOperatorBackend):

@@ -1630,3 +1630,71 @@ def test_nvidia_profile_operator_device_time_invokes_internal_run(monkeypatch):
     assert "raw" in captured["render_command"]
     assert "--csv" in captured["render_command"]
     assert captured["env"]["PYTHONPATH"]
+
+
+def test_nvidia_profile_operator_device_time_preserves_external_implementation(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeCuda:
+        @staticmethod
+        def is_available():
+            return True
+
+        @staticmethod
+        def synchronize():
+            return None
+
+        @staticmethod
+        def get_device_name(device):
+            del device
+            return "NVIDIA H800 PCIe"
+
+    class FakeTorch:
+        cuda = FakeCuda()
+        device = staticmethod(lambda kind: kind)
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+
+    from cannbench.backends.pytorch_backend import NvidiaBackend
+
+    def fake_run(command, cwd=None, env=None, text=None, capture_output=None, check=None):
+        del env, text, capture_output, check
+        profile_dir = cwd / "profile"
+        perf_dir = cwd / "perf"
+        if "--target-processes" in command:
+            captured["profile_command"] = command
+            profile_dir.mkdir(parents=True, exist_ok=True)
+            perf_dir.mkdir(parents=True, exist_ok=True)
+            (profile_dir / "ncu-report.ncu-rep").write_text("binary-placeholder", encoding="utf-8")
+            (perf_dir / "benchmark.json").write_text("{}\n", encoding="utf-8")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if "--import" in command:
+            return SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    "Kernel Name,Metric Name,Metric Unit,Metric Value\n"
+                    "sparse_attention,gpu__time_duration.avg,usecond,100\n"
+                ),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected subprocess invocation: {command}")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        implementation="cuda_library",
+        implementation_version="flashmla-main",
+        op="sparse_attention",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_decode_top4",
+        warmup=2,
+        iterations=3,
+    )
+
+    NvidiaBackend().profile_operator_device_time(request)
+
+    command = captured["profile_command"]
+    assert command[command.index("--implementation") + 1] == "cuda_library"
+    assert command[command.index("--implementation-version") + 1] == "flashmla-main"

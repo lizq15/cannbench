@@ -46,6 +46,14 @@ Use DeepSeek's public CUDA libraries as the primary backend:
 The CUDA adapter should call these libraries directly when installed. It should
 not add a CannBench CUDA implementation of sparse MLA or FP8 MQA logits.
 
+CannBench's `cuda_library` flow loads a thin external adapter module rather
+than vendoring CUDA kernels. The backend checks `CANNBENCH_CUDA_DSA_ADAPTER`
+first and then falls back to importing `cannbench_cuda_dsa`. The module must
+expose callable `lightning_indexer` and `sparse_attention` entry points. Those
+entry points receive the materialized CannBench tensors, request metadata, case
+metadata, and payload, and are responsible for calling the installed
+FlashMLA/DeepGEMM APIs with the library-native layout.
+
 ### Ascend / CANN
 
 The generic `ascend/cann-ops` repository exposes useful primitives such as
@@ -87,9 +95,10 @@ Current CannBench status:
   `sparse_attention` cases to a compressed sparse-KV PA_ND layout, uses
   128-token pages when the context length permits, and passes case `indices` as
   `cmp_sparse_indices`.
-- `bench --backend nvidia --implementation cuda_library` intentionally fails
-  for DSA operators until the FlashMLA/DeepGEMM adapter accepts library-native
-  FP8 MLA manifests.
+- `bench --backend nvidia --implementation cuda_library --op ...` loads a
+  CUDA DSA adapter from `CANNBENCH_CUDA_DSA_ADAPTER` or `cannbench_cuda_dsa`.
+  Missing adapters fail fast with an actionable dependency error instead of
+  falling back to the PyTorch reference implementation.
 
 ### SIMT
 
@@ -323,6 +332,18 @@ python -m cannbench bench \
   --case-id tiny_prefill_top8
 ```
 
+CUDA H800 uses the same workflow token with the CUDA library implementation:
+
+```bash
+CANNBENCH_CUDA_DSA_ADAPTER=cannbench_cuda_dsa \
+python -m cannbench bench \
+  --backend nvidia \
+  --implementation cuda_library \
+  --workflow dsa_decode \
+  --dataset realistic \
+  --case-id llama4_decode_32760_top2048
+```
+
 Omitting `--case-id` runs every paired workflow case in the selected dataset and
 phase. The command expands each workflow into two prepared inputs and records
 both component results under one run directory. The automatic run name uses the
@@ -340,9 +361,9 @@ Current implementation status:
   the target environment provides the corresponding `torch_npu` symbols.
 - Ascend `--implementation cann_ops_library` remains the generic CANN ops path;
   it is not yet the real DSA sparse shared-KV fused path.
-- Nvidia `--implementation cuda_library` is intentionally gated until a
-  FlashMLA/DeepGEMM-compatible adapter is wired in, so CUDA H800 does not yet
-  provide a complete real-library DSA workflow benchmark.
+- Nvidia `--implementation cuda_library` dispatches DSA operators through an
+  external adapter module. A real H800 benchmark requires the environment to
+  provide a FlashMLA/DeepGEMM wrapper module matching the adapter contract.
 
 ## Backend Equivalence Rules
 

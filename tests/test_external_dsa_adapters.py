@@ -179,14 +179,101 @@ def test_ascend_vllm_sparse_attention_calls_sharedkv_metadata_and_op(monkeypatch
     assert calls["attention"]["cmp_sparse_indices"].shape == (2, 2, 4)
 
 
-def test_nvidia_cuda_library_dsa_requires_flashmla_adapter(monkeypatch):
+def test_nvidia_cuda_library_uses_external_lightning_indexer_adapter(monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    class FakeTensor:
+        def __init__(self, name="tensor", shape=()):
+            self.name = name
+            self.shape = shape
+
+        def reshape(self, *shape):
+            self.shape = shape[0] if len(shape) == 1 else shape
+            return self
+
     class FakeTorch:
         def __init__(self) -> None:
-            self.cuda = SimpleNamespace(is_available=lambda: True)
+            self.cuda = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake GPU",
+            )
             self.device = lambda kind: kind
             self.float16 = "float16"
+            self.int32 = "int32"
+            self.tensor = lambda *args, **kwargs: FakeTensor()
+
+    def fake_lightning_indexer(**kwargs):
+        calls.append(kwargs)
+        return FakeTensor("indices")
 
     monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(
+        sys.modules,
+        "fake_cuda_dsa_adapter",
+        SimpleNamespace(lightning_indexer=fake_lightning_indexer),
+    )
+    monkeypatch.setenv("CANNBENCH_CUDA_DSA_ADAPTER", "fake_cuda_dsa_adapter")
+
+    from cannbench.backends.pytorch_backend import NvidiaBackend
+
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        implementation="cuda_library",
+        op="lightning_indexer",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_decode_top4",
+        warmup=0,
+        iterations=1,
+    )
+
+    result = NvidiaBackend().run_operator(request)
+
+    assert result.backend == "nvidia"
+    assert calls
+    assert calls[0]["request"] is request
+    assert calls[0]["payload"]["top_k"] == 4
+    assert calls[0]["query"].shape == (2, 1, 2, 16)
+    assert calls[0]["keys"].shape == (2, 32, 16)
+    assert calls[0]["weights"].shape == (2, 1, 2)
+
+
+def test_nvidia_cuda_library_uses_external_sparse_attention_adapter(monkeypatch):
+    calls: list[dict[str, object]] = []
+
+    class FakeTensor:
+        def __init__(self, name="tensor", shape=()):
+            self.name = name
+            self.shape = shape
+
+        def reshape(self, *shape):
+            self.shape = shape[0] if len(shape) == 1 else shape
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.cuda = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake GPU",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.int32 = "int32"
+            self.tensor = lambda *args, **kwargs: FakeTensor()
+
+    def fake_sparse_attention(**kwargs):
+        calls.append(kwargs)
+        return FakeTensor("out")
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(
+        sys.modules,
+        "fake_cuda_dsa_adapter",
+        SimpleNamespace(sparse_attention=fake_sparse_attention),
+    )
+    monkeypatch.setenv("CANNBENCH_CUDA_DSA_ADAPTER", "fake_cuda_dsa_adapter")
 
     from cannbench.backends.pytorch_backend import NvidiaBackend
 
@@ -201,5 +288,73 @@ def test_nvidia_cuda_library_dsa_requires_flashmla_adapter(monkeypatch):
         iterations=1,
     )
 
-    with pytest.raises(RuntimeError, match="FlashMLA/DeepGEMM adapter"):
+    result = NvidiaBackend().run_operator(request)
+
+    assert result.backend == "nvidia"
+    assert calls
+    assert calls[0]["request"] is request
+    assert calls[0]["payload"]["phase"] == "decode"
+    assert calls[0]["query"].shape == (2, 2, 1, 16)
+    assert calls[0]["keys"].shape == (2, 2, 32, 16)
+    assert calls[0]["values"].shape == (2, 2, 32, 16)
+    assert calls[0]["indices"].shape == (2, 1, 4)
+
+
+def test_nvidia_cuda_library_dsa_requires_external_adapter(monkeypatch):
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.cuda = SimpleNamespace(is_available=lambda: True)
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.int32 = "int32"
+            self.tensor = lambda *args, **kwargs: SimpleNamespace(
+                reshape=lambda *shape: None
+            )
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.delenv("CANNBENCH_CUDA_DSA_ADAPTER", raising=False)
+
+    from cannbench.backends.pytorch_backend import NvidiaBackend
+
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        implementation="cuda_library",
+        op="sparse_attention",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_decode_top4",
+        warmup=0,
+        iterations=1,
+    )
+
+    with pytest.raises(RuntimeError, match="CANNBENCH_CUDA_DSA_ADAPTER"):
+        NvidiaBackend().run_operator(request)
+
+
+def test_nvidia_cuda_library_rejects_adapter_without_required_callable(monkeypatch):
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.cuda = SimpleNamespace(is_available=lambda: True)
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.int32 = "int32"
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "fake_cuda_dsa_adapter", SimpleNamespace())
+    monkeypatch.setenv("CANNBENCH_CUDA_DSA_ADAPTER", "fake_cuda_dsa_adapter")
+
+    from cannbench.backends.pytorch_backend import NvidiaBackend
+
+    request = OperatorBenchmarkRequest(
+        backend="nvidia",
+        implementation="cuda_library",
+        op="sparse_attention",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_decode_top4",
+        warmup=0,
+        iterations=1,
+    )
+
+    with pytest.raises(RuntimeError, match="callable sparse_attention"):
         NvidiaBackend().run_operator(request)
