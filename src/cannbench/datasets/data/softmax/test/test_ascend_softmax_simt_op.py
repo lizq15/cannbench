@@ -8,6 +8,9 @@ SIMT_OP_ROOT = Path(
 SIMT_OP_V2_ROOT = Path(
     "src/cannbench/datasets/data/softmax/simt/v2/"
 )
+SIMT_OP_V3_ROOT = Path(
+    "src/cannbench/datasets/data/softmax/simt/v3/"
+)
 
 
 def test_ascend_softmax_keeps_dim_parallel_launch_policy():
@@ -110,6 +113,36 @@ def test_ascend_softmax_v2_persistent_path_uses_multi_row_block_shape():
     assert "blockDim.y * blockIdx.x + threadIdx.y" in persistent_source
 
 
+def test_ascend_softmax_v3_persistent_path_uses_1024_threads_per_block():
+    source = (
+        SIMT_OP_V3_ROOT
+        / "aten_softmax_v3"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+
+    assert "constexpr int64_t kCudaPersistentThreadsPerBlock = 1024" in source
+    assert "return std::max<int64_t>(1, kCudaPersistentThreadsPerBlock / block_x);" in source
+
+
+def test_ascend_softmax_v3_persistent_kernel_uses_1024_launch_bounds():
+    source = (
+        SIMT_OP_V3_ROOT
+        / "aten_softmax_v3"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+    persistent_signature = source[
+        source.index("__launch_bounds__(1024)")
+        : source.index("row_softmax_fast_forward_kernel")
+    ]
+
+    assert "__launch_bounds__(1024)" in source
+    assert "row_softmax_persistent_forward_kernel" in persistent_signature
+
+
 def test_ascend_softmax_v2_persistent_path_uses_cuda_style_register_warp_kernel():
     source = (
         SIMT_OP_V2_ROOT
@@ -171,6 +204,18 @@ def test_ascend_softmax_v2_fast_path_uses_cuda_style_block_reduce_kernel():
     assert "row_softmax_fast_block_x() {\n  constexpr int64_t kCudaFastPathThreads = 512;" in source
     assert "row_softmax_fast_ubuf_bytes" in source
     assert "row_softmax_fast_block_x() / kCudaWarpLaneLimit" in source
+
+
+def test_ascend_softmax_v3_fast_path_uses_1024_threads_per_block():
+    source = (
+        SIMT_OP_V3_ROOT
+        / "aten_softmax_v3"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+
+    assert "row_softmax_fast_block_x() {\n  constexpr int64_t kCudaFastPathThreads = 1024;" in source
 
 
 def test_ascend_softmax_v2_fast_path_has_fp16_half2_x4_vector_path():
