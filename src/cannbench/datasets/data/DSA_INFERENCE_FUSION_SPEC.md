@@ -259,6 +259,39 @@ This may combine index selection and sparse MLA decode. Do not use it as the
 first fairness target, because backend libraries may not expose the same
 end-to-end fusion boundary.
 
+## Current Test Workflow
+
+The current CannBench inference workflow is a two-step component workflow. It
+keeps the selection and sparse attention boundaries explicit while allowing
+decode and prefill cases to be tested through one API:
+
+```text
+build_dsa_inference_workflow(dataset, case_id, dtype, seed)
+```
+
+Decode workflow:
+
+```text
+dsa_index_select  -> sparse_mla_decode
+lightning_indexer -> sparse_attention
+```
+
+Prefill workflow:
+
+```text
+dsa_index_select  -> sparse_mla_prefill
+lightning_indexer -> sparse_attention
+```
+
+Each workflow step owns a prepared CannBench single-operator input. A workflow
+case is considered runnable only when `lightning_indexer/<split>.json` and
+`sparse_attention/<split>.json` contain the same `case_id` and agree on batch,
+query tokens, context tokens, selected token count, and phase.
+
+This flow is intentionally not an end-to-end fused `dsa_decode_step`. It is the
+bring-up path for comparing CUDA FlashMLA/DeepGEMM adapters, Ascend NPU
+adapters, and SIMT implementations against the same input contract.
+
 ## Backend Equivalence Rules
 
 All backends must compare the same operator contract. A result is not comparable
