@@ -54,6 +54,24 @@
       "source_model": "sparse_attention_mqa_smoke",
       "source_file": "built-in",
       "source_op": "sparse_attention"
+    },
+    {
+      "case_id": "vllm_ascend_decode_sharedkv_top64",
+      "family": "decode_sparse_attention",
+      "batch": 1,
+      "query_heads": 64,
+      "kv_heads": 1,
+      "query_tokens": 1,
+      "context_tokens": 1024,
+      "selected_tokens": 64,
+      "head_dim": 512,
+      "causal": true,
+      "phase": "decode",
+      "source_kind": "library_compatible_smoke",
+      "source_project": "vllm-ascend",
+      "source_model": "DeepSeek-V3.2-compatible",
+      "source_file": "csrc/attention/sparse_attn_sharedkv/README.md",
+      "source_op": "npu_sparse_attn_sharedkv"
     }
   ]
 }

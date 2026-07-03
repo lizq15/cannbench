@@ -82,8 +82,11 @@ Current CannBench status:
   calls `torch_npu.npu_lightning_indexer` with vLLM Ascend-compatible TND/BSND
   inputs.
 - `bench --backend ascend --implementation vllm_ascend --op sparse_attention`
-  intentionally fails until the paged-KV metadata/block-table adapter is added
-  for `npu_sparse_attn_sharedkv`.
+  calls vLLM Ascend `npu_sparse_attn_sharedkv_metadata` and
+  `npu_sparse_attn_sharedkv`. The current adapter maps CannBench
+  `sparse_attention` cases to a compressed sparse-KV PA_ND layout, uses
+  128-token pages when the context length permits, and passes case `indices` as
+  `cmp_sparse_indices`.
 - `bench --backend nvidia --implementation cuda_library` intentionally fails
   for DSA operators until the FlashMLA/DeepGEMM adapter accepts library-native
   FP8 MLA manifests.

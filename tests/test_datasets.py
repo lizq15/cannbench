@@ -358,9 +358,24 @@ def test_sparse_attention_dataset_loads_builtin_splits():
     stress = get_sparse_attention_dataset("stress")
 
     assert smoke.name == "smoke"
-    assert len(smoke.cases) == 3
+    assert len(smoke.cases) >= 4
     assert len(realistic.cases) >= 4
     assert len(stress.cases) >= 3
+
+
+def test_sparse_attention_smoke_includes_vllm_ascend_sharedkv_case():
+    case = get_sparse_attention_case("smoke", "vllm_ascend_decode_sharedkv_top64")
+
+    assert case.batch == 1
+    assert case.query_heads == 64
+    assert case.kv_heads == 1
+    assert case.query_tokens == 1
+    assert case.context_tokens == 1024
+    assert case.selected_tokens == 64
+    assert case.head_dim == 512
+    assert case.phase == "decode"
+    assert case.source_project == "vllm-ascend"
+    assert case.source_op == "npu_sparse_attn_sharedkv"
 
 
 def test_materialized_sparse_attention_inputs_are_deterministic_for_same_seed():

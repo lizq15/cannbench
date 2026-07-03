@@ -21,6 +21,7 @@ from cannbench.core.profile import (
 from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
 from cannbench.datasets.materialize import (
     materialize_lightning_indexer_inputs,
+    materialize_sparse_attention_inputs,
     materialized_values_to_buffer,
 )
 
@@ -231,9 +232,12 @@ class AscendBackend(TorchOperatorBackend):
                     dtype=dtype,
                 )
             if request.op == "sparse_attention":
-                raise RuntimeError(
-                    "vllm_ascend sparse_attention requires a paged-KV metadata "
-                    "adapter before it can be benchmarked"
+                return self._vllm_ascend_sparse_attention_callable(
+                    torch,
+                    request,
+                    case,
+                    device=device,
+                    dtype=dtype,
                 )
         return super()._operator_callable(
             torch,
@@ -314,6 +318,133 @@ class AscendBackend(TorchOperatorBackend):
                 sparse_mode=3,
             )
             return result[0] if isinstance(result, tuple) else result
+
+        return operator
+
+    def _vllm_ascend_sparse_attention_callable(
+        self,
+        torch,
+        request: OperatorBenchmarkRequest,
+        case,
+        *,
+        device,
+        dtype,
+    ):
+        ops = getattr(getattr(torch, "ops", None), "_C_ascend", None)
+        metadata_op = getattr(ops, "npu_sparse_attn_sharedkv_metadata", None)
+        attention_op = getattr(ops, "npu_sparse_attn_sharedkv", None)
+        if metadata_op is None or attention_op is None:
+            raise RuntimeError(
+                "vllm_ascend sparse_attention requires "
+                "torch.ops._C_ascend.npu_sparse_attn_sharedkv_metadata and "
+                "torch.ops._C_ascend.npu_sparse_attn_sharedkv"
+            )
+
+        payload = materialize_sparse_attention_inputs(
+            case, dtype=request.dtype, seed=request.seed
+        )
+        batch, query_heads, query_tokens, head_dim = payload["query_shape"]
+        _, kv_heads, context_tokens, _ = payload["key_shape"]
+        selected_tokens = payload["indices_shape"][2]
+        block_size = 128 if context_tokens % 128 == 0 else context_tokens
+        blocks_per_batch = context_tokens // block_size
+
+        query = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["query"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["query_shape"])
+        query = query.permute(0, 2, 1, 3).contiguous().reshape(
+            batch * query_tokens, query_heads, head_dim
+        )
+        cmp_kv = self._tensor(
+            torch,
+            materialized_values_to_buffer(payload["keys"]),
+            device=device,
+            dtype=dtype,
+        ).reshape(payload["key_shape"])
+        cmp_kv = cmp_kv.permute(0, 2, 1, 3).contiguous().reshape(
+            batch * blocks_per_batch, block_size, kv_heads, head_dim
+        )
+        cmp_sparse_indices = self._tensor(
+            torch,
+            payload["indices"],
+            device=device,
+            dtype=torch.int32,
+        ).reshape(batch * query_tokens, kv_heads, selected_tokens)
+        cmp_block_table = self._tensor(
+            torch,
+            tuple(range(batch * blocks_per_batch)),
+            device=device,
+            dtype=torch.int32,
+        ).reshape(batch, blocks_per_batch)
+        cu_seqlens_q = self._tensor(
+            torch,
+            tuple(index * query_tokens for index in range(batch + 1)),
+            device=device,
+            dtype=torch.int32,
+        )
+        seqused_kv = self._tensor(
+            torch,
+            tuple(context_tokens for _ in range(batch)),
+            device=device,
+            dtype=torch.int32,
+        )
+        softmax_scale = head_dim ** -0.5
+
+        metadata = metadata_op(
+            num_heads_q=query_heads,
+            num_heads_kv=kv_heads,
+            head_dim=head_dim,
+            cu_seqlens_q=cu_seqlens_q,
+            cu_seqlens_ori_kv=None,
+            cu_seqlens_cmp_kv=None,
+            seqused_q=None,
+            seqused_kv=seqused_kv,
+            batch_size=batch,
+            max_seqlen_q=query_tokens,
+            max_seqlen_kv=context_tokens,
+            ori_topk=0,
+            cmp_topk=selected_tokens,
+            cmp_ratio=1,
+            ori_mask_mode=4,
+            cmp_mask_mode=3,
+            ori_win_left=0,
+            ori_win_right=0,
+            layout_q="TND",
+            layout_kv="PA_ND",
+            has_ori_kv=False,
+            has_cmp_kv=True,
+            device=str(device),
+        )
+
+        def operator():
+            return attention_op(
+                query,
+                ori_kv=None,
+                cmp_kv=cmp_kv,
+                ori_sparse_indices=None,
+                cmp_sparse_indices=cmp_sparse_indices,
+                ori_block_table=None,
+                cmp_block_table=cmp_block_table,
+                cu_seqlens_q=cu_seqlens_q,
+                cu_seqlens_ori_kv=None,
+                cu_seqlens_cmp_kv=None,
+                seqused_q=None,
+                seqused_kv=seqused_kv,
+                sinks=None,
+                metadata=metadata,
+                softmax_scale=softmax_scale,
+                cmp_ratio=1,
+                ori_mask_mode=4,
+                cmp_mask_mode=3,
+                ori_win_left=0,
+                ori_win_right=0,
+                layout_q="TND",
+                layout_kv="PA_ND",
+                return_softmax_lse=True,
+            )[0]
 
         return operator
 

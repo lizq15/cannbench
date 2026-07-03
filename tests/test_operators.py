@@ -243,7 +243,7 @@ def test_sparse_attention_dataset_is_registered():
 
     assert dataset.name == "sparse_attention"
     assert dataset.dataset_namespace == "sparse_attention"
-    assert len(dataset.get("smoke").cases) == 3
+    assert len(dataset.get("smoke").cases) >= 4
 
 
 def test_softmax_dataset_is_registered():

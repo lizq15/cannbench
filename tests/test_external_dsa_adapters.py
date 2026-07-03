@@ -98,12 +98,51 @@ def test_ascend_vllm_adapter_calls_torch_npu_lightning_indexer(monkeypatch):
     assert calls[0]["sparse_mode"] == 3
 
 
-def test_ascend_vllm_sparse_attention_requires_metadata_adapter(monkeypatch):
+def test_ascend_vllm_sparse_attention_calls_sharedkv_metadata_and_op(monkeypatch):
+    calls: dict[str, dict[str, object]] = {}
+
+    class FakeTensor:
+        def __init__(self, name="tensor", shape=()):
+            self.name = name
+            self.shape = shape
+
+        def reshape(self, *shape):
+            self.shape = shape[0] if len(shape) == 1 else shape
+            return self
+
+        def permute(self, *dims):
+            self.permuted_dims = dims
+            return self
+
+        def contiguous(self):
+            return self
+
     class FakeTorch:
         def __init__(self) -> None:
-            self.npu = SimpleNamespace(is_available=lambda: True)
+            self.npu = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake Ascend",
+            )
             self.device = lambda kind: kind
             self.float16 = "float16"
+            self.int32 = "int32"
+            self.long = "long"
+            self.tensor = lambda *args, **kwargs: FakeTensor()
+            self.ops = SimpleNamespace(
+                _C_ascend=SimpleNamespace(
+                    npu_sparse_attn_sharedkv_metadata=self._metadata,
+                    npu_sparse_attn_sharedkv=self._attention,
+                )
+            )
+
+        def _metadata(self, **kwargs):
+            calls["metadata"] = kwargs
+            return FakeTensor("metadata", (1024,))
+
+        def _attention(self, q, **kwargs):
+            calls["attention"] = {"q": q, **kwargs}
+            return FakeTensor("out"), FakeTensor("lse")
 
     monkeypatch.setitem(sys.modules, "torch", FakeTorch())
     monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
@@ -121,8 +160,23 @@ def test_ascend_vllm_sparse_attention_requires_metadata_adapter(monkeypatch):
         iterations=1,
     )
 
-    with pytest.raises(RuntimeError, match="paged-KV metadata adapter"):
-        AscendBackend().run_operator(request)
+    result = AscendBackend().run_operator(request)
+
+    assert result.backend == "ascend"
+    assert calls["metadata"]["num_heads_q"] == 2
+    assert calls["metadata"]["num_heads_kv"] == 2
+    assert calls["metadata"]["head_dim"] == 16
+    assert calls["metadata"]["batch_size"] == 2
+    assert calls["metadata"]["max_seqlen_q"] == 1
+    assert calls["metadata"]["max_seqlen_kv"] == 32
+    assert calls["metadata"]["cmp_topk"] == 4
+    assert calls["metadata"]["has_ori_kv"] is False
+    assert calls["metadata"]["has_cmp_kv"] is True
+    assert calls["attention"]["layout_q"] == "TND"
+    assert calls["attention"]["layout_kv"] == "PA_ND"
+    assert calls["attention"]["cmp_ratio"] == 1
+    assert calls["attention"]["ori_kv"] is None
+    assert calls["attention"]["cmp_sparse_indices"].shape == (2, 2, 4)
 
 
 def test_nvidia_cuda_library_dsa_requires_flashmla_adapter(monkeypatch):
