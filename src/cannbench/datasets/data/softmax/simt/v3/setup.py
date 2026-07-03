@@ -24,6 +24,21 @@ def get_dependency_paths():
     python_lib = sysconfig.get_config_var("LIBDIR")
     torch_include_paths = cpp_extension.include_paths()
     torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
+    ascend_home = os.getenv("ASCEND_HOME_PATH")
+    ascend_include_candidates = []
+    if ascend_home:
+        ascend_include_candidates.extend(
+            [
+                os.path.join(ascend_home, "x86_64-linux", "asc", "include"),
+                os.path.join(ascend_home, "include"),
+            ]
+        )
+    ascend_include_candidates.extend(
+        glob.glob("/usr/local/Ascend/cann-*/x86_64-linux/asc/include")
+    )
+    ascend_include_dirs = [
+        path for path in ascend_include_candidates if os.path.isdir(path)
+    ]
 
     torch_npu_path = os.path.dirname(torch_npu.__file__)
     torch_npu_include = os.path.join(torch_npu_path, "include")
@@ -35,6 +50,7 @@ def get_dependency_paths():
     include_dirs = [
         *torch_include_paths,
         python_include,
+        *ascend_include_dirs,
         torch_npu_include,
         torch_npu_acl_include,
     ]
@@ -65,7 +81,6 @@ class AscendBuildExtension(build_ext):
             "bisheng",
             "-x",
             "asc",
-            "--enable-simt",
             f"--npu-arch={NPU_ARCH}",
             "-shared",
             "-fPIC",

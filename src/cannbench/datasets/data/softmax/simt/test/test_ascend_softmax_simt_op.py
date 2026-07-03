@@ -218,6 +218,52 @@ def test_ascend_softmax_v3_fast_path_uses_1024_threads_per_block():
     assert "row_softmax_fast_block_x() {\n  constexpr int64_t kCudaFastPathThreads = 1024;" in source
 
 
+def test_ascend_softmax_v3_uses_mixed_simd_simt_vf_launch_model():
+    source = (
+        SIMT_OP_V3_ROOT
+        / "aten_softmax_v3"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+
+    assert "__simt_vf__ __launch_bounds__(1024) inline void row_softmax_persistent_forward_vf" in source
+    assert "__simt_vf__ __launch_bounds__(1024) inline void row_softmax_fast_forward_vf" in source
+    assert "__simt_vf__ inline void cunn_spatial_softmax_forward_vf" in source
+    assert "__global__ __vector__ void row_softmax_persistent_forward_kernel" in source
+    assert "__global__ __vector__ void row_softmax_fast_forward_kernel" in source
+    assert "__global__ __vector__ void cunn_spatial_softmax_forward_kernel" in source
+    assert "asc_vf_call<row_softmax_persistent_forward_vf" in source
+    assert "asc_vf_call<row_softmax_fast_forward_vf" in source
+    assert "asc_vf_call<cunn_spatial_softmax_forward_vf" in source
+    assert "<<<grid_x,\n         0,\n         acl_stream>>>" in source
+    assert "<<<grid_x,\n             dynamic_ubuf_bytes,\n             acl_stream>>>" in source
+    assert "<<<launch.grid_x * launch.grid_y,\n           launch.dynamic_ubuf_bytes,\n           acl_stream>>>" in source
+
+
+def test_ascend_softmax_v3_rowwise_grid_cap_is_shape_aware():
+    source = (
+        SIMT_OP_V3_ROOT
+        / "aten_softmax_v3"
+        / "csrc"
+        / "simt"
+        / "spatial_softmax.asc"
+    ).read_text()
+    rowwise_start = source.index("inline int64_t row_softmax_grid_x")
+    rowwise_end = source.index("inline const char* row_softmax_api_name")
+    rowwise_source = source[rowwise_start:rowwise_end]
+
+    launch_start = source.index("void launch_row_forward_impl")
+    launch_end = source.index("template <template <typename, typename, typename> class Epilogue>")
+    launch_source = source[launch_start:launch_end]
+
+    assert "constexpr int64_t kRowSoftmaxPhysicalGridXLimit = 64" in rowwise_source
+    assert "constexpr int64_t kRowSoftmaxGridXLimit = 32768" in rowwise_source
+    assert "row_softmax_persistent_grid_x(outer_size, block_y, warp_batch, dim_size)" in launch_source
+    assert "row_softmax_grid_x(outer_size)" in launch_source
+    assert "dim_size <= 256" in rowwise_source
+
+
 def test_ascend_softmax_v2_fast_path_has_fp16_half2_x4_vector_path():
     source = (
         SIMT_OP_V2_ROOT
