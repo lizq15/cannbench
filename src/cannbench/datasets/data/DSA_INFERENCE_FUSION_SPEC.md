@@ -19,6 +19,69 @@ Do not treat an unverified model name or private serving stack as the source of
 truth. The public baseline already exposes the important inference boundaries:
 index selection and sparse MLA attention.
 
+## Open-Source Operator Reuse
+
+CannBench should not implement CUDA or CANN kernels for the initial DSA
+benchmark. It should wrap proven open-source operator libraries and use the same
+operator contract across backends. CannBench-owned code should be limited to
+shape manifests, dependency detection, tensor preparation, adapter calls,
+correctness checks, and result reporting.
+
+### CUDA H800
+
+Use DeepSeek's public CUDA libraries as the primary backend:
+
+- FlashMLA for sparse MLA attention.
+  - Decode: `get_mla_metadata` plus `flash_mla_with_kvcache`.
+  - Prefill: `flash_mla_sparse_fwd`.
+  - The decode path supports sparse `indices`, invalid index `-1`, and FP8 KV
+    cache dequantization inside the attention kernel.
+- DeepGEMM for DSA indexer logits.
+  - Prefill-style contiguous logits: `fp8_mqa_logits`.
+  - Decode-style paged KV logits: `get_paged_mqa_logits_metadata` plus
+    `fp8_paged_mqa_logits`.
+  - TopK remains an explicit boundary unless a selected backend exposes logits
+    and TopK as a single production operator with the same outputs.
+
+The CUDA adapter should call these libraries directly when installed. It should
+not add a CannBench CUDA implementation of sparse MLA or FP8 MQA logits.
+
+### Ascend / CANN
+
+The generic `ascend/cann-ops` repository exposes useful primitives such as
+`top_k_v3`, `moe_soft_max_topk`, and large-head flash attention, but the current
+public tree does not expose a complete DSA sparse MLA decode/prefill operator
+matching the DeepSeek-V3.2 fusion boundary.
+
+Use the Ascend serving-oriented open-source stacks first:
+
+- `vllm-project/vllm-ascend` for DSA serving integration.
+  - Indexer: `torch_npu.npu_lightning_indexer`,
+    `torch_npu.npu_quant_lightning_indexer`, or the temporary
+    `_C_ascend` equivalents used by vLLM Ascend.
+  - Sparse decode attention: `torch.ops._C_ascend.npu_sparse_attn_sharedkv`
+    with `npu_sparse_attn_sharedkv_metadata`.
+  - Quantized KV sparse decode attention:
+    `torch.ops._C_ascend.npu_kv_quant_sparse_attn_sharedkv` with
+    `npu_kv_quant_sparse_attn_sharedkv_metadata`.
+- `sgl-project/sgl-kernel-npu` for standalone NPU kernels.
+  - `torch.ops.npu.lightning_indexer` for DSA sparse TopK indexing.
+  - `torch.ops.npu.mla_preprocess` for the RMSNorm -> Dequant -> MatMul ->
+    RoPE -> ReshapeAndCache preprocessing fusion.
+  - Its MLA paged-KV attention path is useful for adapter validation, but the
+    benchmark must still align to the same `sparse_mla_decode` contract.
+
+The CANN adapter should prefer public `torch_npu` or exported PyTorch custom op
+entry points when available. If only vLLM Ascend private `_C_ascend` symbols are
+available in the installed stack, the adapter must record that provenance in the
+benchmark result.
+
+### SIMT
+
+SIMT remains the CannBench-owned implementation target. It should implement the
+same contracts only for comparison and portability experiments. SIMT timing must
+not include extra work that CUDA or CANN external libraries do not include.
+
 ## Main Decision
 
 Prefill and decode are separate benchmark operators. They have different input
@@ -218,9 +281,9 @@ Recommended initial comparison matrix:
 
 | Operator | CUDA H800 reference | CANN ops target | SIMT target |
 | --- | --- | --- | --- |
-| `dsa_index_select` | DeepGEMM-style FP8 paged MQA logits + TopK | same contract | same contract |
-| `sparse_mla_decode` | FlashMLA sparse decode | same contract | same contract |
-| `sparse_mla_prefill` | FlashMLA sparse prefill | same contract | same contract |
+| `dsa_index_select` | DeepGEMM FP8 MQA logits + TopK | vLLM Ascend or SGLang NPU lightning indexer | same contract |
+| `sparse_mla_decode` | FlashMLA sparse decode | vLLM Ascend sparse shared-KV op | same contract |
+| `sparse_mla_prefill` | FlashMLA sparse prefill | available NPU sparse MLA/prefill library op, if contract-compatible | same contract |
 
 ## Shape Plan
 
@@ -272,12 +335,13 @@ kernel-native reference, a streaming reference, or performance-only mode.
 1. Add `sparse_mla_decode` as the first fused inference operator.
 2. Add DeepSeek-V3.2 decode shape manifests with `smoke`, `realistic`, and
    `stress` splits.
-3. Implement CUDA H800 using the FlashMLA contract as the behavior reference.
-4. Implement CANN ops and SIMT op against the same `sparse_mla_decode`
-   contract.
-5. Add `dsa_index_select` once indexer logits and TopK semantics are fixed.
-6. Add `sparse_mla_prefill` with chunked shapes and memory-safe references.
-7. Consider orchestration-level `dsa_decode_step` only after component
+3. Add a CUDA H800 adapter that calls FlashMLA for `sparse_mla_decode`.
+4. Add an Ascend adapter that calls vLLM Ascend or SGLang NPU sparse attention
+   ops for the same `sparse_mla_decode` contract.
+5. Implement the SIMT op against the same `sparse_mla_decode` contract.
+6. Add `dsa_index_select` once indexer logits and TopK semantics are fixed.
+7. Add `sparse_mla_prefill` with chunked shapes and memory-safe references.
+8. Consider orchestration-level `dsa_decode_step` only after component
    comparisons are stable.
 
 ## Acceptance Criteria
