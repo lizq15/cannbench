@@ -1,0 +1,12 @@
+{
+  "name": "ascend-a5-vllm",
+  "backend": "ascend",
+  "host": "root@121.41.199.170",
+  "port": 20002,
+  "workdir": "/home/y00621698/cannbench-dsa-fa-20260704",
+  "python": "/root/miniconda3/envs/cannbench-vllm-ascend-py310/bin/python",
+  "setup": ". /usr/local/Ascend/ascend-toolkit/set_env.sh && . /root/miniconda3/etc/profile.d/conda.sh && conda activate cannbench-vllm-ascend-py310 && export SOC_VERSION=ascend950pr_9599 && export NPU_ARCH=dav-3510 && export PYTHONPATH=/home/y00621698/cannbench-dsa-fa-20260704/src:/tmp/vllm-ascend:/tmp/vllm",
+  "env": {
+    "ASCEND_VISIBLE_DEVICES": "0"
+  }
+}

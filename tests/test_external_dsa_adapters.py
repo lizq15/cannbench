@@ -444,6 +444,84 @@ def test_ascend_vllm_sparse_attention_uses_a5_kv_physical_dim(monkeypatch):
     assert calls["attention"]["cmp_ratio"] == 4
 
 
+def test_ascend_vllm_sparse_attention_a5_setup_avoids_device_permute(monkeypatch):
+    calls: dict[str, dict[str, object]] = {}
+
+    class FakeTensor:
+        def __init__(self, name="tensor", shape=()):
+            self.name = name
+            self.shape = shape
+
+        def reshape(self, *shape):
+            self.shape = shape[0] if len(shape) == 1 else shape
+            return self
+
+        def permute(self, *dims):
+            raise AssertionError("vllm_ascend sparse_attention setup must not launch device permute")
+
+        def contiguous(self):
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.float16 = "float16"
+            self.bfloat16 = "bfloat16"
+            self.float8_e4m3fn = "float8_e4m3fn"
+            self.int32 = "int32"
+            self.tensor = lambda *args, **kwargs: FakeTensor()
+            self.ops = SimpleNamespace(
+                _C_ascend=SimpleNamespace(
+                    npu_kv_quant_sparse_attn_sharedkv_metadata=self._metadata,
+                    npu_kv_quant_sparse_attn_sharedkv=self._attention,
+                )
+            )
+
+        def _metadata(self, **kwargs):
+            calls["metadata"] = kwargs
+            return FakeTensor("metadata", (1024,))
+
+        def _attention(self, q, **kwargs):
+            calls["attention"] = {"q": q, **kwargs}
+            return FakeTensor("out"), FakeTensor("lse")
+
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    case = SparseAttentionCase(
+        case_id="a5_prefill_b1_q512_ctx512_top512",
+        family="prefill_sparse_attention",
+        batch=1,
+        query_heads=64,
+        kv_heads=1,
+        query_tokens=512,
+        context_tokens=512,
+        selected_tokens=512,
+        head_dim=512,
+        causal=True,
+        phase="prefill",
+        source_kind="unit",
+        source_project="cannbench",
+        source_model="ascend950_a5",
+        source_file="unit",
+        source_op="sparse_attention",
+    )
+    request = SimpleNamespace(dtype="bfloat16", seed=0)
+
+    operator = AscendBackend()._vllm_ascend_sparse_attention_callable(
+        FakeTorch(),
+        request,
+        case,
+        device="npu",
+        dtype="bfloat16",
+    )
+    operator()
+
+    assert calls["attention"]["q"].shape == (512, 64, 512)
+    assert calls["attention"]["ori_kv"].shape == (4, 128, 1, 640)
+    assert calls["attention"]["cmp_kv"].shape == (1, 128, 1, 640)
+
+
 def test_nvidia_cuda_library_uses_external_lightning_indexer_adapter(monkeypatch):
     calls: list[dict[str, object]] = []
 

@@ -117,6 +117,70 @@ def test_build_collect_benchmark_record_for_ascend_cann_ops():
     assert record["device_class"] == "950PR"
 
 
+def test_build_benchmark_record_for_vllm_ascend_lightning_indexer_shape():
+    prepared = build_prepared_operator_input(
+        op="lightning_indexer",
+        dtype="bfloat16",
+        dataset="smoke",
+        case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
+        seed=0,
+    )
+    profile_summary = DeviceProfileSummary(
+        backend="ascend",
+        sample_count=1,
+        latency_ms_avg=0.005,
+        latency_ms_p50=0.005,
+        latency_ms_p95=0.006,
+        latency_ms_p99=0.006,
+        source_files=("OpBasicInfo.csv",),
+    )
+
+    record = build_benchmark_record(
+        run_id="dsa/lightning-indexer",
+        backend="ascend",
+        implementation="vllm_ascend",
+        prepared=prepared,
+        device_name="Ascend950PR_9599",
+        profile_summary=profile_summary,
+    )
+
+    assert record["implementation"] == "vllm_ascend"
+    assert record["implementation_version"] == "vllm-ascend"
+    assert record["shape"] == [1, 1, 64, 128]
+
+
+def test_build_benchmark_record_for_vllm_ascend_sparse_attention_shape():
+    prepared = build_prepared_operator_input(
+        op="sparse_attention",
+        dtype="bfloat16",
+        dataset="smoke",
+        case_id="vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
+        seed=0,
+    )
+    profile_summary = DeviceProfileSummary(
+        backend="ascend",
+        sample_count=1,
+        latency_ms_avg=0.014,
+        latency_ms_p50=0.014,
+        latency_ms_p95=0.015,
+        latency_ms_p99=0.015,
+        source_files=("OpBasicInfo.csv",),
+    )
+
+    record = build_benchmark_record(
+        run_id="dsa/sparse-attention",
+        backend="ascend",
+        implementation="vllm_ascend",
+        prepared=prepared,
+        device_name="Ascend950PR_9599",
+        profile_summary=profile_summary,
+    )
+
+    assert record["implementation"] == "vllm_ascend"
+    assert record["implementation_version"] == "vllm-ascend"
+    assert record["shape"] == [512, 64, 512]
+
+
 def test_build_benchmark_record_for_nvidia_ncu():
     prepared = build_prepared_operator_input(
         op="softmax",

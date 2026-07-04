@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 dist/
+runs/
 docs/superpowers/
 .superpowers/
 web/node_modules/

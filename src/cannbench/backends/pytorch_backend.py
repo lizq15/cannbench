@@ -435,6 +435,53 @@ class AscendBackend(TorchOperatorBackend):
                     padded.extend(zero_pad)
         return materialized_values_to_buffer(padded)
 
+    def _materialized_bhtd_values_as_bthd(
+        self,
+        values: tuple[float, ...],
+        *,
+        batch: int,
+        heads: int,
+        tokens: int,
+        dim: int,
+    ):
+        reordered: list[float] = []
+        for batch_index in range(batch):
+            for token_index in range(tokens):
+                for head_index in range(heads):
+                    offset = (
+                        ((batch_index * heads + head_index) * tokens + token_index)
+                        * dim
+                    )
+                    reordered.extend(values[offset : offset + dim])
+        return materialized_values_to_buffer(reordered)
+
+    def _materialized_kv_values_as_bthd(
+        self,
+        values: tuple[float, ...],
+        *,
+        batch: int,
+        kv_heads: int,
+        context_tokens: int,
+        kept_context_tokens: int,
+        logical_dim: int,
+        physical_dim: int,
+    ):
+        pad = physical_dim - logical_dim
+        if pad < 0:
+            raise ValueError("physical_dim must be greater than or equal to logical_dim")
+        reordered: list[float] = []
+        zero_pad = [0.0] * pad
+        for batch_index in range(batch):
+            for token_index in range(kept_context_tokens):
+                for head_index in range(kv_heads):
+                    offset = (
+                        ((batch_index * kv_heads + head_index) * context_tokens + token_index)
+                        * logical_dim
+                    )
+                    reordered.extend(values[offset : offset + logical_dim])
+                    reordered.extend(zero_pad)
+        return materialized_values_to_buffer(reordered)
+
     def _operator_callable(self, torch, request, case, *, device, dtype):
         if request.implementation == "vllm_ascend":
             if request.op == "lightning_indexer":
@@ -722,22 +769,32 @@ class AscendBackend(TorchOperatorBackend):
 
         query = self._tensor(
             torch,
-            materialized_values_to_buffer(payload["query"]),
+            self._materialized_bhtd_values_as_bthd(
+                payload["query"],
+                batch=batch,
+                heads=query_heads,
+                tokens=query_tokens,
+                dim=head_dim,
+            ),
             device=device,
             dtype=dtype,
-        ).reshape(payload["query_shape"])
-        query = query.permute(0, 2, 1, 3).contiguous().reshape(
-            batch * query_tokens, query_heads, head_dim
         )
+        query = query.reshape(batch * query_tokens, query_heads, head_dim)
         cmp_kv = self._tensor(
             torch,
-            materialized_values_to_buffer(payload["keys"]),
+            self._materialized_kv_values_as_bthd(
+                payload["keys"],
+                batch=batch,
+                kv_heads=kv_heads,
+                context_tokens=context_tokens,
+                kept_context_tokens=context_tokens,
+                logical_dim=head_dim,
+                physical_dim=head_dim,
+            ),
             device=device,
             dtype=dtype,
-        ).reshape(payload["key_shape"])
-        cmp_kv = cmp_kv.permute(0, 2, 1, 3).contiguous().reshape(
-            batch * blocks_per_batch, block_size, kv_heads, head_dim
         )
+        cmp_kv = cmp_kv.reshape(batch * blocks_per_batch, block_size, kv_heads, head_dim)
         cmp_sparse_indices = self._tensor(
             torch,
             payload["indices"],
@@ -856,20 +913,24 @@ class AscendBackend(TorchOperatorBackend):
 
         query = self._tensor(
             torch,
-            materialized_values_to_buffer(payload["query"]),
+            self._materialized_bhtd_values_as_bthd(
+                payload["query"],
+                batch=batch,
+                heads=query_heads,
+                tokens=query_tokens,
+                dim=head_dim,
+            ),
             device=device,
             dtype=query_dtype,
-        ).reshape(payload["query_shape"])
-        query = query.permute(0, 2, 1, 3).contiguous().reshape(
-            batch * query_tokens, query_heads, head_dim
         )
+        query = query.reshape(batch * query_tokens, query_heads, head_dim)
         ori_kv = None
         ori_block_table = None
         cu_seqlens_ori_kv = None
         if a5_physical_layout:
             ori_kv = self._tensor(
                 torch,
-                self._materialized_kv_values(
+                self._materialized_kv_values_as_bthd(
                     payload["values"],
                     batch=batch,
                     kv_heads=kv_heads,
@@ -880,8 +941,8 @@ class AscendBackend(TorchOperatorBackend):
                 ),
                 device=device,
                 dtype=kv_dtype,
-            ).reshape(batch, kv_heads, ori_context_tokens, kv_head_dim)
-            ori_kv = ori_kv.permute(0, 2, 1, 3).contiguous().reshape(
+            )
+            ori_kv = ori_kv.reshape(
                 batch * ori_blocks_per_batch,
                 ori_block_size,
                 kv_heads,
@@ -901,7 +962,7 @@ class AscendBackend(TorchOperatorBackend):
             )
         cmp_kv = self._tensor(
             torch,
-            self._materialized_kv_values(
+            self._materialized_kv_values_as_bthd(
                 payload["keys"],
                 batch=batch,
                 kv_heads=kv_heads,
@@ -912,8 +973,8 @@ class AscendBackend(TorchOperatorBackend):
             ),
             device=device,
             dtype=kv_dtype,
-        ).reshape(batch, kv_heads, cmp_context_tokens, kv_head_dim)
-        cmp_kv = cmp_kv.permute(0, 2, 1, 3).contiguous().reshape(
+        )
+        cmp_kv = cmp_kv.reshape(
             batch * cmp_blocks_per_batch, cmp_block_size, kv_heads, kv_head_dim
         )
         cmp_indices = payload["indices"]
