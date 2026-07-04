@@ -71,6 +71,75 @@ const records: BenchmarkRecord[] = [
   }
 ];
 
+const dsaRecords: BenchmarkRecord[] = [
+  {
+    schema_version: 1,
+    run_id: "dsa-decode-cuda",
+    operator: "sparse_attention",
+    dataset: "realistic_decode",
+    case_id: "deepseek_a5_decode_b1_ctx512_top512",
+    family: "decode_sparse_attention",
+    shape: [1, 64, 512],
+    dtype: "bfloat16",
+    backend: "nvidia",
+    device_class: "H800",
+    implementation: "cuda_library",
+    implementation_version: "cuda-library",
+    source_kind: "library_compatible_realistic",
+    source_project: "FlashMLA",
+    source_model: "DeepSeek-V4-compatible",
+    source_file: "benchmarks",
+    source_op: "flash_mla_with_kvcache",
+    metrics: { latency_ms_avg: 0.06, latency_ms_p50: 0.06, latency_ms_p95: 0.07, sample_count: 1 },
+    accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
+    diff_ref: null
+  },
+  {
+    schema_version: 1,
+    run_id: "dsa-decode",
+    operator: "sparse_attention",
+    dataset: "realistic_decode",
+    case_id: "deepseek_a5_decode_b1_ctx512_top512",
+    family: "decode_sparse_attention",
+    shape: [1, 64, 512],
+    dtype: "bfloat16",
+    backend: "ascend",
+    device_class: "950PR",
+    implementation: "vllm_ascend",
+    implementation_version: "vllm-ascend",
+    source_kind: "library_compatible_realistic",
+    source_project: "vllm-ascend",
+    source_model: "DeepSeek-V4-compatible",
+    source_file: "csrc/attention/kv_quant_sparse_attn_sharedkv/README.md",
+    source_op: "npu_kv_quant_sparse_attn_sharedkv",
+    metrics: { latency_ms_avg: 0.08, latency_ms_p50: 0.08, latency_ms_p95: 0.09, sample_count: 1 },
+    accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
+    diff_ref: null
+  },
+  {
+    schema_version: 1,
+    run_id: "dsa-prefill",
+    operator: "sparse_attention",
+    dataset: "realistic_prefill",
+    case_id: "deepseek_a5_prefill_b1_q512_ctx512_top512",
+    family: "prefill_sparse_attention",
+    shape: [512, 64, 512],
+    dtype: "bfloat16",
+    backend: "ascend",
+    device_class: "950PR",
+    implementation: "vllm_ascend",
+    implementation_version: "vllm-ascend",
+    source_kind: "library_compatible_realistic",
+    source_project: "vllm-ascend",
+    source_model: "DeepSeek-V4-compatible",
+    source_file: "csrc/attention/kv_quant_sparse_attn_sharedkv/README.md",
+    source_op: "npu_kv_quant_sparse_attn_sharedkv",
+    metrics: { latency_ms_avg: 1.8, latency_ms_p50: 1.8, latency_ms_p95: 1.9, sample_count: 1 },
+    accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
+    diff_ref: null
+  }
+];
+
 describe("buildBenchmarkViewModel", () => {
   it("groups records by operator, dataset, case, and chart series", () => {
     const model = buildBenchmarkViewModel(records);
@@ -98,5 +167,26 @@ describe("buildBenchmarkViewModel", () => {
     expect(realistic.availableSeries).toEqual(["NVIDIA H800 PyTorch", "Ascend 950PR SIMT v1"]);
     expect(smoke.sourceLabel).toBe("cannbench / smoke_fixture");
     expect(smoke.coverageTag).toBe("smoke coverage");
+  });
+
+  it("keeps DSA decode and prefill datasets as separate chart groups", () => {
+    const model = buildBenchmarkViewModel(dsaRecords);
+
+    expect(model.datasetsFor("sparse_attention")).toEqual([
+      "ALL",
+      "realistic_decode",
+      "realistic_prefill"
+    ]);
+    expect(model.chartSegmentsFor("sparse_attention", "ALL")).toEqual([
+      { key: "realistic_decode", label: "realistic_decode", start: 0, end: 0 },
+      { key: "realistic_prefill", label: "realistic_prefill", start: 1, end: 1 }
+    ]);
+    expect(model.seriesFor("sparse_attention", "realistic_decode").map((series) => series.name)).toEqual([
+      "NVIDIA H800 CUDA Library",
+      "Ascend 950PR vLLM Ascend"
+    ]);
+    expect(model.seriesFor("sparse_attention", "realistic_prefill").map((series) => series.name)).toEqual([
+      "Ascend 950PR vLLM Ascend"
+    ]);
   });
 });

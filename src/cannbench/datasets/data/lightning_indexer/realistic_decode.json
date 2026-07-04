@@ -2,6 +2,21 @@
   "name": "realistic_decode",
   "cases": [
     {
+      "case_id": "deepseek_a5_decode_b1_ctx512_top512",
+      "family": "decode_indexing",
+      "batch": 1,
+      "query_tokens": 1,
+      "context_tokens": 512,
+      "index_heads": 64,
+      "index_dim": 128,
+      "top_k": 512,
+      "source_kind": "library_compatible_realistic",
+      "source_project": "vllm-ascend",
+      "source_model": "DeepSeek-V4-compatible",
+      "source_file": "csrc/attention/vllm_quant_lightning_indexer/README.md",
+      "source_op": "npu_vllm_quant_lightning_indexer"
+    },
+    {
       "case_id": "deepseek_decode_b1_ctx4096_top512",
       "family": "decode_indexing",
       "batch": 1,

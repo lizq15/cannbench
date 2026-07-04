@@ -38,6 +38,24 @@
       "source_op": "npu_kv_quant_sparse_attn_sharedkv"
     },
     {
+      "case_id": "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
+      "family": "prefill_sparse_attention",
+      "batch": 1,
+      "query_heads": 64,
+      "kv_heads": 1,
+      "query_tokens": 512,
+      "context_tokens": 512,
+      "selected_tokens": 512,
+      "head_dim": 512,
+      "causal": true,
+      "phase": "prefill",
+      "source_kind": "library_compatible_smoke",
+      "source_project": "vllm-ascend",
+      "source_model": "DeepSeek-V4-compatible",
+      "source_file": "csrc/attention/kv_quant_sparse_attn_sharedkv/README.md",
+      "source_op": "npu_kv_quant_sparse_attn_sharedkv"
+    },
+    {
       "case_id": "tiny_prefill_top8",
       "family": "prefill_sparse_attention",
       "batch": 1,

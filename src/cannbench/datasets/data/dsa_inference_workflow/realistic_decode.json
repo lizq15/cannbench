@@ -2,6 +2,12 @@
   "name": "realistic_decode",
   "cases": [
     {
+      "case_id": "deepseek_a5_decode_b1_ctx512_top512",
+      "workflow": "dsa_decode",
+      "phase": "decode",
+      "family": "decode_workflow"
+    },
+    {
       "case_id": "deepseek_decode_b1_ctx4096_top512",
       "workflow": "dsa_decode",
       "phase": "decode",

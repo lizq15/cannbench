@@ -8,7 +8,7 @@
       "family": "decode_workflow"
     },
     {
-      "case_id": "tiny_prefill_top8",
+      "case_id": "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
       "workflow": "dsa_prefill",
       "phase": "prefill",
       "family": "prefill_workflow"

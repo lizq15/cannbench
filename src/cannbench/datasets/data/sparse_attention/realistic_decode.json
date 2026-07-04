@@ -2,6 +2,24 @@
   "name": "realistic_decode",
   "cases": [
     {
+      "case_id": "deepseek_a5_decode_b1_ctx512_top512",
+      "family": "decode_sparse_attention",
+      "batch": 1,
+      "query_heads": 64,
+      "kv_heads": 1,
+      "query_tokens": 1,
+      "context_tokens": 512,
+      "selected_tokens": 512,
+      "head_dim": 512,
+      "causal": true,
+      "phase": "decode",
+      "source_kind": "library_compatible_realistic",
+      "source_project": "vllm-ascend",
+      "source_model": "DeepSeek-V4-compatible",
+      "source_file": "csrc/attention/kv_quant_sparse_attn_sharedkv/README.md",
+      "source_op": "npu_kv_quant_sparse_attn_sharedkv"
+    },
+    {
       "case_id": "deepseek_decode_b1_ctx4096_top512",
       "family": "decode_sparse_attention",
       "batch": 1,

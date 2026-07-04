@@ -9,7 +9,13 @@ import type {
   SeriesOption
 } from "../types";
 
-const SPLIT_ORDER = ["smoke", "realistic", "stress"] as const;
+const SPLIT_ORDER = [
+  "smoke",
+  "realistic",
+  "realistic_decode",
+  "realistic_prefill",
+  "stress"
+] as const;
 const ALL_DATASET = "ALL";
 const METRIC_OPTIONS: MetricOption[] = [{ key: "latency", name: "Latency" }];
 
@@ -31,20 +37,32 @@ function isGpuRecord(record: BenchmarkRecord): boolean {
 
 function seriesId(record: BenchmarkRecord): string {
   if (isGpuRecord(record)) {
+    if (record.implementation === "cuda_library") {
+      return `nvidia-${record.device_class.toLowerCase()}-cuda-library`;
+    }
     return `nvidia-${record.device_class.toLowerCase()}-cuda-pytorch`;
   }
   if (record.implementation === "cann_ops_library") {
     return `ascend-${record.device_class.toLowerCase()}-cannops`;
+  }
+  if (record.implementation === "vllm_ascend") {
+    return `ascend-${record.device_class.toLowerCase()}-vllm-ascend`;
   }
   return `ascend-${record.device_class.toLowerCase()}-simt-${record.implementation_version.toLowerCase()}`;
 }
 
 function seriesName(record: BenchmarkRecord): string {
   if (isGpuRecord(record)) {
+    if (record.implementation === "cuda_library") {
+      return `NVIDIA ${record.device_class} CUDA Library`;
+    }
     return `NVIDIA ${record.device_class} PyTorch`;
   }
   if (record.implementation === "cann_ops_library") {
     return `Ascend ${record.device_class} CANN Ops`;
+  }
+  if (record.implementation === "vllm_ascend") {
+    return `Ascend ${record.device_class} vLLM Ascend`;
   }
   return `Ascend ${record.device_class} SIMT ${record.implementation_version}`;
 }
@@ -56,12 +74,28 @@ function seriesSortKey(record: BenchmarkRecord): [number, string] {
   if (record.implementation === "cann_ops_library") {
     return [1, seriesName(record)];
   }
-  return [2, seriesName(record)];
+  if (record.implementation === "vllm_ascend") {
+    return [2, seriesName(record)];
+  }
+  return [3, seriesName(record)];
+}
+
+function seriesRankForKey(key: string): number {
+  if (key.startsWith("nvidia-")) {
+    return 0;
+  }
+  if (key.includes("-cannops")) {
+    return 1;
+  }
+  if (key.includes("-vllm-ascend")) {
+    return 2;
+  }
+  return 3;
 }
 
 function compareSeries(left: SeriesOption, right: SeriesOption): number {
-  const leftRank = left.key.startsWith("nvidia-") ? 0 : left.key.includes("-cann-") ? 1 : 2;
-  const rightRank = right.key.startsWith("nvidia-") ? 0 : right.key.includes("-cann-") ? 1 : 2;
+  const leftRank = seriesRankForKey(left.key);
+  const rightRank = seriesRankForKey(right.key);
   return leftRank - rightRank || left.name.localeCompare(right.name);
 }
 

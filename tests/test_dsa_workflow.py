@@ -36,7 +36,7 @@ def test_build_decode_workflow_uses_indexer_then_sparse_decode():
 def test_build_prefill_workflow_uses_indexer_then_sparse_prefill():
     workflow = build_dsa_inference_workflow(
         dataset="smoke",
-        case_id="tiny_prefill_top8",
+        case_id="vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
         dtype="bfloat16",
         seed=11,
     )
@@ -58,7 +58,9 @@ def test_list_dsa_workflows_filters_to_cases_with_matching_component_cases():
     assert [workflow.case_id for workflow in decode_workflows] == [
         "vllm_ascend_a5_decode_b1_ctx512_top512",
     ]
-    assert [workflow.case_id for workflow in prefill_workflows] == ["tiny_prefill_top8"]
+    assert [workflow.case_id for workflow in prefill_workflows] == [
+        "vllm_ascend_a5_prefill_b1_q512_ctx512_top512"
+    ]
 
 
 def test_dsa_workflow_dataset_is_the_case_selection_source():
@@ -67,7 +69,7 @@ def test_dsa_workflow_dataset_is_the_case_selection_source():
     assert dataset.name == "smoke"
     assert [case.case_id for case in dataset.cases] == [
         "vllm_ascend_a5_decode_b1_ctx512_top512",
-        "tiny_prefill_top8",
+        "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
     ]
     assert [case.workflow for case in dataset.cases] == [
         "dsa_decode",
@@ -82,15 +84,17 @@ def test_realistic_workflow_datasets_are_split_by_inference_phase():
     decode_case_ids = [workflow.case_id for workflow in decode_workflows]
     prefill_case_ids = [workflow.case_id for workflow in prefill_workflows]
 
-    assert len(decode_case_ids) == 16
-    assert len(prefill_case_ids) == 15
+    assert len(decode_case_ids) == 17
+    assert len(prefill_case_ids) == 16
     assert {
+        "deepseek_a5_decode_b1_ctx512_top512",
         "deepseek_decode_b1_ctx4096_top512",
         "deepseek_decode_b8_ctx32768_top2048",
         "deepseek_decode_b1_ctx65536_top2048",
         "llama4_decode_32760_top2048",
     }.issubset(decode_case_ids)
     assert {
+        "deepseek_a5_prefill_b1_q512_ctx512_top512",
         "clip_text_prefill_50_top12",
         "distilbert_prefill_128_top64",
         "gpt2_prefill_512_top128",

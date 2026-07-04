@@ -314,7 +314,7 @@ def test_lightning_indexer_dataset_loads_builtin_splits():
     stress = get_lightning_indexer_dataset("stress")
 
     assert smoke.name == "smoke"
-    assert len(smoke.cases) == 4
+    assert len(smoke.cases) == 5
     assert {case.source_project for case in realistic.cases} >= {"TritonBench"}
     assert len(stress.cases) >= 3
 
@@ -347,6 +347,41 @@ def test_lightning_indexer_smoke_includes_vllm_ascend_a5_case():
     assert case.top_k == 512
     assert case.source_project == "vllm-ascend"
     assert case.source_op == "npu_vllm_quant_lightning_indexer"
+
+
+def test_lightning_indexer_smoke_includes_vllm_ascend_a5_prefill_case():
+    case = get_lightning_indexer_case(
+        "smoke", "vllm_ascend_a5_prefill_b1_q512_ctx512_top512"
+    )
+
+    assert case.batch == 1
+    assert case.query_tokens == 512
+    assert case.context_tokens == 512
+    assert case.index_heads == 64
+    assert case.index_dim == 128
+    assert case.top_k == 512
+    assert case.source_project == "vllm-ascend"
+    assert case.source_op == "npu_vllm_quant_lightning_indexer"
+
+
+def test_lightning_indexer_realistic_splits_include_a5_cases():
+    decode_case = get_lightning_indexer_case(
+        "realistic_decode", "deepseek_a5_decode_b1_ctx512_top512"
+    )
+    prefill_case = get_lightning_indexer_case(
+        "realistic_prefill", "deepseek_a5_prefill_b1_q512_ctx512_top512"
+    )
+
+    assert decode_case.family == "decode_indexing"
+    assert decode_case.query_tokens == 1
+    assert decode_case.index_heads == 64
+    assert decode_case.index_dim == 128
+    assert decode_case.top_k == 512
+    assert prefill_case.family == "prefill_indexing"
+    assert prefill_case.query_tokens == 512
+    assert prefill_case.index_heads == 64
+    assert prefill_case.index_dim == 128
+    assert prefill_case.top_k == 512
 
 
 def test_get_sparse_attention_case_preserves_realistic_source_metadata():
@@ -408,6 +443,45 @@ def test_sparse_attention_smoke_includes_vllm_ascend_a5_case():
     assert case.phase == "decode"
     assert case.source_project == "vllm-ascend"
     assert case.source_op == "npu_kv_quant_sparse_attn_sharedkv"
+
+
+def test_sparse_attention_smoke_includes_vllm_ascend_a5_prefill_case():
+    case = get_sparse_attention_case(
+        "smoke", "vllm_ascend_a5_prefill_b1_q512_ctx512_top512"
+    )
+
+    assert case.batch == 1
+    assert case.query_heads == 64
+    assert case.kv_heads == 1
+    assert case.query_tokens == 512
+    assert case.context_tokens == 512
+    assert case.selected_tokens == 512
+    assert case.head_dim == 512
+    assert case.phase == "prefill"
+    assert case.source_project == "vllm-ascend"
+    assert case.source_op == "npu_kv_quant_sparse_attn_sharedkv"
+
+
+def test_sparse_attention_realistic_splits_include_a5_cases():
+    decode_case = get_sparse_attention_case(
+        "realistic_decode", "deepseek_a5_decode_b1_ctx512_top512"
+    )
+    prefill_case = get_sparse_attention_case(
+        "realistic_prefill", "deepseek_a5_prefill_b1_q512_ctx512_top512"
+    )
+
+    assert decode_case.phase == "decode"
+    assert decode_case.query_tokens == 1
+    assert decode_case.query_heads == 64
+    assert decode_case.kv_heads == 1
+    assert decode_case.selected_tokens == 512
+    assert decode_case.head_dim == 512
+    assert prefill_case.phase == "prefill"
+    assert prefill_case.query_tokens == 512
+    assert prefill_case.query_heads == 64
+    assert prefill_case.kv_heads == 1
+    assert prefill_case.selected_tokens == 512
+    assert prefill_case.head_dim == 512
 
 
 def test_materialized_sparse_attention_inputs_are_deterministic_for_same_seed():

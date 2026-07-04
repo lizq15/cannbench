@@ -2603,12 +2603,14 @@ def test_main_runs_dsa_prefill_workflow_selection_as_batch(tmp_path, monkeypatch
             "dsa_prefill",
             "--dataset",
             "smoke",
+            "--dtype",
+            "bfloat16",
             "--output-dir",
             str(tmp_path),
         ]
     )
 
-    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_prefill-smoke-float16"
+    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_prefill-smoke-bfloat16"
     layout = build_run_layout(tmp_path, run_name)
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
 
@@ -2618,8 +2620,8 @@ def test_main_runs_dsa_prefill_workflow_selection_as_batch(tmp_path, monkeypatch
         "sparse_attention",
     ]
     assert [request.case_id for request in captured_requests] == [
-        "tiny_prefill_top8",
-        "tiny_prefill_top8",
+        "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
+        "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
     ]
     assert summary["metadata"]["run_name"] == run_name
     assert summary["metadata"]["total_cases"] == 2
@@ -2659,7 +2661,7 @@ def test_main_defaults_dsa_decode_workflow_to_realistic_decode_dataset(
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
 
     assert exit_code == 0
-    assert len(captured_requests) == 32
+    assert len(captured_requests) == 34
     assert {request.dataset for request in captured_requests} == {"realistic_decode"}
     assert [request.op for request in captured_requests[:4]] == [
         "lightning_indexer",
@@ -2668,7 +2670,7 @@ def test_main_defaults_dsa_decode_workflow_to_realistic_decode_dataset(
         "sparse_attention",
     ]
     assert summary["metadata"]["run_name"] == run_name
-    assert summary["metadata"]["total_cases"] == 32
+    assert summary["metadata"]["total_cases"] == 34
 
 
 def test_main_defaults_dsa_prefill_workflow_to_realistic_prefill_dataset(
@@ -2705,7 +2707,7 @@ def test_main_defaults_dsa_prefill_workflow_to_realistic_prefill_dataset(
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
 
     assert exit_code == 0
-    assert len(captured_requests) == 30
+    assert len(captured_requests) == 32
     assert {request.dataset for request in captured_requests} == {"realistic_prefill"}
     assert [request.op for request in captured_requests[:4]] == [
         "lightning_indexer",
@@ -2714,7 +2716,7 @@ def test_main_defaults_dsa_prefill_workflow_to_realistic_prefill_dataset(
         "sparse_attention",
     ]
     assert summary["metadata"]["run_name"] == run_name
-    assert summary["metadata"]["total_cases"] == 30
+    assert summary["metadata"]["total_cases"] == 32
 
 
 def test_main_runs_batch_bench_once_per_prepared_case(tmp_path, monkeypatch):
