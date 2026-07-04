@@ -2191,7 +2191,7 @@ def test_main_rejects_workflow_with_op(capsys):
                 "--dataset",
                 "smoke",
                 "--case-id",
-                "tiny_decode_top4",
+                "vllm_ascend_a5_decode_b1_ctx512_top512",
             ]
         )
 
@@ -2247,7 +2247,7 @@ def test_main_rejects_workflow_case_with_wrong_phase(capsys):
                 "--dataset",
                 "smoke",
                 "--case-id",
-                "tiny_decode_top4",
+                "vllm_ascend_a5_decode_b1_ctx512_top512",
             ]
         )
 
@@ -2531,7 +2531,9 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
             "--dataset",
             "smoke",
             "--case-id",
-            "tiny_decode_top4",
+            "vllm_ascend_a5_decode_b1_ctx512_top512",
+            "--dtype",
+            "bfloat16",
             "--seed",
             "7",
             "--output-dir",
@@ -2539,7 +2541,7 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
         ]
     )
 
-    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_decode-smoke-float16"
+    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_decode-smoke-bfloat16"
     layout = build_run_layout(tmp_path, run_name)
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
     captured = capsys.readouterr()
@@ -2550,8 +2552,8 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
         "sparse_attention",
     ]
     assert [request.case_id for request in captured_requests] == [
-        "tiny_decode_top4",
-        "tiny_decode_top4",
+        "vllm_ascend_a5_decode_b1_ctx512_top512",
+        "vllm_ascend_a5_decode_b1_ctx512_top512",
     ]
     assert all(request.implementation == "vllm_ascend" for request in captured_requests)
     assert all(request.seed == 7 for request in captured_requests)
@@ -2561,8 +2563,18 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
         "lightning_indexer",
         "sparse_attention",
     ]
-    assert (layout.prepared_dir / "lightning_indexer" / "smoke" / "tiny_decode_top4-float16-seed7.json").exists()
-    assert (layout.prepared_dir / "sparse_attention" / "smoke" / "tiny_decode_top4-float16-seed7.json").exists()
+    assert (
+        layout.prepared_dir
+        / "lightning_indexer"
+        / "smoke"
+        / "vllm_ascend_a5_decode_b1_ctx512_top512-bfloat16-seed7.json"
+    ).exists()
+    assert (
+        layout.prepared_dir
+        / "sparse_attention"
+        / "smoke"
+        / "vllm_ascend_a5_decode_b1_ctx512_top512-bfloat16-seed7.json"
+    ).exists()
     assert "[run] bench started run_name=" in captured.out
     assert "mode=local-batch cases=2" in captured.out
 

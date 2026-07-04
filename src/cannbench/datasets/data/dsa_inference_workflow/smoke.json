@@ -2,7 +2,7 @@
   "name": "smoke",
   "cases": [
     {
-      "case_id": "tiny_decode_top4",
+      "case_id": "vllm_ascend_a5_decode_b1_ctx512_top512",
       "workflow": "dsa_decode",
       "phase": "decode",
       "family": "decode_workflow"

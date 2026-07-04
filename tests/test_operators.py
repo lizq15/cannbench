@@ -235,7 +235,7 @@ def test_lightning_indexer_dataset_is_registered():
 
     assert dataset.name == "lightning_indexer"
     assert dataset.dataset_namespace == "lightning_indexer"
-    assert len(dataset.get("smoke").cases) == 3
+    assert len(dataset.get("smoke").cases) == 4
 
 
 def test_sparse_attention_dataset_is_registered():

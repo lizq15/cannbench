@@ -314,7 +314,7 @@ def test_lightning_indexer_dataset_loads_builtin_splits():
     stress = get_lightning_indexer_dataset("stress")
 
     assert smoke.name == "smoke"
-    assert len(smoke.cases) == 3
+    assert len(smoke.cases) == 4
     assert {case.source_project for case in realistic.cases} >= {"TritonBench"}
     assert len(stress.cases) >= 3
 
@@ -332,6 +332,21 @@ def test_materialized_lightning_indexer_inputs_are_deterministic_for_same_seed()
     assert left["query"] == right["query"]
     assert left["keys"] == right["keys"]
     assert left["weights"] == right["weights"]
+
+
+def test_lightning_indexer_smoke_includes_vllm_ascend_a5_case():
+    case = get_lightning_indexer_case(
+        "smoke", "vllm_ascend_a5_decode_b1_ctx512_top512"
+    )
+
+    assert case.batch == 1
+    assert case.query_tokens == 1
+    assert case.context_tokens == 512
+    assert case.index_heads == 64
+    assert case.index_dim == 128
+    assert case.top_k == 512
+    assert case.source_project == "vllm-ascend"
+    assert case.source_op == "npu_vllm_quant_lightning_indexer"
 
 
 def test_get_sparse_attention_case_preserves_realistic_source_metadata():
@@ -376,6 +391,23 @@ def test_sparse_attention_smoke_includes_vllm_ascend_sharedkv_case():
     assert case.phase == "decode"
     assert case.source_project == "vllm-ascend"
     assert case.source_op == "npu_sparse_attn_sharedkv"
+
+
+def test_sparse_attention_smoke_includes_vllm_ascend_a5_case():
+    case = get_sparse_attention_case(
+        "smoke", "vllm_ascend_a5_decode_b1_ctx512_top512"
+    )
+
+    assert case.batch == 1
+    assert case.query_heads == 64
+    assert case.kv_heads == 1
+    assert case.query_tokens == 1
+    assert case.context_tokens == 512
+    assert case.selected_tokens == 512
+    assert case.head_dim == 512
+    assert case.phase == "decode"
+    assert case.source_project == "vllm-ascend"
+    assert case.source_op == "npu_kv_quant_sparse_attn_sharedkv"
 
 
 def test_materialized_sparse_attention_inputs_are_deterministic_for_same_seed():

@@ -10,14 +10,14 @@ from cannbench.datasets.dsa_workflow import (
 def test_build_decode_workflow_uses_indexer_then_sparse_decode():
     workflow = build_dsa_inference_workflow(
         dataset="smoke",
-        case_id="tiny_decode_top4",
-        dtype="float16",
+        case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
+        dtype="bfloat16",
         seed=7,
     )
 
     assert workflow.phase == "decode"
     assert workflow.dataset == "smoke"
-    assert workflow.case_id == "tiny_decode_top4"
+    assert workflow.case_id == "vllm_ascend_a5_decode_b1_ctx512_top512"
     assert [step.contract for step in workflow.steps] == [
         "dsa_index_select",
         "sparse_mla_decode",
@@ -55,7 +55,9 @@ def test_list_dsa_workflows_filters_to_cases_with_matching_component_cases():
     decode_workflows = list_dsa_inference_workflows("smoke", phase="decode")
     prefill_workflows = list_dsa_inference_workflows("smoke", phase="prefill")
 
-    assert [workflow.case_id for workflow in decode_workflows] == ["tiny_decode_top4"]
+    assert [workflow.case_id for workflow in decode_workflows] == [
+        "vllm_ascend_a5_decode_b1_ctx512_top512",
+    ]
     assert [workflow.case_id for workflow in prefill_workflows] == ["tiny_prefill_top8"]
 
 
@@ -64,7 +66,7 @@ def test_dsa_workflow_dataset_is_the_case_selection_source():
 
     assert dataset.name == "smoke"
     assert [case.case_id for case in dataset.cases] == [
-        "tiny_decode_top4",
+        "vllm_ascend_a5_decode_b1_ctx512_top512",
         "tiny_prefill_top8",
     ]
     assert [case.workflow for case in dataset.cases] == [
@@ -122,8 +124,8 @@ def test_dsa_workflow_api_is_exported_from_datasets_package():
 
     workflow = exported_builder(
         dataset="smoke",
-        case_id="tiny_decode_top4",
-        dtype="float16",
+        case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
+        dtype="bfloat16",
         seed=0,
     )
 
