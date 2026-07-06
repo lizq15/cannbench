@@ -82,7 +82,7 @@ def _build_profile_kernel_selection(ctx: ProfileKernelSelectionContext):
         return ProfileKernelSelection(
             kernel_name_patterns=("index_add", "aten_index_add")
         )
-    return ProfileKernelSelection(kernel_name_patterns=("index_add",))
+    return ProfileKernelSelection(kernel_name_patterns=("indexadd", "inplaceindexadd"))
 
 
 def _profile_launch_count(ctx: ProfileKernelSelectionContext) -> int | None:
@@ -94,6 +94,12 @@ def _profile_launch_count(ctx: ProfileKernelSelectionContext) -> int | None:
         and ctx.iterations is not None
     ):
         return ctx.iterations * 2
+    if (
+        ctx.backend == "ascend"
+        and ctx.implementation != "simt"
+        and ctx.iterations is not None
+    ):
+        return ctx.iterations * 10
     return None
 
 

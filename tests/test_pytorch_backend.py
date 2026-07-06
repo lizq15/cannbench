@@ -459,6 +459,66 @@ def test_ascend_backend_profiles_index_add_with_msprof(monkeypatch):
     assert captured["env"]["CANNBENCH_SKIP_SIMT_INSTALL"] == "1"
 
 
+def test_ascend_backend_profiles_cann_index_add_past_tensor_move(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeNpu:
+        @staticmethod
+        def is_available():
+            return True
+
+        @staticmethod
+        def get_device_name(device):
+            del device
+            return "Ascend 950PR"
+
+    class FakeTorch:
+        npu = FakeNpu()
+        device = staticmethod(lambda kind: kind)
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+
+    def fake_run(command, cwd=None, env=None, text=None, capture_output=None, check=None):
+        del env, text, capture_output, check
+        captured["command"] = command
+        profile_dir = cwd / "profile"
+        perf_dir = cwd / "perf"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        perf_dir.mkdir(parents=True, exist_ok=True)
+        (profile_dir / "summary.csv").write_text(
+            "Op Name,Task Duration(us)\n"
+            "TensorMove_d2db1a80c523e7e59a032c95969880af_high_performance_2,4.588\n"
+            "InplaceIndexAdd_20d0b91f852eb04b8f161ab3cc623d32_high_performance_101001_mix_aiv,9.750\n",
+            encoding="utf-8",
+        )
+        (perf_dir / "benchmark.json").write_text("{}\n", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        implementation="cann_ops_library",
+        op="index_add",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_rank2_index_add",
+        warmup=0,
+        iterations=1,
+        seed=7,
+    )
+
+    result = AscendBackend().profile_operator_device_time(request)
+
+    command = captured["command"]
+    assert "--launch-count=10" in command
+    assert result.profile.profile_summary.sample_count == 1
+    assert result.profile.profile_summary.latency_ms_avg == 0.00975
+
+
 def test_ascend_backend_installs_simt_before_msprof_without_deploying_inside(monkeypatch):
     captured: dict[str, object] = {}
 

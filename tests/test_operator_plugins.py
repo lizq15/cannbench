@@ -136,6 +136,14 @@ def test_dsa_workflow_specifics_live_under_operator_packages():
     assert not Path("src/cannbench/operators/builtin/_dsa_fused.py").exists()
 
 
+def test_index_add_implementation_tests_live_under_operator_package():
+    assert not Path("tests/test_index_add_simt.py").exists()
+    assert Path(
+        "src/cannbench/operators/builtin/index_add/simt/test/"
+        "test_ascend_index_add_simt_op.py"
+    ).is_file()
+
+
 def test_softmax_operator_plugin_owns_dataset_and_materialization():
     plugin = get_operator_plugin("softmax")
 

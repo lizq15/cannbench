@@ -142,6 +142,31 @@ def test_index_add_plugin_profile_patterns_reject_cast_only_profile(tmp_path):
             backend="ascend",
             kernel_selection=selection,
         )
+
+
+def test_index_add_plugin_profile_patterns_filter_cann_tensor_move(tmp_path):
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir()
+    (profile_dir / "OpBasicInfo.csv").write_text(
+        "Op Name,Task Duration(us)\n"
+        "TensorMove_d2db1a80c523e7e59a032c95969880af_high_performance_2,4.588\n"
+        "InplaceIndexAdd_20d0b91f852eb04b8f161ab3cc623d32_high_performance_101001_mix_aiv,9.750\n"
+    )
+
+    selection = get_operator_plugin("index_add").profile_kernel_selection(
+        backend="ascend",
+        implementation="cann_ops_library",
+        implementation_version=None,
+    )
+
+    assert selection.kernel_name_patterns == ("indexadd", "inplaceindexadd")
+    summary = read_device_profile(
+        profile_dir,
+        backend="ascend",
+        kernel_selection=selection,
+    )
+    assert summary.sample_count == 1
+    assert summary.latency_ms_avg == 0.00975
 def test_write_device_profile_summary_json(tmp_path):
     profile_dir = tmp_path / "profile"
     profile_dir.mkdir()
