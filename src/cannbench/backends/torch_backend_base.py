@@ -48,6 +48,22 @@ class TorchOperatorBackend(OperatorBackend):
         del request
         return torch.softmax(tensor, dim=dim)
 
+    def _index_add_index_dtype(self, torch, request: OperatorBenchmarkRequest):
+        del request
+        return torch.long
+
+    def _index_add(
+        self,
+        torch,
+        input_tensor,
+        dim: int,
+        index_tensor,
+        src_tensor,
+        request: OperatorBenchmarkRequest,
+    ):
+        del request
+        return torch.index_add(input_tensor, dim, index_tensor, src_tensor)
+
     def _topk(self, torch, tensor, payload):
         return torch.topk(
             tensor,

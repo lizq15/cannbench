@@ -39,6 +39,58 @@
       "source_model": "OPTForCausalLM",
       "source_file": "hf_train/OPTForCausalLM_train.json",
       "source_op": "torch.index_add"
+    },
+    {
+      "case_id": "basic_gnn_gin_neighbor_index_add",
+      "family": "gnn_neighbor_accumulation",
+      "input_shape": [10000, 64],
+      "index_shape": [200000],
+      "src_shape": [200000, 64],
+      "dim": -2,
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "basic_gnn_gin",
+      "source_file": "torchbench_train/basic_gnn_gin_train.json",
+      "source_op": "torch.index_add"
+    },
+    {
+      "case_id": "bigbird_block_index_add",
+      "family": "block_sparse_accumulation",
+      "input_shape": [384, 64, 64],
+      "index_shape": [1008],
+      "src_shape": [1008, 64, 64],
+      "dim": 0,
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "hf_BigBird",
+      "source_file": "torchbench_train/hf_BigBird_train.json",
+      "source_op": "torch.index_add"
+    },
+    {
+      "case_id": "xlnet_memory_index_add",
+      "family": "memory_accumulation",
+      "input_shape": [8, 16, 512, 1023],
+      "index_shape": [512],
+      "src_shape": [8, 16, 512, 512],
+      "dim": 3,
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "XLNetLMHeadModel",
+      "source_file": "hf_train/XLNetLMHeadModel_train.json",
+      "source_op": "torch.index_add"
+    },
+    {
+      "case_id": "allenai_longformer_large_index_add_inplace",
+      "family": "longformer_global_accumulation",
+      "input_shape": [4718592],
+      "index_shape": [9437184],
+      "src_shape": [9437184],
+      "dim": 0,
+      "source_kind": "real_model",
+      "source_project": "TritonBench",
+      "source_model": "AllenaiLongformerBase",
+      "source_file": "hf_train/AllenaiLongformerBase_train.json",
+      "source_op": "torch.Tensor.index_add_"
     }
   ]
 }

@@ -23,6 +23,7 @@ from cannbench.operators.materialize import materialized_values_to_buffer
 
 _CUDA_DSA_ADAPTER_ENV = "CANNBENCH_CUDA_DSA_ADAPTER"
 _DEFAULT_CUDA_DSA_ADAPTER_MODULE = "cannbench_cuda_dsa"
+_SKIP_SIMT_INSTALL_ENV = "CANNBENCH_SKIP_SIMT_INSTALL"
 
 
 def _subprocess_pythonpath() -> str:
@@ -34,6 +35,24 @@ def _subprocess_pythonpath() -> str:
     if src_root in parts:
         return existing
     return os.pathsep.join((src_root, existing))
+
+
+def _ascend_msprof_op_options(
+    profile_dir: Path,
+    request: OperatorBenchmarkRequest,
+) -> list[str]:
+    launch_count = get_operator_plugin(request.op).device_profile_launch_count(
+        backend="ascend",
+        implementation=request.implementation,
+        implementation_version=request.implementation_version,
+        dtype=request.dtype,
+        iterations=request.iterations,
+    )
+    return [
+        f"--output={profile_dir}",
+        f"--warm-up={request.warmup}",
+        f"--launch-count={launch_count}",
+    ]
 
 
 class NvidiaBackend(TorchOperatorBackend):
@@ -236,6 +255,16 @@ class AscendBackend(TorchOperatorBackend):
     def __init__(self) -> None:
         super().__init__(name="ascend", device_type="npu")
 
+    def _torch_module(self):
+        try:
+            import torch_npu  # noqa: F401
+        except ModuleNotFoundError as exc:
+            raise RuntimeError("torch_npu is required for the ascend backend") from exc
+        return super()._torch_module()
+
+    def _availability_error(self) -> str:
+        return "Ascend NPU is required for the ascend backend"
+
     def profile_operator_device_time(
         self, request: OperatorBenchmarkRequest
     ) -> LocalDeviceProfileResult:
@@ -263,11 +292,7 @@ class AscendBackend(TorchOperatorBackend):
             command = [
                 "msprof",
                 "op",
-                f"--output={profile_dir}",
-                "--warm-up",
-                str(request.warmup),
-                "--launch-count",
-                str(request.iterations),
+                *_ascend_msprof_op_options(profile_dir, request),
                 sys.executable,
                 "-m",
                 "cannbench",
@@ -292,7 +317,11 @@ class AscendBackend(TorchOperatorBackend):
             result = subprocess.run(
                 command,
                 cwd=temp_dir,
-                env={**os.environ, "PYTHONPATH": _subprocess_pythonpath()},
+                env={
+                    **os.environ,
+                    "PYTHONPATH": _subprocess_pythonpath(),
+                    _SKIP_SIMT_INSTALL_ENV: "1",
+                },
                 text=True,
                 capture_output=True,
                 check=False,
@@ -303,8 +332,7 @@ class AscendBackend(TorchOperatorBackend):
                 if result.stderr:
                     print(result.stderr, end="", file=sys.stderr, flush=True)
                 raise RuntimeError(
-                    "msprof op profiling failed "
-                    f"(exit {result.returncode}): {result.stderr.strip()}"
+                    f"msprof profiling failed (exit {result.returncode}): {result.stderr.strip()}"
                 )
             if result.stdout:
                 print(result.stdout, end="", flush=True)
@@ -346,16 +374,6 @@ class AscendBackend(TorchOperatorBackend):
             ),
             profile=profile,
         )
-
-    def _torch_module(self):
-        try:
-            import torch_npu  # noqa: F401
-        except ModuleNotFoundError as exc:
-            raise RuntimeError("torch_npu is required for the ascend backend") from exc
-        return super()._torch_module()
-
-    def _availability_error(self) -> str:
-        return "Ascend NPU is required for the ascend backend"
 
     def _ensure_vllm_ascend_custom_ops_loaded(self) -> None:
         try:
@@ -520,7 +538,10 @@ class AscendBackend(TorchOperatorBackend):
         )
 
     def _before_run_operator(self, request: OperatorBenchmarkRequest) -> None:
-        if request.implementation == "simt":
+        if (
+            request.implementation == "simt"
+            and os.environ.get(_SKIP_SIMT_INSTALL_ENV) != "1"
+        ):
             self._install_simt_op(request, request.op)
 
     def _simt_op_root(self, op_name: str):
@@ -573,6 +594,7 @@ class AscendBackend(TorchOperatorBackend):
         result = subprocess.run(
             [str(script_path)],
             cwd=script_path.parent,
+            env={**os.environ, "PYTHON": sys.executable},
             text=True,
             capture_output=True,
             check=False,

@@ -381,6 +381,152 @@ def test_ascend_backend_resolves_simt_op_under_plugin_directory(monkeypatch, tmp
     assert backend._simt_op_base_dir(request, "softmax") == op_dir
 
 
+def test_ascend_backend_profiles_index_add_with_msprof(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeNpu:
+        @staticmethod
+        def is_available():
+            return True
+
+        @staticmethod
+        def get_device_name(device):
+            del device
+            return "Ascend 950PR"
+
+    class FakeTorch:
+        npu = FakeNpu()
+        device = staticmethod(lambda kind: kind)
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    monkeypatch.setattr(AscendBackend, "_install_simt_op", lambda self, request, op_name: None)
+
+    def fake_run(command, cwd=None, env=None, text=None, capture_output=None, check=None):
+        del text, capture_output, check
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["env"] = env
+        profile_dir = cwd / "profile"
+        perf_dir = cwd / "perf"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        perf_dir.mkdir(parents=True, exist_ok=True)
+        (profile_dir / "summary.csv").write_text(
+            "Op Name,Task Duration(us)\nindex_add,1000\n",
+            encoding="utf-8",
+        )
+        (perf_dir / "benchmark.json").write_text("{}\n", encoding="utf-8")
+        return SimpleNamespace(returncode=0, stdout="[msprof]\n", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+        op="index_add",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_rank2_index_add",
+        warmup=2,
+        iterations=3,
+        seed=7,
+    )
+
+    result = AscendBackend().profile_operator_device_time(request)
+
+    command = captured["command"]
+    assert command[:3] == ["msprof", "op", f"--output={captured['cwd'] / 'profile'}"]
+    assert "--launch-skip-before-match=1" not in command
+    assert "--warm-up=2" in command
+    assert "--launch-count=6" in command
+    assert "internal-run" in command
+    assert command[command.index("--backend") + 1] == "ascend"
+    assert command[command.index("--warmup") + 1] == "2"
+    assert command[command.index("--iterations") + 1] == "3"
+    assert command[command.index("--implementation") + 1] == "simt"
+    assert result.profile.device_name == "Ascend 950PR"
+    assert result.profile.profile_summary.backend == "ascend"
+    assert result.profile.profile_summary.latency_ms_avg == 1.0
+    assert (
+        "summary.csv",
+        b"Op Name,Task Duration(us)\nindex_add,1000\n",
+    ) in result.profile.profile_artifacts
+    assert captured["env"]["PYTHONPATH"]
+    assert captured["env"]["CANNBENCH_SKIP_SIMT_INSTALL"] == "1"
+
+
+def test_ascend_backend_installs_simt_before_msprof_without_deploying_inside(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class FakeNpu:
+        @staticmethod
+        def is_available():
+            return True
+
+        @staticmethod
+        def get_device_name(device):
+            del device
+            return "Ascend 950PR"
+
+    class FakeTorch:
+        npu = FakeNpu()
+        device = staticmethod(lambda kind: kind)
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(
+        backend,
+        "_install_simt_op",
+        lambda request, op_name: captured.setdefault(
+            "installed", (op_name, request.implementation_version)
+        ),
+    )
+
+    def fake_run(command, cwd=None, env=None, text=None, capture_output=None, check=None):
+        del env, text, capture_output, check
+        captured["command"] = command
+        profile_dir = cwd / "profile"
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        (profile_dir / "summary.csv").write_text(
+            "Op Name,Task Duration(us)\nindex_add,1000\n",
+            encoding="utf-8",
+        )
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+        op="index_add",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_rank2_index_add",
+        warmup=0,
+        iterations=1,
+    )
+
+    backend.profile_operator_device_time(request)
+
+    command = captured["command"]
+    assert captured["installed"] == ("index_add", "v1")
+    assert "--launch-skip-before-match=1" not in command
+    assert "--warm-up=0" in command
+    assert "--launch-count=2" in command
+    assert "--use-simt-op" not in command
+    assert command[command.index("--implementation") + 1] == "simt"
+    assert command[command.index("--implementation-version") + 1] == "v1"
+
+
 def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
     captured: dict[str, object] = {"torch_softmax_calls": 0, "simt_calls": 0}
 
@@ -437,6 +583,78 @@ def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
 
     assert captured["simt_calls"] == 5
     assert captured["torch_softmax_calls"] == 0
+
+
+def test_ascend_backend_runs_simt_index_add_through_registered_op(monkeypatch):
+    captured: dict[str, object] = {
+        "torch_index_add_calls": 0,
+        "simt_calls": 0,
+        "tensor_dtypes": [],
+    }
+
+    class FakeTensor:
+        def reshape(self, *shape):
+            del shape
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.npu = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake Ascend",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.int32 = "int32"
+            self.long = "long"
+            self.tensor = self._tensor
+            self.index_add = self._index_add
+
+        def _tensor(self, values, device=None, dtype=None):
+            del values, device
+            captured["tensor_dtypes"].append(dtype)
+            return FakeTensor()
+
+        def _index_add(self, input_tensor, dim, index_tensor, src_tensor):
+            del input_tensor, dim, index_tensor, src_tensor
+            captured["torch_index_add_calls"] += 1
+            return FakeTensor()
+
+    fake_ops_module = SimpleNamespace(
+        index_add_forward=lambda input_tensor, dim, index_tensor, src_tensor: captured.__setitem__(
+            "simt_calls", captured["simt_calls"] + 1
+        )
+        or input_tensor
+    )
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "aten_index_add", SimpleNamespace(ops=fake_ops_module))
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_install_simt_op", lambda request, op_name: None)
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+        op="index_add",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_rank2_index_add",
+        warmup=2,
+        iterations=3,
+        seed=7,
+    )
+
+    result = backend.run_operator(request)
+
+    assert result.op == "index_add"
+    assert captured["simt_calls"] == 5
+    assert captured["torch_index_add_calls"] == 0
+    assert captured["tensor_dtypes"][1] == "int32"
 
 
 @pytest.mark.parametrize(
@@ -941,8 +1159,8 @@ def test_ascend_profile_operator_device_time_uses_msprof_launch_controls(monkeyp
 
     command = captured["profile_command"]
     assert command[:2] == ["msprof", "op"]
-    assert command[command.index("--warm-up") + 1] == "3"
-    assert command[command.index("--launch-count") + 1] == "5"
+    assert "--warm-up=3" in command
+    assert "--launch-count=5" in command
     assert command[command.index("--warmup") + 1] == "3"
     assert command[command.index("--iterations") + 1] == "5"
     assert "internal-run" in command

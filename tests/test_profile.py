@@ -7,6 +7,7 @@ from cannbench.core.profile import (
     read_device_profile,
     write_device_profile_summary,
 )
+from cannbench.operators import get_operator_plugin
 
 
 def test_read_ascend_msprof_csv_duration_summary(tmp_path):
@@ -120,6 +121,27 @@ def test_read_device_profile_rejects_unexpected_kernel_name(tmp_path):
         )
 
 
+def test_index_add_plugin_profile_patterns_reject_cast_only_profile(tmp_path):
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir()
+    (profile_dir / "OpBasicInfo.csv").write_text(
+        "Op Name,Task Duration(us)\n"
+        "Cast_39a266ce9a8d7d9ead33f6686e936b72_high_performance_0,2.323\n"
+    )
+
+    selection = get_operator_plugin("index_add").profile_kernel_selection(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+    )
+
+    assert selection.kernel_name_patterns == ("index_add", "aten_index_add")
+    with pytest.raises(ValueError, match="expected profiler kernel"):
+        read_device_profile(
+            profile_dir,
+            backend="ascend",
+            kernel_selection=selection,
+        )
 def test_write_device_profile_summary_json(tmp_path):
     profile_dir = tmp_path / "profile"
     profile_dir.mkdir()

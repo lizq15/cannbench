@@ -24,6 +24,8 @@ class ProfileKernelSelectionContext:
     backend: str
     implementation: str | None
     implementation_version: str | None
+    dtype: str | None = None
+    iterations: int | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,7 @@ class OperatorPlugin:
     build_workflow: Callable[..., Any] | None = None
     list_workflows: Callable[..., tuple[Any, ...]] | None = None
     component_operator_names: tuple[str, ...] = ()
+    profile_launch_count: Callable[[ProfileKernelSelectionContext], int | None] | None = None
 
     def build_result_case(self, case: Any) -> OperatorCase:
         return OperatorCase(
@@ -73,3 +76,25 @@ class OperatorPlugin:
                 )
             )
         return ProfileKernelSelection(kernel_name_patterns=(self.spec.name,))
+
+    def device_profile_launch_count(
+        self,
+        *,
+        backend: str,
+        implementation: str | None,
+        implementation_version: str | None,
+        dtype: str,
+        iterations: int,
+    ) -> int:
+        if self.profile_launch_count is None:
+            return iterations
+        value = self.profile_launch_count(
+            ProfileKernelSelectionContext(
+                backend=backend,
+                implementation=implementation,
+                implementation_version=implementation_version,
+                dtype=dtype,
+                iterations=iterations,
+            )
+        )
+        return iterations if value is None else value
