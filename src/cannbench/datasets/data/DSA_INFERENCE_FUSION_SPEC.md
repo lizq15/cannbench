@@ -54,6 +54,16 @@ entry points receive the materialized CannBench tensors, request metadata, case
 metadata, and payload, and are responsible for calling the installed
 FlashMLA/DeepGEMM APIs with the library-native layout.
 
+The built-in `cannbench_cuda_dsa` module is only this thin dispatch layer. It
+does not implement CUDA kernels. Configure it with:
+
+- `CANNBENCH_CUDA_DSA_LIGHTNING_INDEXER=<module>:<callable>`
+- `CANNBENCH_CUDA_DSA_SPARSE_ATTENTION=<module>:<callable>`
+
+The configured callables should wrap the installed FlashMLA/DeepGEMM or
+production CUDA DSA APIs. Without those environment variables or importable
+fallback symbols, the adapter fails with an explicit dependency error.
+
 ### Ascend / CANN
 
 The generic `ascend/cann-ops` repository exposes useful primitives such as
