@@ -1,0 +1,16 @@
+{
+  "name": "smoke",
+  "cases": [
+    {
+      "case_id": "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
+      "workflow": "dsa_prefill",
+      "phase": "prefill",
+      "family": "prefill_workflow",
+      "source_kind": "library_compatible_smoke",
+      "source_project": "vllm-ascend",
+      "source_model": "DeepSeek-V4-compatible",
+      "source_file": "csrc/attention/dsa_fused_workflow",
+      "source_op": "dsa_prefill"
+    }
+  ]
+}

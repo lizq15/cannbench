@@ -1,5 +1,5 @@
 {
-  "name": "realistic_prefill",
+  "name": "realistic",
   "cases": [
     {
       "case_id": "deepseek_a5_prefill_b1_q64_ctx512_top512",

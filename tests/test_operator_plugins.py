@@ -21,6 +21,19 @@ def test_operator_plugins_are_self_contained_packages():
         assert (operator_root / "data" / "stress.json").is_file(), operator_name
 
 
+def test_dsa_decode_and_prefill_are_registered_as_fused_operators():
+    decode = get_operator_plugin("dsa_decode")
+    prefill = get_operator_plugin("dsa_prefill")
+
+    assert decode.spec.name == "dsa_decode"
+    assert decode.spec.runner_name == "dsa_decode"
+    assert [case.phase for case in decode.get_dataset("smoke").cases] == ["decode"]
+
+    assert prefill.spec.name == "dsa_prefill"
+    assert prefill.spec.runner_name == "dsa_prefill"
+    assert [case.phase for case in prefill.get_dataset("smoke").cases] == ["prefill"]
+
+
 def test_operator_datasets_are_not_kept_under_legacy_dataset_data_root():
     legacy_root = Path("src/cannbench/datasets/data")
 

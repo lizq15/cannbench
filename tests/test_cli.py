@@ -213,7 +213,7 @@ def test_build_parser_accepts_external_dsa_implementations():
     assert _build_request_from_args(nvidia_args).implementation == "cuda_library"
 
 
-def test_build_parser_accepts_dsa_inference_workflow():
+def test_build_parser_accepts_dsa_fused_operator():
     parser = build_parser()
     args = parser.parse_args(
         [
@@ -222,20 +222,19 @@ def test_build_parser_accepts_dsa_inference_workflow():
             "ascend",
             "--implementation",
             "vllm_ascend",
-            "--workflow",
+            "--op",
             "dsa_decode",
             "--dataset",
             "smoke",
             "--case-id",
-            "tiny_decode_top4",
+            "vllm_ascend_a5_decode_b1_ctx512_top512",
         ]
     )
 
-    assert args.workflow == "dsa_decode"
-    assert args.op is None
+    assert args.op == "dsa_decode"
 
 
-def test_build_parser_accepts_dsa_phase_specific_datasets():
+def test_build_parser_accepts_dsa_fused_operator_standard_datasets():
     parser = build_parser()
     decode_args = parser.parse_args(
         [
@@ -244,10 +243,10 @@ def test_build_parser_accepts_dsa_phase_specific_datasets():
             "nvidia",
             "--implementation",
             "cuda_library",
-            "--workflow",
+            "--op",
             "dsa_decode",
             "--dataset",
-            "realistic_decode",
+            "realistic",
         ]
     )
     prefill_args = parser.parse_args(
@@ -257,15 +256,15 @@ def test_build_parser_accepts_dsa_phase_specific_datasets():
             "ascend",
             "--implementation",
             "vllm_ascend",
-            "--workflow",
+            "--op",
             "dsa_prefill",
             "--dataset",
-            "realistic_prefill",
+            "stress",
         ]
     )
 
-    assert decode_args.dataset == "realistic_decode"
-    assert prefill_args.dataset == "realistic_prefill"
+    assert decode_args.dataset == "realistic"
+    assert prefill_args.dataset == "stress"
 
 
 def test_build_canonical_run_name_uses_simt_version():
@@ -2175,32 +2174,7 @@ def test_main_rejects_prepared_input_and_prepared_dir_together(tmp_path, capsys)
     assert "--prepared-input and --prepared-dir are mutually exclusive" in captured.err
 
 
-def test_main_rejects_workflow_with_op(capsys):
-    with pytest.raises(SystemExit) as excinfo:
-        main(
-            [
-                "bench",
-                "--backend",
-                "ascend",
-                "--implementation",
-                "vllm_ascend",
-                "--workflow",
-                "dsa_decode",
-                "--op",
-                "softmax",
-                "--dataset",
-                "smoke",
-                "--case-id",
-                "vllm_ascend_a5_decode_b1_ctx512_top512",
-            ]
-        )
-
-    captured = capsys.readouterr()
-    assert excinfo.value.code == 2
-    assert "--op cannot be used with --workflow" in captured.err
-
-
-def test_main_rejects_workflow_with_prepared_input(tmp_path, capsys):
+def test_main_rejects_dsa_fused_operator_with_prepared_input(tmp_path, capsys):
     prepared_path = tmp_path / "prepared.json"
     write_prepared_operator_input(
         prepared_path,
@@ -2221,7 +2195,7 @@ def test_main_rejects_workflow_with_prepared_input(tmp_path, capsys):
                 "ascend",
                 "--implementation",
                 "vllm_ascend",
-                "--workflow",
+                "--op",
                 "dsa_decode",
                 "--prepared-input",
                 str(prepared_path),
@@ -2230,10 +2204,10 @@ def test_main_rejects_workflow_with_prepared_input(tmp_path, capsys):
 
     captured = capsys.readouterr()
     assert excinfo.value.code == 2
-    assert "--prepared-input cannot be used with --workflow" in captured.err
+    assert "--prepared-input and --prepared-dir are not supported for DSA fused operators" in captured.err
 
 
-def test_main_rejects_workflow_case_with_wrong_phase(capsys):
+def test_main_rejects_dsa_fused_operator_case_with_wrong_phase(capsys):
     with pytest.raises(SystemExit) as excinfo:
         main(
             [
@@ -2242,7 +2216,7 @@ def test_main_rejects_workflow_case_with_wrong_phase(capsys):
                 "ascend",
                 "--implementation",
                 "vllm_ascend",
-                "--workflow",
+                "--op",
                 "dsa_prefill",
                 "--dataset",
                 "smoke",
@@ -2253,7 +2227,7 @@ def test_main_rejects_workflow_case_with_wrong_phase(capsys):
 
     captured = capsys.readouterr()
     assert excinfo.value.code == 2
-    assert "DSA workflow phase mismatch" in captured.err
+    assert "Unknown DSA prefill case" in captured.err
 
 
 def test_main_rejects_direct_selection_without_op(capsys):
@@ -2526,7 +2500,7 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
             "ascend",
             "--implementation",
             "vllm_ascend",
-            "--workflow",
+            "--op",
             "dsa_decode",
             "--dataset",
             "smoke",
@@ -2599,7 +2573,7 @@ def test_main_runs_dsa_prefill_workflow_selection_as_batch(tmp_path, monkeypatch
             "ascend",
             "--implementation",
             "vllm_ascend",
-            "--workflow",
+            "--op",
             "dsa_prefill",
             "--dataset",
             "smoke",
@@ -2627,7 +2601,7 @@ def test_main_runs_dsa_prefill_workflow_selection_as_batch(tmp_path, monkeypatch
     assert summary["metadata"]["total_cases"] == 2
 
 
-def test_main_defaults_dsa_decode_workflow_to_realistic_decode_dataset(
+def test_main_defaults_dsa_decode_fused_operator_to_realistic_dataset(
     tmp_path, monkeypatch
 ):
     captured_requests: list[object] = []
@@ -2649,14 +2623,14 @@ def test_main_defaults_dsa_decode_workflow_to_realistic_decode_dataset(
             "nvidia",
             "--implementation",
             "cuda_library",
-            "--workflow",
+            "--op",
             "dsa_decode",
             "--output-dir",
             str(tmp_path),
         ]
     )
 
-    run_name = "opbench-nvidia-h800-cuda-library-dsa_decode-realistic_decode-float16"
+    run_name = "opbench-nvidia-h800-cuda-library-dsa_decode-realistic-float16"
     layout = build_run_layout(tmp_path, run_name)
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
 
@@ -2673,7 +2647,7 @@ def test_main_defaults_dsa_decode_workflow_to_realistic_decode_dataset(
     assert summary["metadata"]["total_cases"] == 16
 
 
-def test_main_defaults_dsa_prefill_workflow_to_realistic_prefill_dataset(
+def test_main_defaults_dsa_prefill_fused_operator_to_realistic_dataset(
     tmp_path, monkeypatch
 ):
     captured_requests: list[object] = []
@@ -2695,14 +2669,14 @@ def test_main_defaults_dsa_prefill_workflow_to_realistic_prefill_dataset(
             "ascend",
             "--implementation",
             "vllm_ascend",
-            "--workflow",
+            "--op",
             "dsa_prefill",
             "--output-dir",
             str(tmp_path),
         ]
     )
 
-    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_prefill-realistic_prefill-float16"
+    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_prefill-realistic-float16"
     layout = build_run_layout(tmp_path, run_name)
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
 

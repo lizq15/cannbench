@@ -78,17 +78,18 @@ def _check_python_imports(checker: Checker) -> None:
 
 def _check_workflow_cases(checker: Checker, dtype: str, seed: int) -> None:
     try:
-        from cannbench.datasets.dsa_workflow import list_dsa_inference_workflows
+        from cannbench.operators.builtin.dsa_decode import list_dsa_decode_workflows
+        from cannbench.operators.builtin.dsa_prefill import list_dsa_prefill_workflows
     except Exception as exc:
         checker.fail("DSA workflow loader", f"{type(exc).__name__}: {exc}")
         return
 
-    for workflow, dataset in (
-        ("dsa_decode", "realistic_decode"),
-        ("dsa_prefill", "realistic_prefill"),
+    for workflow, dataset, loader in (
+        ("dsa_decode", "realistic", list_dsa_decode_workflows),
+        ("dsa_prefill", "realistic", list_dsa_prefill_workflows),
     ):
         try:
-            workflows = list_dsa_inference_workflows(dataset, dtype=dtype, seed=seed)
+            workflows = loader(dataset, dtype=dtype, seed=seed)
         except Exception as exc:
             checker.fail(f"workflow {workflow}/{dataset}", f"{type(exc).__name__}: {exc}")
             continue
@@ -209,7 +210,7 @@ def _print_next_commands(dtype: str, warmup: int, iterations: int) -> None:
         "CANNBENCH_CUDA_DSA_LIGHTNING_INDEXER=${CANNBENCH_CUDA_DSA_LIGHTNING_INDEXER:-cannbench_cuda_dsa_flashmla_deepgemm:lightning_indexer} "
         "CANNBENCH_CUDA_DSA_SPARSE_ATTENTION=${CANNBENCH_CUDA_DSA_SPARSE_ATTENTION:-cannbench_cuda_dsa_flashmla_deepgemm:sparse_attention} "
         f"PYTHONPATH=src python3 -m cannbench bench --backend nvidia "
-        f"--implementation cuda_library --workflow dsa_decode --dataset realistic_decode "
+        f"--implementation cuda_library --op dsa_decode --dataset realistic "
         f"--dtype {dtype} --warmup {warmup} --iterations {iterations} --output-dir runs"
     )
     print(
@@ -217,7 +218,7 @@ def _print_next_commands(dtype: str, warmup: int, iterations: int) -> None:
         "CANNBENCH_CUDA_DSA_LIGHTNING_INDEXER=${CANNBENCH_CUDA_DSA_LIGHTNING_INDEXER:-cannbench_cuda_dsa_flashmla_deepgemm:lightning_indexer} "
         "CANNBENCH_CUDA_DSA_SPARSE_ATTENTION=${CANNBENCH_CUDA_DSA_SPARSE_ATTENTION:-cannbench_cuda_dsa_flashmla_deepgemm:sparse_attention} "
         f"PYTHONPATH=src python3 -m cannbench bench --backend nvidia "
-        f"--implementation cuda_library --workflow dsa_prefill --dataset realistic_prefill "
+        f"--implementation cuda_library --op dsa_prefill --dataset realistic "
         f"--dtype {dtype} --warmup {warmup} --iterations {iterations} --output-dir runs"
     )
 

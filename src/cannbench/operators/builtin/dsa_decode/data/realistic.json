@@ -1,5 +1,5 @@
 {
-  "name": "realistic_decode",
+  "name": "realistic",
   "cases": [
     {
       "case_id": "deepseek_a5_decode_b1_ctx512_top512",

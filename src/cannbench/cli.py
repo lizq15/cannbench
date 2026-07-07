@@ -51,9 +51,14 @@ from cannbench.core.execution import (
     LocalBenchExecutor,
     RemoteBenchExecutor,
 )
-from cannbench.datasets.dsa_workflow import (
-    build_dsa_inference_workflow,
-    list_dsa_inference_workflows,
+from cannbench.operators.builtin._dsa_fused import DSA_FUSED_OPERATORS
+from cannbench.operators.builtin.dsa_decode import (
+    build_dsa_decode_workflow,
+    list_dsa_decode_workflows,
+)
+from cannbench.operators.builtin.dsa_prefill import (
+    build_dsa_prefill_workflow,
+    list_dsa_prefill_workflows,
 )
 from cannbench.operators import list_operator_names
 
@@ -106,7 +111,6 @@ def _benchmark_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--implementation-version")
     parser.add_argument("--op", choices=list_operator_names())
-    parser.add_argument("--workflow", choices=["dsa_decode", "dsa_prefill"])
     parser.add_argument("--dtype", default="float16")
     parser.add_argument(
         "--dataset",
@@ -163,9 +167,14 @@ def _build_request_from_prepared(
     args: argparse.Namespace,
 ) -> OperatorBenchmarkRequest:
     if args.op and prepared.op != args.op:
-        raise ValueError(
-            f"prepared input operator mismatch: expected {args.op}, got {prepared.op}"
+        is_dsa_component = (
+            args.op in DSA_FUSED_OPERATORS
+            and prepared.op in {"lightning_indexer", "sparse_attention"}
         )
+        if not is_dsa_component:
+            raise ValueError(
+                f"prepared input operator mismatch: expected {args.op}, got {prepared.op}"
+            )
     return OperatorBenchmarkRequest(
         backend=args.backend,
         op=prepared.op,
@@ -286,20 +295,13 @@ def _validate_benchmark_selection(
     case_id = getattr(args, "case_id", None)
     dataset = getattr(args, "dataset", None)
     op = getattr(args, "op", None)
-    workflow = getattr(args, "workflow", None)
 
     if prepared_input is not None and prepared_dir is not None:
         raise ValueError("--prepared-input and --prepared-dir are mutually exclusive")
-    if workflow is not None:
-        if not allow_batch:
-            raise ValueError("--workflow is only supported for bench")
-        if op:
-            raise ValueError("--op cannot be used with --workflow")
-        if prepared_input is not None:
-            raise ValueError("--prepared-input cannot be used with --workflow")
-        if prepared_dir is not None:
-            raise ValueError("--prepared-dir cannot be used with --workflow")
-        return
+    if op in DSA_FUSED_OPERATORS and (prepared_input is not None or prepared_dir is not None):
+        raise ValueError("--prepared-input and --prepared-dir are not supported for DSA fused operators")
+    if op in DSA_FUSED_OPERATORS and not allow_batch:
+        raise ValueError("DSA fused operators are only supported for bench")
     if (prepared_input is not None or prepared_dir is not None) and getattr(args, "dataset_provided", False):
         raise ValueError("--dataset cannot be used with --prepared-input or --prepared-dir")
     if (prepared_input is not None or prepared_dir is not None) and case_id is not None:
@@ -364,19 +366,12 @@ def _build_canonical_run_name(
     )
 
 
-def _workflow_phase(workflow: str) -> str:
-    if workflow == "dsa_decode":
+def _dsa_fused_operator_phase(op: str) -> str:
+    if op == "dsa_decode":
         return "decode"
-    if workflow == "dsa_prefill":
+    if op == "dsa_prefill":
         return "prefill"
-    raise ValueError(f"unsupported DSA workflow: {workflow}")
-
-
-def _resolve_workflow_dataset(args: argparse.Namespace) -> str:
-    if getattr(args, "dataset_provided", False):
-        return args.dataset
-    phase = _workflow_phase(args.workflow)
-    return "realistic_decode" if phase == "decode" else "realistic_prefill"
+    raise ValueError(f"unsupported DSA fused operator: {op}")
 
 
 def _resolve_bench_run_name(
@@ -385,20 +380,20 @@ def _resolve_bench_run_name(
 ) -> str:
     if args.run_name:
         return args.run_name
-    workflow = getattr(args, "workflow", None)
-    if workflow is not None:
-        signatures = {(plan.dataset, plan.dtype) for plan in plans}
+    op_arg = getattr(args, "op", None)
+    if op_arg in DSA_FUSED_OPERATORS:
+        signatures = {plan.dtype for plan in plans}
         if len(signatures) != 1:
             raise ValueError(
-                "automatic workflow run-name requires a single dataset/dtype combination"
+                "automatic DSA fused run-name requires a single dtype combination"
             )
-        dataset, dtype = next(iter(signatures))
+        dtype = next(iter(signatures))
         return _build_canonical_run_name(
             backend=args.backend,
             implementation=getattr(args, "implementation", None),
             implementation_version=getattr(args, "implementation_version", None),
-            op=workflow,
-            dataset=dataset,
+            op=op_arg,
+            dataset=args.dataset,
             dtype=dtype,
         )
     signatures = {(plan.op, plan.dataset, plan.dtype) for plan in plans}
@@ -488,29 +483,28 @@ def _plan_from_workflow_step(step) -> PreparedInputPlan:
     )
 
 
-def _plans_from_dsa_workflow_selection(args: argparse.Namespace) -> list[PreparedInputPlan]:
-    phase = _workflow_phase(args.workflow)
-    dataset = _resolve_workflow_dataset(args)
+def _plans_from_dsa_fused_operator_selection(args: argparse.Namespace) -> list[PreparedInputPlan]:
+    phase = _dsa_fused_operator_phase(args.op)
+    dataset = args.dataset
+    build_workflow = (
+        build_dsa_decode_workflow if args.op == "dsa_decode" else build_dsa_prefill_workflow
+    )
+    list_workflows = (
+        list_dsa_decode_workflows if args.op == "dsa_decode" else list_dsa_prefill_workflows
+    )
     if args.case_id is not None:
         workflows = [
-            build_dsa_inference_workflow(
+            build_workflow(
                 dataset=dataset,
                 case_id=args.case_id,
                 dtype=args.dtype,
                 seed=args.seed,
             )
         ]
-        actual_phase = workflows[0].phase
-        if actual_phase != phase:
-            raise ValueError(
-                "DSA workflow phase mismatch: "
-                f"requested {args.workflow}, case {args.case_id} is {actual_phase}"
-            )
     else:
         workflows = list(
-            list_dsa_inference_workflows(
+            list_workflows(
                 dataset,
-                phase=phase,
                 dtype=args.dtype,
                 seed=args.seed,
             )
@@ -1040,8 +1034,8 @@ def _run_single_bench(args: argparse.Namespace) -> None:
     )
 
 
-def _run_dsa_workflow_bench(args: argparse.Namespace) -> None:
-    plans = _plans_from_dsa_workflow_selection(args)
+def _run_dsa_fused_operator_bench(args: argparse.Namespace) -> None:
+    plans = _plans_from_dsa_fused_operator_selection(args)
     run_name = _resolve_bench_run_name(args, plans)
     if args.endpoint is None:
         _run_local_bench_with_plans(
@@ -1062,8 +1056,8 @@ def _run_dsa_workflow_bench(args: argparse.Namespace) -> None:
 
 
 def _run_bench_command(args: argparse.Namespace) -> None:
-    if getattr(args, "workflow", None) is not None:
-        _run_dsa_workflow_bench(args)
+    if getattr(args, "op", None) in DSA_FUSED_OPERATORS:
+        _run_dsa_fused_operator_bench(args)
         return
     if _is_batch_mode(args):
         if args.endpoint is None:

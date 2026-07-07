@@ -17,8 +17,8 @@ def test_gpu_dsa_env_check_can_validate_cases_without_gpu():
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "[OK] cannbench import" in result.stdout
-    assert "[OK] workflow dsa_decode/realistic_decode" in result.stdout
-    assert "[OK] workflow dsa_prefill/realistic_prefill" in result.stdout
+    assert "[OK] workflow dsa_decode/realistic" in result.stdout
+    assert "[OK] workflow dsa_prefill/realistic" in result.stdout
     assert "GPU checks skipped" in result.stdout
 
 

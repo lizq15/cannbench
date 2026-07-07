@@ -300,17 +300,25 @@ end-to-end fusion boundary.
 
 ## Current Test Workflow
 
-The current CannBench inference benchmark is workflow-first. Case selection is
-owned by `dsa_inference_workflow/<split>.json`; the matching
-`lightning_indexer/<split>.json` and `sparse_attention/<split>.json` entries
-are component inputs used by the current execution path.
+The current CannBench inference benchmark models the serving workflows as two
+fused operators:
+
+- `dsa_decode`
+- `dsa_prefill`
+
+Case selection is owned by the fused operator packages under
+`src/cannbench/operators/builtin/dsa_decode/data/` and
+`src/cannbench/operators/builtin/dsa_prefill/data/`. The matching
+`lightning_indexer` and `sparse_attention` entries are component inputs used by
+the current execution path, not the public benchmark grouping.
 
 The current workflow is a two-step component execution. It keeps the selection
 and sparse attention boundaries explicit internally while allowing decode and
 prefill cases to be benchmarked through one workflow API:
 
 ```text
-build_dsa_inference_workflow(dataset, case_id, dtype, seed)
+build_dsa_decode_workflow(dataset, case_id, dtype, seed)
+build_dsa_prefill_workflow(dataset, case_id, dtype, seed)
 ```
 
 Decode workflow:
@@ -333,24 +341,24 @@ considered runnable only when `lightning_indexer/<split>.json` and
 `sparse_attention/<split>.json` also contain the same `case_id` and agree on
 batch, query tokens, context tokens, selected token count, and phase.
 
-The workflow is exposed through `bench`:
+The workflow is exposed through the normal operator selector:
 
 ```bash
 python -m cannbench bench \
   --backend ascend \
   --implementation vllm_ascend \
-  --workflow dsa_decode \
+  --op dsa_decode \
   --dataset smoke \
-  --case-id tiny_decode_top4
+  --case-id vllm_ascend_a5_decode_b1_ctx512_top512
 ```
 
 ```bash
 python -m cannbench bench \
   --backend ascend \
   --implementation vllm_ascend \
-  --workflow dsa_prefill \
+  --op dsa_prefill \
   --dataset smoke \
-  --case-id tiny_prefill_top8
+  --case-id vllm_ascend_a5_prefill_b1_q512_ctx512_top512
 ```
 
 CUDA H800 uses the same workflow token with the CUDA library implementation:
@@ -362,22 +370,21 @@ CANNBENCH_CUDA_DSA_SPARSE_ATTENTION=cannbench_cuda_dsa_flashmla_deepgemm:sparse_
 python -m cannbench bench \
   --backend nvidia \
   --implementation cuda_library \
-  --workflow dsa_decode \
-  --dataset realistic_decode \
+  --op dsa_decode \
+  --dataset realistic \
   --case-id deepseek_a5_decode_b1_ctx4096_top512
 ```
 
-Omitting `--case-id` runs every paired workflow case in the selected dataset and
-phase. Omitting `--dataset` on a workflow command selects the phase-specific
-realistic split:
-
-- `--workflow dsa_decode` -> `realistic_decode`
-- `--workflow dsa_prefill` -> `realistic_prefill`
+Omitting `--case-id` runs every paired workflow case in the selected fused
+operator dataset. Omitting `--dataset` selects the standard `realistic` split.
+Internally, `dsa_decode/realistic` expands to the component
+`realistic_decode` split, and `dsa_prefill/realistic` expands to the component
+`realistic_prefill` split.
 
 The command expands each workflow into two prepared inputs and records both
 component results under one run directory. The automatic run name uses the
-workflow token, for example
-`opbench-ascend-950pr-vllm-ascend-dsa_decode-realistic_decode-float16`.
+operator token, for example
+`opbench-ascend-950pr-vllm-ascend-dsa_decode-realistic-float16`.
 
 This flow is intentionally reported as a workflow benchmark, not as two
 independent single-operator benchmark groups. The two component results should
@@ -427,14 +434,14 @@ Recommended initial comparison matrix:
 
 ### Realistic Split Sizing
 
-The realistic DSA workflow datasets are split by inference phase because decode
-and prefill use different fused attention contracts and should be budgeted
-separately:
+The realistic DSA fused operator datasets are split by inference phase because
+decode and prefill use different fused attention contracts and should be
+budgeted separately:
 
-| split | phase | workflow cases | component runs | intent |
-| --- | --- | ---: | ---: | --- |
-| `realistic_decode` | decode | 8 | 16 | A5 fused-compatible serving buckets across context, TopK, and moderate batch scaling |
-| `realistic_prefill` | prefill | 8 | 16 | A5 fused-compatible chunked prefill buckets across query length, context, TopK, and batch |
+| operator split | component split | phase | workflow cases | component runs | intent |
+| --- | --- | --- | ---: | ---: | --- |
+| `dsa_decode/realistic` | `realistic_decode` | decode | 8 | 16 | A5 fused-compatible serving buckets across context, TopK, and moderate batch scaling |
+| `dsa_prefill/realistic` | `realistic_prefill` | prefill | 8 | 16 | A5 fused-compatible chunked prefill buckets across query length, context, TopK, and batch |
 
 This is sized for a per-scenario single-card H800 budget, not for one combined
 decode-plus-prefill run. The split is intentionally broad enough to expose
@@ -445,18 +452,19 @@ future lazy/materialized-on-device input path. With the current CannBench input
 materializer, those cases would be dominated by host-side tuple generation
 rather than by the fused CUDA/CANN/SIMT kernels being measured.
 
-The workflow manifests are the frontend grouping contract:
+The fused operator manifests are the frontend grouping contract:
 
-- `realistic_decode` is displayed as `DSA Decode`.
-- `realistic_prefill` is displayed as `DSA Prefill`.
+- `dsa_decode` is displayed as a normal operator.
+- `dsa_prefill` is displayed as a normal operator.
 - Same-case component records are summed for workflow latency and retained for
   drilldown.
 
 ### Decode Priority Cases
 
-Start with A5-compatible sparse decode serving buckets. The `realistic_decode`
-split currently covers context scaling at batch 1, moderate continuous-batch
-scaling at short/mid context, and the TopK 512/1024 transition:
+Start with A5-compatible sparse decode serving buckets. The
+`dsa_decode/realistic` split currently covers context scaling at batch 1,
+moderate continuous-batch scaling at short/mid context, and the TopK 512/1024
+transition:
 
 | case family | batch | seq_q | context | index_heads | index_dim | heads_q | heads_kv | head_dim | topk |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -473,8 +481,8 @@ The first benchmark wave should prefer `seq_q = 1` for standard decode and add
 
 ### Prefill Priority Cases
 
-Use chunked prefill first. The `realistic_prefill` split currently contains 8
-paired workflow cases that keep the same A5 fused contract as decode while
+Use chunked prefill first. The `dsa_prefill/realistic` split currently contains
+8 paired workflow cases that keep the same A5 fused contract as decode while
 varying chunk length, context, batch, and TopK:
 
 | case family | batch | seq_q | context | index_heads | index_dim | heads_q | heads_kv | head_dim | topk |
@@ -506,10 +514,10 @@ streaming reference, or performance-only mode.
 
 ## Implementation Order
 
-1. Add `sparse_mla_decode` as the first fused inference operator.
-2. Add inference workflow shape manifests with `smoke`, `realistic_decode`,
-   `realistic_prefill`, and `stress` splits.
-3. Report DSA performance at workflow level first, aggregating the existing
+1. Add `dsa_decode` as the first fused inference operator.
+2. Add fused operator shape manifests with `smoke`, `realistic`, and `stress`
+   splits.
+3. Report DSA performance at fused operator level first, aggregating the existing
    component records by workflow case.
 4. Add a CUDA H800 adapter that calls FlashMLA for `sparse_mla_decode`.
 5. Add an Ascend adapter that calls vLLM Ascend or SGLang NPU sparse attention
