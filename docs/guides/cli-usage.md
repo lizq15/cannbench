@@ -53,6 +53,14 @@ Dataset meanings:
 - `realistic`: real-model shapes with source metadata.
 - `stress`: operator-specific boundary and stress cases.
 
+Dataset validation rules:
+
+- `cannbench` no longer hardcodes a global dataset allowlist in `cli.py` or `core/config.py`.
+- `--dataset` is passed through as a plain string.
+- The selected operator plugin validates whether that dataset exists when CannBench resolves the case.
+
+This allows operator-private splits such as workflow component datasets without changing the public CLI parser.
+
 ## Implementations
 
 NVIDIA PyTorch baseline. Do not pass `--implementation`; the NVIDIA backend defaults to the PyTorch CUDA baseline:
@@ -132,6 +140,8 @@ Important files:
 - `meta/summary.json`: internal execution status and replay metadata.
 - `summary.json` and `summary.csv`: human-readable batch summaries.
 - `profile/`: raw profiler artifacts; not published.
+
+Workflow operators such as `dsa_decode` and `dsa_prefill` are expanded by the workflow plugin into component steps during `bench`. They do not consume `--prepared-input` or `--prepared-dir` directly.
 
 ## Prepared Inputs
 

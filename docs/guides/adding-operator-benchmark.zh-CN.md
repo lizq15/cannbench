@@ -2,6 +2,12 @@
 
 本文说明在 CannBench 中新增一个算子性能测试需要补齐哪些代码、数据和验证步骤，覆盖 NVIDIA CUDA、Ascend CANN ops / vLLM Ascend、Ascend SIMT op 三类实现。
 
+当前接入的边界约束是：
+
+1. 新增原子算子时，除通用接口扩展外，业务代码应尽量只落在 `src/cannbench/operators/builtin/<op>/`。
+2. 新增 workflow / 融合算子时，也应新增独立 plugin 目录，不要在公共层追加 `if op == ...` 或 `if workflow == ...` 分支。
+3. `cli.py`、`core/config.py`、`torch_backend_base.py` 等公共文件不应再感知具体算子名、workflow 名或 split dataset 名。
+
 ## 是否能直接测试
 
 一个 patch 只是“新增了算子文件”时，通常还不能直接测试。至少要满足下面条件：
@@ -216,6 +222,50 @@ def materialize_my_op_inputs(case: MyOpCase, *, dtype: str, seed: int) -> dict[s
 - Ascend `--implementation vllm_ascend` 需要接 `torch.ops._C_ascend` 等自定义入口。
 - Ascend `--implementation simt` 需要调用 SIMT 版本模块。
 
+### 4.1 dataset 校验位置
+
+`--dataset` 不再由 CLI 或 `OperatorBenchmarkRequest` 的公共白名单校验。现在的规则是：
+
+- CLI 只把 `--dataset` 当作普通字符串参数透传。
+- `OperatorBenchmarkRequest` 会在 `get_operator_case(op, dataset, case_id)` 时触发对应 plugin 的 dataset/case 校验。
+- 因此，如果新增了算子私有 split，例如 `realistic_decode`、`realistic_prefill`，不需要修改 `cli.py` 或 `core/config.py`。
+
+也就是说，dataset 的合法集合属于算子 plugin 自己的契约，而不是公共框架契约。
+
+### 4.2 workflow / 融合算子接入
+
+workflow 算子和普通原子算子的区别是：它不直接构造单个 callable，而是先展开成多个 step。
+
+推荐目录：
+
+```text
+src/cannbench/operators/builtin/my_workflow/
+  __init__.py
+  cases.py
+  materialize.py
+  data/
+    smoke.json
+    realistic.json
+    stress.json
+```
+
+workflow plugin 需要提供：
+
+- `get_dataset`
+- `get_case`
+- `materialize_inputs`
+- `build_workflow`
+- `list_workflows`
+- `component_operator_names`
+
+其中：
+
+- `build_workflow` 负责把一个 workflow case 展开为多个 `OperatorWorkflowStep`
+- `list_workflows` 负责按 dataset 枚举所有可运行 workflow
+- `component_operator_names` 用于 `bench` 聚合 workflow 记录
+
+普通 workflow 也不应修改 `cli.py` 去登记自己的 phase、组件关系或 split dataset 映射。这些都应放在 workflow 自己的算子目录里维护。
+
 ### 5. 测试覆盖
 
 至少补这些测试：
@@ -224,6 +274,7 @@ def materialize_my_op_inputs(case: MyOpCase, *, dtype: str, seed: int) -> dict[s
 - `tests/test_operators.py`：算子已注册，`list_operator_names()` 包含新算子。
 - `tests/test_operator_dispatch.py` 或 backend 相关测试：prepared input、backend dispatch 能跑到新算子。
 - 如果有外部 adapter，补 adapter 解析和错误信息测试。
+- 如果有实现级测试，例如 SIMT 自定义算子源码结构校验，测试文件应放在算子目录下，例如 `src/cannbench/operators/builtin/<op>/simt/test/`，不要继续放在全局 `tests/`。
 
 本地最低验证：
 
