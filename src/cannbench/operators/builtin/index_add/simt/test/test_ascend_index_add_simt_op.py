@@ -3,12 +3,6 @@ from pathlib import Path
 
 SIMT_INDEX_ADD_ROOT = (
     Path(__file__).resolve().parents[1]
-    / "src"
-    / "cannbench"
-    / "operators"
-    / "builtin"
-    / "index_add"
-    / "simt"
     / "v1"
     / "aten_index_add"
     / "csrc"

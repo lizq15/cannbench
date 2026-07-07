@@ -21,7 +21,7 @@ def _build_torch_callable(ctx):
         ctx.torch,
         payload["indices"],
         device=ctx.device,
-        dtype=ctx.backend._index_add_index_dtype(ctx.torch, ctx.request),
+        dtype=ctx.torch.long,
     ).reshape(payload["index_shape"])
     src_tensor = ctx.backend._tensor(
         ctx.torch,
@@ -29,13 +29,11 @@ def _build_torch_callable(ctx):
         device=ctx.device,
         dtype=ctx.dtype,
     ).reshape(payload["src_shape"])
-    return lambda: ctx.backend._index_add(
-        ctx.torch,
+    return lambda: ctx.torch.index_add(
         input_tensor,
         payload["dim"],
         index_tensor,
         src_tensor,
-        ctx.request,
     )
 
 

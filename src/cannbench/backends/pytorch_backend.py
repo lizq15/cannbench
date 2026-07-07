@@ -21,8 +21,6 @@ from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
 from cannbench.operators import TorchOperatorContext, get_operator_plugin
 from cannbench.operators.materialize import materialized_values_to_buffer
 
-_CUDA_DSA_ADAPTER_ENV = "CANNBENCH_CUDA_DSA_ADAPTER"
-_DEFAULT_CUDA_DSA_ADAPTER_MODULE = "cannbench_cuda_dsa"
 _SKIP_SIMT_INSTALL_ENV = "CANNBENCH_SKIP_SIMT_INSTALL"
 
 
@@ -230,26 +228,6 @@ class NvidiaBackend(TorchOperatorBackend):
             ),
             profile=profile,
         )
-
-    def _resolve_cuda_dsa_adapter(self, op_name: str):
-        module_name = os.environ.get(_CUDA_DSA_ADAPTER_ENV) or _DEFAULT_CUDA_DSA_ADAPTER_MODULE
-        try:
-            module = importlib.import_module(module_name)
-        except ModuleNotFoundError as exc:
-            if exc.name != module_name:
-                raise
-            raise RuntimeError(
-                "cuda_library DSA benchmarking requires an external FlashMLA/DeepGEMM "
-                f"adapter. Install {_DEFAULT_CUDA_DSA_ADAPTER_MODULE} or set "
-                f"{_CUDA_DSA_ADAPTER_ENV}=<module> with callable {op_name}."
-            ) from exc
-        op_callable = getattr(module, op_name, None)
-        if not callable(op_callable):
-            raise RuntimeError(
-                f"CUDA DSA adapter {module_name} must expose callable {op_name}"
-            )
-        return op_callable
-
 
 class AscendBackend(TorchOperatorBackend):
     def __init__(self) -> None:

@@ -29,6 +29,26 @@ class ProfileKernelSelectionContext:
 
 
 @dataclass(frozen=True)
+class OperatorWorkflowStep:
+    contract: str
+    op: str
+    dataset: str
+    case_id: str
+    consumes: tuple[str, ...]
+    produces: tuple[str, ...]
+    prepared: Any
+
+
+@dataclass(frozen=True)
+class OperatorWorkflow:
+    workflow: str
+    phase: str
+    dataset: str
+    case_id: str
+    steps: tuple[OperatorWorkflowStep, ...]
+
+
+@dataclass(frozen=True)
 class OperatorPlugin:
     spec: OperatorSpec
     get_dataset: Callable[[str], Any]
@@ -47,6 +67,7 @@ class OperatorPlugin:
     list_workflows: Callable[..., tuple[Any, ...]] | None = None
     component_operator_names: tuple[str, ...] = ()
     profile_launch_count: Callable[[ProfileKernelSelectionContext], int | None] | None = None
+    payload_summary_key_order: tuple[str, ...] = ()
 
     def build_result_case(self, case: Any) -> OperatorCase:
         return OperatorCase(
@@ -58,6 +79,7 @@ class OperatorPlugin:
             source_file=case.source_file,
             source_op=case.source_op,
             payload=case.payload,
+            payload_key_order=self.payload_summary_key_order,
         )
 
     def profile_kernel_selection(

@@ -89,6 +89,53 @@ def test_non_operator_source_does_not_hardcode_builtin_operator_names():
             assert f"'{operator_name}'" not in source, path
 
 
+def test_torch_backend_base_does_not_own_operator_specific_helpers():
+    from cannbench.backends.torch_backend_base import TorchOperatorBackend
+
+    operator_specific_helpers = {
+        "_softmax",
+        "_index_add",
+        "_index_add_index_dtype",
+        "_topk",
+        "_lightning_indexer",
+        "_sparse_attention",
+    }
+
+    assert operator_specific_helpers.isdisjoint(TorchOperatorBackend.__dict__)
+
+
+def test_operator_plugins_own_payload_summary_ordering():
+    embedding = get_operator_plugin("embedding")
+    case = embedding.build_result_case(embedding.get_case("smoke", "tiny_token_lookup"))
+
+    assert case.payload_summary == (
+        "embedding_dim=64, index_shape=32, num_embeddings=128"
+    )
+
+
+def test_core_result_does_not_own_operator_payload_fields():
+    source = Path("src/cannbench/core/result.py").read_text(encoding="utf-8")
+
+    assert "embedding_dim" not in source
+    assert "num_embeddings" not in source
+
+
+def test_public_cli_and_config_do_not_own_workflow_dataset_names():
+    checked_files = [
+        Path("src/cannbench/cli.py"),
+        Path("src/cannbench/core/config.py"),
+    ]
+
+    for path in checked_files:
+        source = path.read_text(encoding="utf-8")
+        assert "realistic_decode" not in source
+        assert "realistic_prefill" not in source
+
+
+def test_dsa_workflow_specifics_live_under_operator_packages():
+    assert not Path("src/cannbench/operators/builtin/_dsa_fused.py").exists()
+
+
 def test_softmax_operator_plugin_owns_dataset_and_materialization():
     plugin = get_operator_plugin("softmax")
 

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from cannbench.operators.builtin._dsa_fused import materialize_dsa_fused_inputs
-
-from .cases import DsaPrefillCase
+from .cases import COMPONENT_OPERATORS, DsaPrefillCase
 
 
 def materialize_dsa_prefill_inputs(
     case: DsaPrefillCase, *, dtype: str, seed: int
 ) -> dict[str, object]:
-    return materialize_dsa_fused_inputs(case, dtype=dtype, seed=seed)
+    return {
+        "workflow": case.workflow,
+        "phase": case.phase,
+        "case_id": case.case_id,
+        "dtype": dtype,
+        "seed": seed,
+        "component_ops": COMPONENT_OPERATORS,
+    }

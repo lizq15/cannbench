@@ -33,15 +33,18 @@ def _payload_summary_value(value: object) -> str:
     return str(value)
 
 
-def _payload_key_order(key: str) -> tuple[int, str]:
+def _payload_key_order(
+    key: str,
+    payload_key_order: tuple[str, ...],
+) -> tuple[int, str]:
     preferred = {
         "dimensions": 0,
         "dim": 1,
         "input_shape": 0,
         "index_shape": 1,
-        "embedding_dim": 0,
-        "num_embeddings": 2,
     }
+    if key in payload_key_order:
+        return (payload_key_order.index(key), key)
     return (preferred.get(key, 100), key)
 
 
@@ -55,6 +58,7 @@ class OperatorCase:
     source_file: str
     source_op: str
     payload: dict[str, object]
+    payload_key_order: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.case_id.strip():
@@ -78,12 +82,20 @@ class OperatorCase:
             for key, value in self.payload.items()
         }
         object.__setattr__(self, "payload", normalized)
+        object.__setattr__(
+            self,
+            "payload_key_order",
+            tuple(str(key) for key in self.payload_key_order),
+        )
 
     @property
     def payload_summary(self) -> str:
         items = (
             (key, _payload_summary_value(value))
-            for key, value in sorted(self.payload.items(), key=lambda item: _payload_key_order(item[0]))
+            for key, value in sorted(
+                self.payload.items(),
+                key=lambda item: _payload_key_order(item[0], self.payload_key_order),
+            )
         )
         return ", ".join(f"{key}={value}" for key, value in items)
 

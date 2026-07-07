@@ -15,7 +15,7 @@ def _build_torch_callable(ctx):
         device=ctx.device,
         dtype=ctx.dtype,
     ).reshape(payload["shape"])
-    return lambda: ctx.backend._softmax(ctx.torch, tensor, payload["dim"], ctx.request)
+    return lambda: ctx.torch.softmax(tensor, dim=payload["dim"])
 
 
 def _simt_module_name(version: str | None) -> str | None:

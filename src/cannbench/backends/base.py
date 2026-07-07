@@ -29,6 +29,3 @@ class OperatorBackend:
         self, request: OperatorBenchmarkRequest
     ) -> LocalDeviceProfileResult:
         raise NotImplementedError
-
-    def run_softmax(self, request: OperatorBenchmarkRequest) -> OperatorBenchmarkResult:
-        return self.run_operator(request)

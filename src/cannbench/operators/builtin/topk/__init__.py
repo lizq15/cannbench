@@ -15,7 +15,13 @@ def _build_torch_callable(ctx):
         device=ctx.device,
         dtype=ctx.dtype,
     ).reshape(payload["input_shape"])
-    return lambda: ctx.backend._topk(ctx.torch, tensor, payload)
+    return lambda: ctx.torch.topk(
+        tensor,
+        payload["k"],
+        dim=payload["dim"],
+        largest=payload["largest"],
+        sorted=payload["sorted"],
+    ).values
 
 
 PLUGIN = OperatorPlugin(

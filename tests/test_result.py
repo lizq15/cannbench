@@ -144,4 +144,4 @@ def test_operator_case_payload_summary_is_stable():
         payload={"num_embeddings": 128, "embedding_dim": 64, "index_shape": (32,)},
     )
 
-    assert case.payload_summary == "embedding_dim=64, index_shape=32, num_embeddings=128"
+    assert case.payload_summary == "index_shape=32, embedding_dim=64, num_embeddings=128"

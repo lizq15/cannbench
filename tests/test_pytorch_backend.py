@@ -50,7 +50,7 @@ def test_backend_raises_clear_error_when_torch_is_missing(monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match="PyTorch is required"):
-        backend.run_softmax(request)
+        backend.run_operator(request)
 
 
 def test_backend_raises_clear_error_when_cuda_is_unavailable(monkeypatch):
@@ -73,7 +73,7 @@ def test_backend_raises_clear_error_when_cuda_is_unavailable(monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match="CUDA is required"):
-        backend.run_softmax(request)
+        backend.run_operator(request)
 
 
 def test_ascend_backend_raises_clear_error_when_torch_npu_is_missing(monkeypatch):
@@ -100,7 +100,7 @@ def test_ascend_backend_raises_clear_error_when_torch_npu_is_missing(monkeypatch
     )
 
     with pytest.raises(RuntimeError, match="torch_npu is required"):
-        backend.run_softmax(request)
+        backend.run_operator(request)
 
 
 def test_ascend_backend_raises_clear_error_when_npu_is_unavailable(monkeypatch):
@@ -124,7 +124,7 @@ def test_ascend_backend_raises_clear_error_when_npu_is_unavailable(monkeypatch):
     )
 
     with pytest.raises(RuntimeError, match="Ascend NPU is required"):
-        backend.run_softmax(request)
+        backend.run_operator(request)
 
 
 def test_ascend_backend_materializes_softmax_inputs_from_seed(monkeypatch):
@@ -170,7 +170,7 @@ def test_ascend_backend_materializes_softmax_inputs_from_seed(monkeypatch):
         seed=7,
     )
 
-    result = backend.run_softmax(request)
+    result = backend.run_operator(request)
 
     assert result.backend == "ascend"
     assert result.device_name == "Fake Ascend"
@@ -224,7 +224,7 @@ def test_ascend_backend_skips_simt_op_deployment_when_disabled(monkeypatch):
         seed=7,
     )
 
-    backend.run_softmax(request)
+    backend.run_operator(request)
 
     assert "called" not in captured
 
@@ -296,7 +296,7 @@ def test_ascend_backend_deploys_v1_simt_op_when_enabled(monkeypatch, tmp_path):
         implementation="simt",
     )
 
-    backend.run_softmax(request)
+    backend.run_operator(request)
 
     assert captured["script"] == install_script
     assert captured["loaded"] == ("softmax", "v1")
@@ -579,7 +579,7 @@ def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
         implementation="simt",
     )
 
-    backend.run_softmax(request)
+    backend.run_operator(request)
 
     assert captured["simt_calls"] == 5
     assert captured["torch_softmax_calls"] == 0
@@ -741,7 +741,7 @@ def test_ascend_backend_runs_simt_softmax_through_versioned_module(
         implementation_version=implementation_version,
     )
 
-    backend.run_softmax(request)
+    backend.run_operator(request)
 
     assert captured[expected_counter] == 5
     assert captured["simt_v1_calls"] == 0
@@ -872,7 +872,7 @@ def test_backend_materializes_softmax_inputs_from_seed(monkeypatch):
         seed=7,
     )
 
-    backend.run_softmax(request)
+    backend.run_operator(request)
 
     assert captured["shape"] == (32, 128)
     assert captured["dtype"] == "float16"

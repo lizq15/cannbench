@@ -33,13 +33,20 @@ def _build_torch_callable(ctx):
         device=ctx.device,
         dtype=ctx.dtype,
     ).reshape(payload["weight_shape"])
-    return lambda: ctx.backend._lightning_indexer(
-        ctx.torch,
-        query,
-        keys,
-        weights,
-        top_k=payload["top_k"],
-    )
+    def operator():
+        index_scores = ctx.torch.einsum("bqhd,bcd->bqhc", query, keys)
+        index_scores = ctx.torch.relu(index_scores)
+        index_scores = index_scores * weights.unsqueeze(-1)
+        index_scores = index_scores.sum(dim=2)
+        return ctx.torch.topk(
+            index_scores,
+            payload["top_k"],
+            dim=-1,
+            largest=True,
+            sorted=True,
+        ).indices
+
+    return operator
 
 
 PLUGIN = OperatorPlugin(

@@ -43,4 +43,5 @@ PLUGIN = OperatorPlugin(
     materialize_inputs=materialize_embedding_inputs,
     build_torch_callable=_build_torch_callable,
     sort_order=1,
+    payload_summary_key_order=("embedding_dim", "index_shape", "num_embeddings"),
 )

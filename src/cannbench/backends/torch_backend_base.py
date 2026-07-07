@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import math
-
 from cannbench.backends.base import OperatorBackend
 from cannbench.core.config import OperatorBenchmarkRequest
 from cannbench.core.operator_output import CapturedOperatorOutput
@@ -43,81 +41,6 @@ class TorchOperatorBackend(OperatorBackend):
 
     def _tensor(self, torch, values, *, device, dtype):
         return torch.tensor(values, device=device, dtype=dtype)
-
-    def _softmax(self, torch, tensor, dim: int | None, request: OperatorBenchmarkRequest):
-        del request
-        return torch.softmax(tensor, dim=dim)
-
-    def _index_add_index_dtype(self, torch, request: OperatorBenchmarkRequest):
-        del request
-        return torch.long
-
-    def _index_add(
-        self,
-        torch,
-        input_tensor,
-        dim: int,
-        index_tensor,
-        src_tensor,
-        request: OperatorBenchmarkRequest,
-    ):
-        del request
-        return torch.index_add(input_tensor, dim, index_tensor, src_tensor)
-
-    def _topk(self, torch, tensor, payload):
-        return torch.topk(
-            tensor,
-            payload["k"],
-            dim=payload["dim"],
-            largest=payload["largest"],
-            sorted=payload["sorted"],
-        ).values
-
-    def _lightning_indexer(self, torch, query, keys, weights, *, top_k: int):
-        index_scores = torch.einsum("bqhd,bcd->bqhc", query, keys)
-        index_scores = torch.relu(index_scores)
-        index_scores = index_scores * weights.unsqueeze(-1)
-        index_scores = index_scores.sum(dim=2)
-        return torch.topk(index_scores, top_k, dim=-1, largest=True, sorted=True).indices
-
-    def _sparse_attention(
-        self,
-        torch,
-        query,
-        keys,
-        values,
-        indices,
-        *,
-        causal: bool,
-        phase: str,
-    ):
-        batch, query_heads, query_tokens, head_dim = query.shape
-        context_tokens = keys.shape[2]
-        selected_tokens = indices.shape[2]
-        if keys.shape[1] != query_heads:
-            repeats = query_heads // keys.shape[1]
-            keys = keys.repeat_interleave(repeats, dim=1)
-            values = values.repeat_interleave(repeats, dim=1)
-
-        gather_index = indices[:, None, :, :, None].expand(
-            batch, query_heads, query_tokens, selected_tokens, head_dim
-        )
-        key_source = keys[:, :, None, :, :].expand(
-            batch, query_heads, query_tokens, context_tokens, head_dim
-        )
-        value_source = values[:, :, None, :, :].expand(
-            batch, query_heads, query_tokens, context_tokens, head_dim
-        )
-        selected_keys = torch.gather(key_source, 3, gather_index)
-        selected_values = torch.gather(value_source, 3, gather_index)
-        scores = (query.unsqueeze(3) * selected_keys).sum(dim=-1) / math.sqrt(head_dim)
-        if causal and phase == "prefill":
-            positions = torch.arange(query_tokens, device=query.device).reshape(
-                1, 1, query_tokens, 1
-            )
-            scores = scores.masked_fill(indices[:, None, :, :] > positions, float("-inf"))
-        probabilities = torch.softmax(scores.float(), dim=-1).to(dtype=query.dtype)
-        return (probabilities.unsqueeze(-1) * selected_values).sum(dim=-2)
 
     def _operator_callable(self, torch, request, case, *, device, dtype):
         plugin = get_operator_plugin(request.op)

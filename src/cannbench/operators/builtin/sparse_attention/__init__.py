@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from cannbench.operators.materialize import materialized_values_to_buffer
 from .materialize import materialize_sparse_attention_inputs
 from .cases import (
@@ -39,15 +41,38 @@ def _build_torch_callable(ctx):
         device=ctx.device,
         dtype=ctx.torch.long,
     ).reshape(payload["indices_shape"])
-    return lambda: ctx.backend._sparse_attention(
-        ctx.torch,
-        query,
-        keys,
-        values,
-        indices,
-        causal=payload["causal"],
-        phase=payload["phase"],
-    )
+    def operator():
+        batch, query_heads, query_tokens, head_dim = query.shape
+        context_tokens = keys.shape[2]
+        selected_tokens = indices.shape[2]
+        expanded_keys = keys
+        expanded_values = values
+        if expanded_keys.shape[1] != query_heads:
+            repeats = query_heads // expanded_keys.shape[1]
+            expanded_keys = expanded_keys.repeat_interleave(repeats, dim=1)
+            expanded_values = expanded_values.repeat_interleave(repeats, dim=1)
+
+        gather_index = indices[:, None, :, :, None].expand(
+            batch, query_heads, query_tokens, selected_tokens, head_dim
+        )
+        key_source = expanded_keys[:, :, None, :, :].expand(
+            batch, query_heads, query_tokens, context_tokens, head_dim
+        )
+        value_source = expanded_values[:, :, None, :, :].expand(
+            batch, query_heads, query_tokens, context_tokens, head_dim
+        )
+        selected_keys = ctx.torch.gather(key_source, 3, gather_index)
+        selected_values = ctx.torch.gather(value_source, 3, gather_index)
+        scores = (query.unsqueeze(3) * selected_keys).sum(dim=-1) / math.sqrt(head_dim)
+        if payload["causal"] and payload["phase"] == "prefill":
+            positions = ctx.torch.arange(query_tokens, device=query.device).reshape(
+                1, 1, query_tokens, 1
+            )
+            scores = scores.masked_fill(indices[:, None, :, :] > positions, float("-inf"))
+        probabilities = ctx.torch.softmax(scores.float(), dim=-1).to(dtype=query.dtype)
+        return (probabilities.unsqueeze(-1) * selected_values).sum(dim=-2)
+
+    return operator
 
 
 PLUGIN = OperatorPlugin(

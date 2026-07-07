@@ -243,7 +243,7 @@ def test_operator_request_defaults_seed():
 
 
 def test_operator_request_rejects_unknown_dataset():
-    with pytest.raises(ValueError, match="Unknown operator dataset"):
+    with pytest.raises(ValueError, match="Unknown softmax dataset"):
         OperatorBenchmarkRequest(
             backend="nvidia",
             op="softmax",

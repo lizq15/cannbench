@@ -1,21 +1,33 @@
 from __future__ import annotations
 
-from cannbench.operators.builtin._dsa_fused import (
-    DsaFusedWorkflow,
-    DsaWorkflowStep,
-    build_dsa_fused_workflow,
-    create_dsa_fused_plugin,
-    list_dsa_fused_workflows,
+from cannbench.operators.builtin.lightning_indexer.cases import (
+    LightningIndexerCase,
+    get_lightning_indexer_case,
 )
+from cannbench.operators.builtin.sparse_attention.cases import (
+    SparseAttentionCase,
+    get_sparse_attention_case,
+)
+from cannbench.operators.plugin import (
+    OperatorPlugin,
+    OperatorWorkflow,
+    OperatorWorkflowStep,
+)
+from cannbench.operators.spec import OperatorSpec
 
 from .cases import (
+    COMPONENT_OPERATORS,
     OPERATOR_NAME,
+    PHASE,
     DsaPrefillCase,
     DsaPrefillDataset,
     get_dsa_prefill_case,
     get_dsa_prefill_dataset,
 )
 from .materialize import materialize_dsa_prefill_inputs
+
+DsaFusedWorkflow = OperatorWorkflow
+DsaWorkflowStep = OperatorWorkflowStep
 
 
 def build_dsa_prefill_workflow(
@@ -25,13 +37,60 @@ def build_dsa_prefill_workflow(
     dtype: str,
     seed: int,
 ) -> DsaFusedWorkflow:
-    return build_dsa_fused_workflow(
-        __package__,
-        operator_name=OPERATOR_NAME,
+    workflow_case = get_dsa_prefill_case(dataset, case_id)
+    component_dataset = _component_dataset(dataset)
+    sparse_case = get_sparse_attention_case(component_dataset, case_id)
+    try:
+        indexer_case = get_lightning_indexer_case(component_dataset, case_id)
+    except ValueError as exc:
+        raise ValueError(
+            f"No matching lightning_indexer case for sparse_attention case: {case_id}"
+        ) from exc
+
+    _validate_component_pair(sparse_case, indexer_case)
+    if sparse_case.phase != workflow_case.phase:
+        raise ValueError(
+            "DSA prefill workflow manifest phase mismatch: "
+            f"workflow is {workflow_case.phase}, sparse_attention is {sparse_case.phase}"
+        )
+
+    return OperatorWorkflow(
+        workflow=workflow_case.workflow,
+        phase=sparse_case.phase,
         dataset=dataset,
         case_id=case_id,
-        dtype=dtype,
-        seed=seed,
+        steps=(
+            OperatorWorkflowStep(
+                contract="dsa_index_select",
+                op="lightning_indexer",
+                dataset=component_dataset,
+                case_id=case_id,
+                consumes=(),
+                produces=("indices",),
+                prepared=_build_prepared_operator_input(
+                    op="lightning_indexer",
+                    dtype=dtype,
+                    dataset=component_dataset,
+                    case_id=case_id,
+                    seed=seed,
+                ),
+            ),
+            OperatorWorkflowStep(
+                contract="sparse_mla_prefill",
+                op="sparse_attention",
+                dataset=component_dataset,
+                case_id=case_id,
+                consumes=("indices",),
+                produces=("out", "lse"),
+                prepared=_build_prepared_operator_input(
+                    op="sparse_attention",
+                    dtype=dtype,
+                    dataset=component_dataset,
+                    case_id=case_id,
+                    seed=seed,
+                ),
+            ),
+        ),
     )
 
 
@@ -41,23 +100,84 @@ def list_dsa_prefill_workflows(
     dtype: str = "float16",
     seed: int = 0,
 ) -> tuple[DsaFusedWorkflow, ...]:
-    return list_dsa_fused_workflows(
-        __package__,
-        operator_name=OPERATOR_NAME,
-        dataset=dataset,
-        dtype=dtype,
-        seed=seed,
+    return tuple(
+        build_dsa_prefill_workflow(
+            dataset=dataset,
+            case_id=workflow_case.case_id,
+            dtype=dtype,
+            seed=seed,
+        )
+        for workflow_case in get_dsa_prefill_dataset(dataset).cases
     )
 
 
-PLUGIN = create_dsa_fused_plugin(
-    operator_name=OPERATOR_NAME,
+def _build_unsupported_direct_callable(ctx):
+    def _raise_direct_run_error():
+        raise RuntimeError(
+            f"{ctx.case.payload.get('workflow', 'DSA prefill')} direct callable "
+            "is not implemented; run it through the bench workflow expansion path"
+        )
+
+    return _raise_direct_run_error
+
+
+def _validate_component_pair(
+    sparse_case: SparseAttentionCase, indexer_case: LightningIndexerCase
+) -> None:
+    indexer_phase = _phase_from_indexer_case(indexer_case)
+    if sparse_case.phase != indexer_phase:
+        raise ValueError(
+            "DSA prefill component phase mismatch: "
+            f"sparse_attention is {sparse_case.phase}, "
+            f"lightning_indexer is {indexer_phase}"
+        )
+    if sparse_case.phase != PHASE:
+        raise ValueError(f"DSA prefill requires {PHASE} component cases")
+    if sparse_case.batch != indexer_case.batch:
+        raise ValueError("DSA prefill component batch mismatch")
+    if sparse_case.query_tokens != indexer_case.query_tokens:
+        raise ValueError("DSA prefill component query_tokens mismatch")
+    if sparse_case.context_tokens != indexer_case.context_tokens:
+        raise ValueError("DSA prefill component context_tokens mismatch")
+    if sparse_case.selected_tokens != indexer_case.top_k:
+        raise ValueError("DSA prefill component top_k mismatch")
+
+
+def _phase_from_indexer_case(case: LightningIndexerCase) -> str:
+    if case.family.startswith("decode_") or "_decode_" in case.family:
+        return "decode"
+    if case.family.startswith("prefill_") or "_prefill_" in case.family:
+        return "prefill"
+    raise ValueError(f"Unable to infer DSA phase from indexer family: {case.family}")
+
+
+def _component_dataset(dataset: str) -> str:
+    if dataset == "realistic":
+        return "realistic_prefill"
+    return dataset
+
+
+def _build_prepared_operator_input(**kwargs):
+    from cannbench.core.prepared_input import build_prepared_operator_input
+
+    return build_prepared_operator_input(**kwargs)
+
+
+PLUGIN = OperatorPlugin(
+    spec=OperatorSpec(
+        name=OPERATOR_NAME,
+        supported_dtypes=("float32", "float16", "bfloat16"),
+        dataset_namespace=OPERATOR_NAME,
+        runner_name=OPERATOR_NAME,
+    ),
     get_dataset=get_dsa_prefill_dataset,
     get_case=get_dsa_prefill_case,
     materialize_inputs=materialize_dsa_prefill_inputs,
+    build_torch_callable=_build_unsupported_direct_callable,
+    sort_order=31,
     build_workflow=build_dsa_prefill_workflow,
     list_workflows=list_dsa_prefill_workflows,
-    sort_order=31,
+    component_operator_names=COMPONENT_OPERATORS,
 )
 
 __all__ = [

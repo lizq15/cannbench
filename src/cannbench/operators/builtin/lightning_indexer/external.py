@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import importlib
+import os
+
 from cannbench.operators.materialize import materialized_values_to_buffer
 
 from .materialize import materialize_lightning_indexer_inputs
 
+_CUDA_DSA_ADAPTER_ENV = "CANNBENCH_CUDA_DSA_ADAPTER"
+_DEFAULT_CUDA_DSA_ADAPTER_MODULE = "cannbench_cuda_dsa"
+
 
 def build_cuda_library_callable(ctx):
-    adapter_op = ctx.backend._resolve_cuda_dsa_adapter("lightning_indexer")
+    adapter_op = _resolve_cuda_dsa_adapter("lightning_indexer")
     payload = materialize_lightning_indexer_inputs(
         ctx.case, dtype=ctx.request.dtype, seed=ctx.request.seed
     )
@@ -44,6 +50,26 @@ def build_cuda_library_callable(ctx):
         )
 
     return operator
+
+
+def _resolve_cuda_dsa_adapter(op_name: str):
+    module_name = os.environ.get(_CUDA_DSA_ADAPTER_ENV) or _DEFAULT_CUDA_DSA_ADAPTER_MODULE
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        if exc.name != module_name:
+            raise
+        raise RuntimeError(
+            "cuda_library lightning_indexer benchmarking requires an external "
+            f"adapter. Install {_DEFAULT_CUDA_DSA_ADAPTER_MODULE} or set "
+            f"{_CUDA_DSA_ADAPTER_ENV}=<module> with callable {op_name}."
+        ) from exc
+    op_callable = getattr(module, op_name, None)
+    if not callable(op_callable):
+        raise RuntimeError(
+            f"CUDA lightning_indexer adapter {module_name} must expose callable {op_name}"
+        )
+    return op_callable
 
 
 def build_vllm_ascend_callable(ctx):

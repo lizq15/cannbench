@@ -36,4 +36,8 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-testpaths = ["tests", "src/cannbench/operators/builtin/softmax/simt/test"]
+testpaths = [
+  "tests",
+  "src/cannbench/operators/builtin/softmax/simt/test",
+  "src/cannbench/operators/builtin/index_add/simt/test",
+]
