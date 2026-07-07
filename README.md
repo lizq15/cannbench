@@ -272,7 +272,7 @@ cannbench bench \
 - `realistic`: model-shaped cases with source metadata
 - `stress`: operator-specific boundary cases
 
-Dataset catalogs and case tables are documented under each operator data directory. Existing historical datasets live under `src/cannbench/datasets/data/<operator>/`; new operator plugins should keep their data beside the plugin under `src/cannbench/operators/builtin/<operator>/data/`.
+Dataset catalogs and case tables are documented under each operator data directory. Operator datasets live beside each plugin under `src/cannbench/operators/builtin/<operator>/data/`.
 
 This command writes a canonical run directory under `results/`, for example:
 
@@ -324,10 +324,9 @@ cannbench bench \
   --implementation simt
 ```
 
-When `--implementation simt` is set, CannBench deploys the selected SIMT version. The default version is `v1`; pass `--implementation-version v2` to select `v2`. CannBench looks for SIMT projects in either the historical dataset directory or the operator plugin directory:
+When `--implementation simt` is set, CannBench deploys the selected SIMT version. The default version is `v1`; pass `--implementation-version v2` to select `v2`. CannBench looks for SIMT projects in the operator plugin directory:
 
 ```text
-src/cannbench/datasets/data/<operator>/simt/<version>/install.sh
 src/cannbench/operators/builtin/<operator>/simt/<version>/install.sh
 ```
 

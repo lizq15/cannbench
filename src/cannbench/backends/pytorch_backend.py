@@ -19,11 +19,13 @@ from cannbench.core.profile import (
     read_device_profile,
 )
 from cannbench.core.result import OperatorBenchmarkResult, OperatorCase
-from cannbench.datasets.materialize import (
+from cannbench.operators.builtin.lightning_indexer.materialize import (
     materialize_lightning_indexer_inputs,
-    materialize_sparse_attention_inputs,
-    materialized_values_to_buffer,
 )
+from cannbench.operators.builtin.sparse_attention.materialize import (
+    materialize_sparse_attention_inputs,
+)
+from cannbench.operators.materialize import materialized_values_to_buffer
 
 _ASCEND_SIMT_OP_MODULES = {
     ("softmax", "v1"): "aten_softmax",
@@ -1088,23 +1090,11 @@ class AscendBackend(TorchOperatorBackend):
             self._load_simt_op_module(request, request.op)
 
     def _simt_op_root(self, op_name: str):
-        return files("cannbench.datasets.data").joinpath(op_name, "simt")
-
-    def _simt_op_roots(self, op_name: str):
-        roots = [self._simt_op_root(op_name)]
-        try:
-            plugin_root = files(f"cannbench.operators.builtin.{op_name}").joinpath("simt")
-        except (ModuleNotFoundError, TypeError):
-            return tuple(roots)
-        return tuple(roots + [plugin_root])
+        return files(f"cannbench.operators.builtin.{op_name}").joinpath("simt")
 
     def _simt_op_base_dir(self, request: OperatorBenchmarkRequest, op_name: str):
         version = request.implementation_version or "v1"
-        candidates = [root.joinpath(version) for root in self._simt_op_roots(op_name)]
-        for candidate in candidates:
-            if candidate.is_dir():
-                return candidate
-        return candidates[0]
+        return self._simt_op_root(op_name).joinpath(version)
 
     def _deploy_simt_op(self, request: OperatorBenchmarkRequest, op_name: str) -> None:
         simt_op_dir = self._simt_op_base_dir(request, op_name)

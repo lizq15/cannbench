@@ -235,8 +235,8 @@ def test_ascend_backend_deploys_v1_simt_op_when_enabled(monkeypatch, tmp_path):
         tmp_path
         / "src"
         / "cannbench"
-        / "datasets"
-        / "data"
+        / "operators"
+        / "builtin"
         / "softmax"
         / "simt"
         / "v1"
@@ -306,8 +306,8 @@ def test_ascend_backend_deploys_requested_simt_op_version(monkeypatch, tmp_path)
         tmp_path
         / "src"
         / "cannbench"
-        / "datasets"
-        / "data"
+        / "operators"
+        / "builtin"
         / "softmax"
         / "simt"
     )
@@ -352,8 +352,7 @@ def test_ascend_backend_deploys_requested_simt_op_version(monkeypatch, tmp_path)
     assert captured["loaded"] == ("softmax", "v2")
 
 
-def test_ascend_backend_finds_simt_op_under_plugin_directory(monkeypatch, tmp_path):
-    dataset_root = tmp_path / "datasets" / "data" / "softmax" / "simt"
+def test_ascend_backend_resolves_simt_op_under_plugin_directory(monkeypatch, tmp_path):
     plugin_root = tmp_path / "operators" / "builtin" / "softmax" / "simt"
     op_dir = plugin_root / "v1"
     op_dir.mkdir(parents=True)
@@ -363,11 +362,7 @@ def test_ascend_backend_finds_simt_op_under_plugin_directory(monkeypatch, tmp_pa
     from cannbench.backends.pytorch_backend import AscendBackend
 
     backend = AscendBackend()
-    monkeypatch.setattr(
-        backend,
-        "_simt_op_roots",
-        lambda op_name: (dataset_root, plugin_root),
-    )
+    monkeypatch.setattr(backend, "_simt_op_root", lambda op_name: plugin_root)
 
     request = OperatorBenchmarkRequest(
         backend="ascend",

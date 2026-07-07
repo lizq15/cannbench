@@ -95,9 +95,11 @@ def test_validate_gpu_benchmark_upload_rejects_non_cuda_pytorch_implementation()
     assert "records[0].implementation must be cuda-pytorch" in result.errors
 
 
-def test_list_simt_operator_versions_returns_sorted_directory_names(tmp_path: Path):
-    datasets_root = tmp_path / "datasets"
-    simt_root = datasets_root / "softmax" / "simt"
+def test_list_simt_operator_versions_returns_sorted_directory_names(
+    tmp_path: Path, monkeypatch
+):
+    builtin_root = tmp_path / "operators" / "builtin"
+    simt_root = builtin_root / "softmax" / "simt"
     (simt_root / "v2").mkdir(parents=True)
     (simt_root / "v1").mkdir(parents=True)
     (simt_root / "test").mkdir(parents=True)
@@ -106,20 +108,6 @@ def test_list_simt_operator_versions_returns_sorted_directory_names(tmp_path: Pa
     (simt_root / "__pycache__").mkdir(parents=True)
     (simt_root / ".tmp").mkdir(parents=True)
 
-    versions = list_simt_operator_versions("softmax", datasets_root=datasets_root)
-
-    assert versions == ("v1", "v2")
-
-
-def test_list_simt_operator_versions_includes_plugin_directory(
-    tmp_path: Path, monkeypatch
-):
-    datasets_root = tmp_path / "datasets"
-    builtin_root = tmp_path / "operators" / "builtin"
-    (datasets_root / "softmax" / "simt" / "v1").mkdir(parents=True)
-    (builtin_root / "softmax" / "simt" / "v2").mkdir(parents=True)
-
-    monkeypatch.setattr(serve, "_datasets_root", lambda: datasets_root)
     monkeypatch.setattr(serve, "_operators_builtin_root", lambda: builtin_root)
 
     versions = list_simt_operator_versions("softmax")
@@ -127,42 +115,9 @@ def test_list_simt_operator_versions_includes_plugin_directory(
     assert versions == ("v1", "v2")
 
 
-def test_build_simt_operator_diff_uses_real_version_directories(tmp_path: Path):
-    datasets_root = tmp_path / "datasets"
-    base_root = datasets_root / "softmax" / "simt" / "v1"
-    compare_root = datasets_root / "softmax" / "simt" / "v2"
-    base_root.mkdir(parents=True)
-    compare_root.mkdir(parents=True)
-
-    shared_relative = Path("aten_softmax/csrc/simt/spatial_softmax.asc")
-    (base_root / shared_relative).parent.mkdir(parents=True, exist_ok=True)
-    (compare_root / shared_relative).parent.mkdir(parents=True, exist_ok=True)
-    (base_root / shared_relative).write_text("alpha\nbeta\n", encoding="utf-8")
-    (compare_root / shared_relative).write_text("alpha\ngamma\n", encoding="utf-8")
-
-    diff = build_simt_operator_diff(
-        "softmax",
-        "v1",
-        "v2",
-        datasets_root=datasets_root,
-    )
-
-    assert diff.operator == "softmax"
-    assert diff.base_version == "v1"
-    assert diff.compare_version == "v2"
-    assert diff.patch.startswith(
-        "diff --git a/src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc "
-        "b/src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc"
-    )
-    assert "src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc" in diff.patch
-    assert "-beta" in diff.patch
-    assert "+gamma" in diff.patch
-
-
-def test_build_simt_operator_diff_uses_plugin_directory_logical_path(
+def test_build_simt_operator_diff_uses_real_version_directories(
     tmp_path: Path, monkeypatch
 ):
-    datasets_root = tmp_path / "datasets"
     builtin_root = tmp_path / "operators" / "builtin"
     base_root = builtin_root / "softmax" / "simt" / "v1"
     compare_root = builtin_root / "softmax" / "simt" / "v2"
@@ -174,25 +129,30 @@ def test_build_simt_operator_diff_uses_plugin_directory_logical_path(
     (compare_root / shared_relative).parent.mkdir(parents=True, exist_ok=True)
     (base_root / shared_relative).write_text("alpha\nbeta\n", encoding="utf-8")
     (compare_root / shared_relative).write_text("alpha\ngamma\n", encoding="utf-8")
-
-    monkeypatch.setattr(serve, "_datasets_root", lambda: datasets_root)
     monkeypatch.setattr(serve, "_operators_builtin_root", lambda: builtin_root)
 
     diff = build_simt_operator_diff("softmax", "v1", "v2")
 
+    assert diff.operator == "softmax"
+    assert diff.base_version == "v1"
+    assert diff.compare_version == "v2"
     expected_path = (
         "src/cannbench/operators/builtin/softmax/simt/softmax/csrc/simt/"
         "spatial_softmax.asc"
     )
-    assert f"diff --git a/{expected_path} b/{expected_path}" in diff.patch
+    assert diff.patch.startswith(
+        f"diff --git a/{expected_path} b/{expected_path}"
+    )
     assert "-beta" in diff.patch
     assert "+gamma" in diff.patch
 
 
-def test_build_simt_operator_diff_normalizes_version_project_directory_names(tmp_path: Path):
-    datasets_root = tmp_path / "datasets"
-    base_root = datasets_root / "softmax" / "simt" / "v1"
-    compare_root = datasets_root / "softmax" / "simt" / "v2"
+def test_build_simt_operator_diff_normalizes_version_project_directory_names(
+    tmp_path: Path, monkeypatch
+):
+    builtin_root = tmp_path / "operators" / "builtin"
+    base_root = builtin_root / "softmax" / "simt" / "v1"
+    compare_root = builtin_root / "softmax" / "simt" / "v2"
 
     base_file = base_root / "aten_softmax" / "csrc" / "simt" / "spatial_softmax.asc"
     compare_file = compare_root / "aten_softmax_v2" / "csrc" / "simt" / "spatial_softmax.asc"
@@ -200,15 +160,11 @@ def test_build_simt_operator_diff_normalizes_version_project_directory_names(tmp
     compare_file.parent.mkdir(parents=True)
     base_file.write_text("alpha\nbeta\n", encoding="utf-8")
     compare_file.write_text("alpha\ngamma\n", encoding="utf-8")
+    monkeypatch.setattr(serve, "_operators_builtin_root", lambda: builtin_root)
 
-    diff = build_simt_operator_diff(
-        "softmax",
-        "v1",
-        "v2",
-        datasets_root=datasets_root,
-    )
+    diff = build_simt_operator_diff("softmax", "v1", "v2")
 
-    expected_path = "src/cannbench/datasets/data/softmax/simt/softmax/csrc/simt/spatial_softmax.asc"
+    expected_path = "src/cannbench/operators/builtin/softmax/simt/softmax/csrc/simt/spatial_softmax.asc"
     assert f"diff --git a/{expected_path} b/{expected_path}" in diff.patch
     assert "aten_softmax" not in diff.patch
     assert "-beta" in diff.patch

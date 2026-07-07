@@ -1,8 +1,31 @@
+from pathlib import Path
+
 from cannbench.operators import (
     get_operator_plugin,
     list_operator_names,
     list_operator_plugins,
 )
+
+
+def test_operator_plugins_are_self_contained_packages():
+    root = Path("src/cannbench/operators/builtin")
+
+    for operator_name in list_operator_names():
+        operator_root = root / operator_name
+        assert operator_root.is_dir(), operator_name
+        assert (operator_root / "__init__.py").is_file(), operator_name
+        assert (operator_root / "cases.py").is_file(), operator_name
+        assert (operator_root / "materialize.py").is_file(), operator_name
+        assert (operator_root / "data" / "smoke.json").is_file(), operator_name
+        assert (operator_root / "data" / "realistic.json").is_file(), operator_name
+        assert (operator_root / "data" / "stress.json").is_file(), operator_name
+
+
+def test_operator_datasets_are_not_kept_under_legacy_dataset_data_root():
+    legacy_root = Path("src/cannbench/datasets/data")
+
+    for operator_name in list_operator_names():
+        assert not (legacy_root / operator_name).exists(), operator_name
 
 
 def test_operator_plugins_cover_registered_operator_names():

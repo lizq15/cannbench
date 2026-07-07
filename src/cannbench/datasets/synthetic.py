@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from cannbench.datasets.softmax import SoftmaxCase
+from cannbench.operators.builtin.softmax.cases import SoftmaxCase
 
 
 def build_softmax_smoke_case(

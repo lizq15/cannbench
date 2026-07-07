@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+import random
+
+from .cases import SparseAttentionCase
+
+
+def materialize_sparse_attention_inputs(
+    case: SparseAttentionCase, *, dtype: str, seed: int
+) -> dict[str, object]:
+    generator = random.Random(seed)
+    query_shape = (
+        case.batch,
+        case.query_heads,
+        case.query_tokens,
+        case.head_dim,
+    )
+    key_shape = (
+        case.batch,
+        case.kv_heads,
+        case.context_tokens,
+        case.head_dim,
+    )
+    value_shape = key_shape
+    indices_shape = (case.batch, case.query_tokens, case.selected_tokens)
+    query_size = case.batch * case.query_heads * case.query_tokens * case.head_dim
+    kv_size = case.batch * case.kv_heads * case.context_tokens * case.head_dim
+    indices_size = case.batch * case.query_tokens * case.selected_tokens
+
+    query = tuple(round(generator.uniform(-1.0, 1.0), 6) for _ in range(query_size))
+    keys = tuple(round(generator.uniform(-1.0, 1.0), 6) for _ in range(kv_size))
+    values = tuple(round(generator.uniform(-1.0, 1.0), 6) for _ in range(kv_size))
+    if case.causal and case.phase == "prefill":
+        generated_indices = []
+        for _batch in range(case.batch):
+            for query_index in range(case.query_tokens):
+                upper_bound = min(case.context_tokens, query_index + 1)
+                for _selected in range(case.selected_tokens):
+                    generated_indices.append(generator.randrange(upper_bound))
+        indices = tuple(generated_indices)
+    else:
+        indices = tuple(generator.randrange(case.context_tokens) for _ in range(indices_size))
+    return {
+        "query_shape": query_shape,
+        "key_shape": key_shape,
+        "value_shape": value_shape,
+        "indices_shape": indices_shape,
+        "causal": case.causal,
+        "phase": case.phase,
+        "dtype": dtype,
+        "query": query,
+        "keys": keys,
+        "values": values,
+        "indices": indices,
+    }

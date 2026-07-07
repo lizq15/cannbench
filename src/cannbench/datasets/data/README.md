@@ -1,9 +1,10 @@
 # Operator Dataset Coverage
 
-This directory contains CannBench built-in operator dataset manifests. Each
-operator directory owns its `smoke`, `realistic`, and `stress` splits. The
-sections below define the DeepSeek DSA benchmark coverage model so new operator
-cases can be added consistently.
+This directory only keeps workflow-level manifests that are not owned by a
+single operator plugin. Built-in operator datasets live beside their plugins
+under `src/cannbench/operators/builtin/<operator>/data/`. The sections below
+define the DeepSeek DSA benchmark coverage model so new DSA cases can be added
+consistently.
 
 DSA inference workflow benchmarks use workflow-level manifests under
 `dsa_inference_workflow/` as the case-selection source. The matching
@@ -68,8 +69,8 @@ Test coverage:
 - Dtypes used by the backend path, at minimum `float32` reference and the
   inference/training dtypes used by the target backend.
 
-Current datasets: `topk/smoke.json`, `topk/realistic.json`,
-`topk/stress.json`.
+Current datasets: `src/cannbench/operators/builtin/topk/data/smoke.json`, `src/cannbench/operators/builtin/topk/data/realistic.json`,
+`src/cannbench/operators/builtin/topk/data/stress.json`.
 
 ### `lightning_indexer`
 
@@ -84,8 +85,8 @@ Test coverage:
 - Quantized indexer variants when the production path uses quantized KV or
   quantized index features.
 
-Current datasets: `lightning_indexer/smoke.json`,
-`lightning_indexer/realistic.json`, `lightning_indexer/stress.json`.
+Current datasets: `src/cannbench/operators/builtin/lightning_indexer/data/smoke.json`,
+`src/cannbench/operators/builtin/lightning_indexer/data/realistic.json`, `src/cannbench/operators/builtin/lightning_indexer/data/stress.json`.
 
 ### `sparse_attention`
 
@@ -99,8 +100,8 @@ Test coverage:
   and index handling to dominate.
 - GQA/MLA head layouts and long-context decode layouts.
 
-Current datasets: `sparse_attention/smoke.json`,
-`sparse_attention/realistic.json`, `sparse_attention/stress.json`.
+Current datasets: `src/cannbench/operators/builtin/sparse_attention/data/smoke.json`,
+`src/cannbench/operators/builtin/sparse_attention/data/realistic.json`, `src/cannbench/operators/builtin/sparse_attention/data/stress.json`.
 
 ### Optional `sparse_kv_gather`
 

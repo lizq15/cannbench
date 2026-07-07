@@ -33,14 +33,7 @@ where = ["src"]
   "simt/test/*",
 ]
 "cannbench.datasets.data.*" = ["*.json"]
-"cannbench.datasets.data.*.simt.*" = [
-  "*",
-  "*/*",
-  "*/csrc/*",
-  "*/csrc/simt/*",
-  "scripts/*",
-]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-testpaths = ["tests", "src/cannbench/datasets/data/softmax/simt/test"]
+testpaths = ["tests", "src/cannbench/operators/builtin/softmax/simt/test"]

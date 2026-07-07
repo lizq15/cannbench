@@ -2921,4 +2921,4 @@ def test_package_data_includes_ascend_simt_op_versions():
     package_data = payload["tool"]["setuptools"]["package-data"]
 
     assert "cannbench.operators.builtin.*" in package_data
-    assert "cannbench.datasets.data.*.simt.*" in package_data
+    assert "cannbench.datasets.data.*.simt.*" not in package_data

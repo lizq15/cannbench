@@ -46,7 +46,7 @@ src/cannbench/operators/builtin/my_op/
     v1/
 ```
 
-普通 PyTorch baseline 算子只需要在 `__init__.py` 里声明 spec、dataset/case 加载函数、输入 materialize 函数和 torch callable 构造函数。materialize 函数建议放在该算子目录内；不要为了新算子修改中心 `datasets/materialize.py`。
+普通 PyTorch baseline 算子只需要在 `__init__.py` 里声明 spec、dataset/case 加载函数、输入 materialize 函数和 torch callable 构造函数。materialize 函数建议放在该算子目录内；不要新增或恢复中心化 materialize 文件。
 
 ```python
 import json
@@ -185,7 +185,7 @@ JSON case 建议字段：
 
 ### 3. 添加 materialize 逻辑
 
-在算子自己的文件中添加 materialize 逻辑，推荐放在 `src/cannbench/operators/builtin/my_op/__init__.py`：
+在算子自己的文件中添加 materialize 逻辑，推荐放在 `src/cannbench/operators/builtin/my_op/materialize.py`：
 
 ```python
 def materialize_my_op_inputs(case: MyOpCase, *, dtype: str, seed: int) -> dict[str, object]:
@@ -199,7 +199,7 @@ def materialize_my_op_inputs(case: MyOpCase, *, dtype: str, seed: int) -> dict[s
 - 数值数据用 tuple 或 `array("f")` 兼容现有 `_tensor()` 创建路径。
 - index 类 tensor 明确 dtype，后端里通常用 `torch.long` 或 `torch.int32`。
 
-新增算子的 plugin 需要把该函数填到 `OperatorPlugin.materialize_inputs`。公共 `materialize_operator_inputs()` 会通过 plugin 分发。`src/cannbench/datasets/materialize.py` 里保留的是历史算子的共享实现，新算子不需要修改它。
+新增算子的 plugin 需要把该函数填到 `OperatorPlugin.materialize_inputs`。公共 `materialize_operator_inputs()` 会通过 plugin 分发。不要新增或恢复中心化 materialize 文件。
 
 ### 4. 接入 backend baseline
 
@@ -397,7 +397,6 @@ src/cannbench/operators/builtin/my_op/simt/
           *.asc
 ```
 
-历史 softmax SIMT 目录仍位于 `src/cannbench/datasets/data/softmax/simt/`，后续迁移时再统一目录结构；新增算子不要继续扩散到历史目录。
 
 需要补：
 

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from cannbench.core.config import OperatorBenchmarkRequest
-from cannbench.datasets.sparse_attention import SparseAttentionCase
+from cannbench.operators.builtin.sparse_attention.cases import SparseAttentionCase
 
 
 def test_operator_request_preserves_external_implementation():

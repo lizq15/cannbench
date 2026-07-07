@@ -6,11 +6,11 @@ from functools import lru_cache
 from importlib.resources import files
 from typing import TYPE_CHECKING
 
-from cannbench.datasets.lightning_indexer import (
+from cannbench.operators.builtin.lightning_indexer.cases import (
     LightningIndexerCase,
     get_lightning_indexer_case,
 )
-from cannbench.datasets.sparse_attention import (
+from cannbench.operators.builtin.sparse_attention.cases import (
     SparseAttentionCase,
     get_sparse_attention_case,
 )

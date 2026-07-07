@@ -1,55 +1,58 @@
 import pytest
 
-from cannbench.datasets import (
-    get_embedding_case,
-    get_embedding_dataset,
-    get_gather_case,
-    get_gather_dataset,
-    get_index_select_case,
-    get_index_select_dataset,
-    get_index_add_case,
-    get_index_add_dataset,
-    get_index_put_case,
-    get_index_put_dataset,
-    get_masked_select_case,
-    get_masked_select_dataset,
-    get_cross_entropy_case,
-    get_cross_entropy_dataset,
-    get_scatter_add_case,
-    get_scatter_add_dataset,
-    get_scatter_case,
-    get_scatter_dataset,
-    get_lightning_indexer_case,
-    get_lightning_indexer_dataset,
-    get_softmax_case,
-    get_softmax_dataset,
-    get_sparse_attention_case,
-    get_sparse_attention_dataset,
-    get_take_along_dim_case,
-    get_take_along_dim_dataset,
-    get_topk_case,
-    get_topk_dataset,
-)
-from cannbench.datasets.materialize import (
-    materialize_embedding_inputs,
-    materialize_gather_inputs,
-    materialize_index_select_inputs,
-    materialize_index_add_inputs,
-    materialize_index_put_inputs,
-    materialize_masked_select_inputs,
-    materialize_cross_entropy_inputs,
-    materialize_scatter_add_inputs,
-    materialize_scatter_inputs,
-    materialize_lightning_indexer_inputs,
-    materialize_softmax_inputs,
-    materialize_sparse_attention_inputs,
-    materialize_take_along_dim_inputs,
-    materialize_topk_inputs,
-)
 from cannbench.datasets.synthetic import (
     build_softmax_smoke_case,
     build_softmax_stress_case,
 )
+from cannbench.operators.builtin.cross_entropy import (
+    get_cross_entropy_case,
+    get_cross_entropy_dataset,
+)
+from cannbench.operators.builtin.cross_entropy.materialize import materialize_cross_entropy_inputs
+from cannbench.operators.builtin.embedding import get_embedding_case, get_embedding_dataset
+from cannbench.operators.builtin.embedding.materialize import materialize_embedding_inputs
+from cannbench.operators.builtin.gather import get_gather_case, get_gather_dataset
+from cannbench.operators.builtin.gather.materialize import materialize_gather_inputs
+from cannbench.operators.builtin.index_add import get_index_add_case, get_index_add_dataset
+from cannbench.operators.builtin.index_add.materialize import materialize_index_add_inputs
+from cannbench.operators.builtin.index_put import get_index_put_case, get_index_put_dataset
+from cannbench.operators.builtin.index_put.materialize import materialize_index_put_inputs
+from cannbench.operators.builtin.index_select import (
+    get_index_select_case,
+    get_index_select_dataset,
+)
+from cannbench.operators.builtin.index_select.materialize import materialize_index_select_inputs
+from cannbench.operators.builtin.lightning_indexer import (
+    get_lightning_indexer_case,
+    get_lightning_indexer_dataset,
+)
+from cannbench.operators.builtin.lightning_indexer.materialize import materialize_lightning_indexer_inputs
+from cannbench.operators.builtin.masked_select import (
+    get_masked_select_case,
+    get_masked_select_dataset,
+)
+from cannbench.operators.builtin.masked_select.materialize import materialize_masked_select_inputs
+from cannbench.operators.builtin.scatter import get_scatter_case, get_scatter_dataset
+from cannbench.operators.builtin.scatter.materialize import materialize_scatter_inputs
+from cannbench.operators.builtin.scatter_add import (
+    get_scatter_add_case,
+    get_scatter_add_dataset,
+)
+from cannbench.operators.builtin.scatter_add.materialize import materialize_scatter_add_inputs
+from cannbench.operators.builtin.softmax import get_softmax_case, get_softmax_dataset
+from cannbench.operators.builtin.softmax.materialize import materialize_softmax_inputs
+from cannbench.operators.builtin.sparse_attention import (
+    get_sparse_attention_case,
+    get_sparse_attention_dataset,
+)
+from cannbench.operators.builtin.sparse_attention.materialize import materialize_sparse_attention_inputs
+from cannbench.operators.builtin.take_along_dim import (
+    get_take_along_dim_case,
+    get_take_along_dim_dataset,
+)
+from cannbench.operators.builtin.take_along_dim.materialize import materialize_take_along_dim_inputs
+from cannbench.operators.builtin.topk import get_topk_case, get_topk_dataset
+from cannbench.operators.builtin.topk.materialize import materialize_topk_inputs
 
 
 def test_get_softmax_dataset_loads_builtin_datasets():
