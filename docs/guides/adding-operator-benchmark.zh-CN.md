@@ -259,13 +259,15 @@ PYTHONPATH=src python3 -m cannbench bench \
 
 - 标准 adapter：`cannbench_cuda_dsa`
 - 标准 FlashMLA/DeepGEMM wrapper：`cannbench_cuda_dsa_flashmla_deepgemm`
-- 环境变量：
+- 默认入口：
 
 ```bash
 CANNBENCH_CUDA_DSA_ADAPTER=cannbench_cuda_dsa
 CANNBENCH_CUDA_DSA_LIGHTNING_INDEXER=cannbench_cuda_dsa_flashmla_deepgemm:lightning_indexer
 CANNBENCH_CUDA_DSA_SPARSE_ATTENTION=cannbench_cuda_dsa_flashmla_deepgemm:sparse_attention
 ```
+
+上面三个值已经是运行时默认值，只有当外部 CUDA wrapper 使用非默认模块名或函数名时才需要显式配置。
 
 新增普通算子可采用同样模式：
 
