@@ -537,24 +537,25 @@ def test_build_parser_accepts_ascend_backend():
     assert args.backend == "ascend"
 
 
-def test_build_parser_exposes_boolean_simt_op_deployment_flag():
+def test_build_parser_accepts_simt_implementation():
     parser = build_parser()
     args = parser.parse_args(
         [
             "internal-run",
             "--backend",
             "ascend",
+            "--implementation",
+            "simt",
             "--op",
             "softmax",
             "--dataset",
             "smoke",
             "--case-id",
             "tiny_logits",
-            "--deploy-simt-op",
         ]
     )
 
-    assert args.deploy_simt_op is True
+    assert args.implementation == "simt"
 
 
 def test_main_runs_internal_run_and_writes_outputs(tmp_path, monkeypatch):
@@ -568,11 +569,10 @@ def test_main_runs_internal_run_and_writes_outputs(tmp_path, monkeypatch):
 
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
 
-    def fake_write_benchmark_outputs(output_dir, run_name, actual_result, formats):
+    def fake_write_benchmark_outputs(output_dir, run_name, actual_result):
         captured["output_dir"] = output_dir
         captured["run_name"] = run_name
         captured["result"] = actual_result
-        captured["formats"] = formats
         return {}
 
     monkeypatch.setattr("cannbench.cli.write_benchmark_outputs", fake_write_benchmark_outputs)
@@ -612,11 +612,9 @@ def test_main_runs_internal_run_and_writes_outputs(tmp_path, monkeypatch):
     assert request.dim == -1
     assert request.warmup == 2
     assert request.iterations == 3
-    assert request.deploy_simt_op is False
     assert captured["output_dir"] == tmp_path
     assert captured["run_name"] == "softmax-run"
     assert captured["result"] is result
-    assert captured["formats"] == ("json", "csv")
 
 
 def test_main_runs_bench_and_maps_simt_to_simt_op_deployment(tmp_path, monkeypatch):
@@ -631,7 +629,7 @@ def test_main_runs_bench_and_maps_simt_to_simt_op_deployment(tmp_path, monkeypat
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
     monkeypatch.setattr(
         "cannbench.cli.write_benchmark_outputs",
-        lambda output_dir, run_name, actual_result, formats: {},
+        lambda output_dir, run_name, actual_result: {},
     )
 
     exit_code = main(
@@ -658,7 +656,7 @@ def test_main_runs_bench_and_maps_simt_to_simt_op_deployment(tmp_path, monkeypat
 
     assert exit_code == 0
     assert captured["request"].backend == "ascend"
-    assert captured["request"].deploy_simt_op is True
+    assert captured["request"].implementation == "simt"
     assert captured["request"].implementation_version == "v2"
 
 
@@ -759,12 +757,10 @@ def test_main_remote_bench_uses_remote_executor(tmp_path, monkeypatch):
             prepared_input,
             layout_root,
             artifact_stem,
-            run_id,
-            capture_output,
+                run_id,
+                capture_output,
                 warmup,
                 iterations,
-                deploy_simt_op,
-                use_simt_op=False,
                 implementation=None,
                 implementation_version=None,
             ):
@@ -775,8 +771,6 @@ def test_main_remote_bench_uses_remote_executor(tmp_path, monkeypatch):
             captured["capture_output"] = capture_output
             captured["warmup"] = warmup
             captured["iterations"] = iterations
-            captured["deploy_simt_op"] = deploy_simt_op
-            captured["use_simt_op"] = use_simt_op
             captured["implementation"] = implementation
             captured["implementation_version"] = implementation_version
             return type(
@@ -1168,7 +1162,7 @@ def test_main_passes_simt_op_deployment_flag_to_internal_run_request(tmp_path, m
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
     monkeypatch.setattr(
         "cannbench.cli.write_benchmark_outputs",
-        lambda output_dir, run_name, actual_result, formats: {},
+        lambda output_dir, run_name, actual_result: {},
     )
 
     exit_code = main(
@@ -1184,7 +1178,8 @@ def test_main_passes_simt_op_deployment_flag_to_internal_run_request(tmp_path, m
             "smoke",
             "--case-id",
             "tiny_logits",
-            "--deploy-simt-op",
+            "--implementation",
+            "simt",
             "--output-dir",
             str(tmp_path),
         ]
@@ -1192,7 +1187,7 @@ def test_main_passes_simt_op_deployment_flag_to_internal_run_request(tmp_path, m
 
     assert exit_code == 0
     assert captured["request"].backend == "ascend"
-    assert captured["request"].deploy_simt_op is True
+    assert captured["request"].implementation == "simt"
 
 
 def test_main_prepare_writes_prepared_input_manifest(tmp_path):
@@ -1395,7 +1390,6 @@ def test_main_bench_invokes_remote_collection(tmp_path, monkeypatch):
     assert captured["profile_device_time"] is True
     assert captured["warmup"] == 3
     assert captured["iterations"] == 5
-    assert captured["deploy_simt_op"] is False
 
 
 def test_main_remote_bench_builds_prepared_input_when_case_is_provided(tmp_path, monkeypatch):
@@ -1675,8 +1669,7 @@ def test_main_runs_batch_remote_bench_and_writes_aggregated_artifacts(tmp_path, 
         "softmax-remote-batch/softmax-stress-wide_vocab_lm_logits-float16-seed2",
     ]
     assert all(call["endpoint"] == endpoint for call in captured_calls)
-    assert [call["deploy_simt_op"] for call in captured_calls] == [True, False]
-    assert all(call["use_simt_op"] is True for call in captured_calls)
+    assert all(call["implementation"] == "simt" for call in captured_calls)
     assert all(Path(call["prepared_input"]).is_relative_to(layout.prepared_dir) for call in captured_calls)
     assert (layout.prepared_dir / "softmax" / "smoke" / "tiny_logits-float16-seed1.json").exists()
     assert (layout.prepared_dir / "softmax" / "stress" / "wide_vocab_lm_logits-float16-seed2.json").exists()
@@ -2013,11 +2006,10 @@ def test_main_runs_internal_run_from_prepared_input(tmp_path, monkeypatch):
 
     monkeypatch.setattr("cannbench.cli.get_backend", lambda name: FakeBackend())
 
-    def fake_write_benchmark_outputs(output_dir, run_name, actual_result, formats):
+    def fake_write_benchmark_outputs(output_dir, run_name, actual_result):
         captured["output_dir"] = output_dir
         captured["run_name"] = run_name
         captured["result"] = actual_result
-        captured["formats"] = formats
         return {}
 
     monkeypatch.setattr("cannbench.cli.write_benchmark_outputs", fake_write_benchmark_outputs)
@@ -2037,7 +2029,8 @@ def test_main_runs_internal_run_from_prepared_input(tmp_path, monkeypatch):
             str(tmp_path),
             "--run-name",
             "prepared-run",
-            "--deploy-simt-op",
+            "--implementation",
+            "simt",
         ]
     )
 
@@ -2047,7 +2040,7 @@ def test_main_runs_internal_run_from_prepared_input(tmp_path, monkeypatch):
     assert request.case_id == "tiny_logits"
     assert request.seed == 7
     assert request.dimensions == (32, 128)
-    assert request.deploy_simt_op is True
+    assert request.implementation == "simt"
     assert captured["run_name"] == "prepared-run"
 
 

@@ -413,7 +413,7 @@ _ASCEND_SIMT_OP_MODULES = {
 2. 在 `AscendBackend` 中覆盖目标算子的调用逻辑。softmax 当前通过 `_softmax()` 特判：
 
 ```python
-if request.use_simt_op or request.deploy_simt_op:
+if request.implementation == "simt":
     module = importlib.import_module(module_name)
     return module.ops.<simt_entry>(...)
 ```
@@ -435,27 +435,12 @@ PYTHONPATH=src python3 -m cannbench bench \
   --dataset smoke \
   --case-id tiny_case \
   --dtype float16 \
-  --deploy-simt-op \
   --warmup 10 \
   --iterations 100 \
   --output-dir runs
 ```
 
-如果节点已经安装过 SIMT op，可以用：
-
-```bash
-PYTHONPATH=src python3 -m cannbench bench \
-  --backend ascend \
-  --implementation simt \
-  --implementation-version v1 \
-  --op my_op \
-  --dataset smoke \
-  --case-id tiny_case \
-  --use-simt-op \
-  --warmup 10 \
-  --iterations 100 \
-  --output-dir runs
-```
+`--implementation simt` 会按版本目录部署并加载对应 SIMT op；不再提供额外的 SIMT 布尔开关。
 
 ## 前端展示和发布
 
@@ -485,7 +470,7 @@ PYTHONPATH=src python3 -m cannbench publish \
 - `PYTHONPATH=src python3 -m cannbench prepare --op my_op ...` 能生成 prepared input。
 - `PYTHONPATH=src python3 -m cannbench bench --backend nvidia --op my_op ...` 能跑 smoke。
 - Ascend CANN ops 或 vLLM Ascend 路径能跑 smoke。
-- 如果有 SIMT op，`--deploy-simt-op` 能完成安装并运行。
+- 如果有 SIMT op，`--implementation simt --implementation-version v1` 能完成安装并运行。
 - `PYTHONPATH=src pytest -q` 通过。
 - `git diff --check` 通过。
 - `make release` 能把新 dataset、SIMT 文件、tools 打进 `dist/cannbench-release.tar.gz`。

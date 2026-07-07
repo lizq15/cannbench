@@ -209,7 +209,7 @@ def test_ascend_backend_skips_simt_op_deployment_when_disabled(monkeypatch):
     backend = AscendBackend()
     monkeypatch.setattr(
         backend,
-        "_deploy_simt_op",
+        "_install_simt_op",
         lambda request, op_name: captured.setdefault("called", True),
     )
 
@@ -291,7 +291,7 @@ def test_ascend_backend_deploys_v1_simt_op_when_enabled(monkeypatch, tmp_path):
         warmup=1,
         iterations=1,
         seed=7,
-        deploy_simt_op=True,
+        implementation="simt",
     )
 
     backend.run_softmax(request)
@@ -342,11 +342,11 @@ def test_ascend_backend_deploys_requested_simt_op_version(monkeypatch, tmp_path)
         warmup=1,
         iterations=1,
         seed=7,
-        deploy_simt_op=True,
+        implementation="simt",
         implementation_version="v2",
     )
 
-    backend._deploy_simt_op(request, "softmax")
+    backend._install_simt_op(request, "softmax")
 
     assert captured["script"] == install_script
     assert captured["loaded"] == ("softmax", "v2")
@@ -373,7 +373,7 @@ def test_ascend_backend_resolves_simt_op_under_plugin_directory(monkeypatch, tmp
         warmup=1,
         iterations=1,
         seed=7,
-        deploy_simt_op=True,
+        implementation="simt",
     )
 
     assert backend._simt_op_base_dir(request, "softmax") == op_dir
@@ -418,7 +418,7 @@ def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
     from cannbench.backends.pytorch_backend import AscendBackend
 
     backend = AscendBackend()
-    monkeypatch.setattr(backend, "_deploy_simt_op", lambda request, op_name: None)
+    monkeypatch.setattr(backend, "_install_simt_op", lambda request, op_name: None)
     request = OperatorBenchmarkRequest(
         backend="ascend",
         op="softmax",
@@ -428,7 +428,7 @@ def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
         warmup=2,
         iterations=3,
         seed=7,
-        deploy_simt_op=True,
+        implementation="simt",
     )
 
     backend.run_softmax(request)
@@ -507,7 +507,7 @@ def test_ascend_backend_runs_simt_softmax_through_versioned_module(
     from cannbench.backends.pytorch_backend import AscendBackend
 
     backend = AscendBackend()
-    monkeypatch.setattr(backend, "_deploy_simt_op", lambda request, op_name: None)
+    monkeypatch.setattr(backend, "_install_simt_op", lambda request, op_name: None)
     request = OperatorBenchmarkRequest(
         backend="ascend",
         op="softmax",
@@ -517,7 +517,7 @@ def test_ascend_backend_runs_simt_softmax_through_versioned_module(
         warmup=2,
         iterations=3,
         seed=7,
-        deploy_simt_op=True,
+        implementation="simt",
         implementation_version=implementation_version,
     )
 
@@ -590,7 +590,7 @@ def test_ascend_backend_captures_simt_softmax_through_registered_op(monkeypatch)
     from cannbench.backends.pytorch_backend import AscendBackend
 
     backend = AscendBackend()
-    monkeypatch.setattr(backend, "_deploy_simt_op", lambda request, op_name: None)
+    monkeypatch.setattr(backend, "_install_simt_op", lambda request, op_name: None)
     request = OperatorBenchmarkRequest(
         backend="ascend",
         op="softmax",
@@ -600,7 +600,7 @@ def test_ascend_backend_captures_simt_softmax_through_registered_op(monkeypatch)
         warmup=0,
         iterations=1,
         seed=7,
-        deploy_simt_op=True,
+        implementation="simt",
     )
 
     output = backend.capture_operator_output(request)

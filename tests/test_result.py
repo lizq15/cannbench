@@ -78,7 +78,7 @@ def test_result_to_json_dict_contains_core_fields():
 def test_write_benchmark_outputs_creates_json_and_csv(tmp_path):
     result = _sample_result()
 
-    paths = write_benchmark_outputs(tmp_path, "sample-run", result, ("json", "csv"))
+    paths = write_benchmark_outputs(tmp_path, "sample-run", result)
 
     assert sorted(paths.keys()) == ["csv", "json"]
     assert json.loads(paths["json"].read_text())["backend"] == "nvidia"
@@ -108,19 +108,6 @@ def test_write_benchmark_outputs_creates_json_and_csv(tmp_path):
         "5",
         "10",
     ]
-
-def test_write_benchmark_outputs_creates_only_requested_formats(tmp_path):
-    paths = write_benchmark_outputs(tmp_path, "json-only", _sample_result(), ("json",))
-
-    assert sorted(paths.keys()) == ["json"]
-    assert paths["json"].name == "json-only.json"
-    assert not (tmp_path / "json-only.csv").exists()
-
-
-def test_write_benchmark_outputs_rejects_unsupported_formats(tmp_path):
-    with pytest.raises(ValueError, match="unsupported output format"):
-        write_benchmark_outputs(tmp_path, "bad-run", _sample_result(), ("json", "yaml"))
-
 
 @pytest.mark.parametrize("dimensions", [(), (0, 128), (128, -1)])
 def test_build_softmax_case_rejects_invalid_dimensions(dimensions: tuple[int, ...]):

@@ -46,7 +46,7 @@ class LocalBenchExecutor(BenchCaseExecutor):
         run_name: str,
     ) -> BenchCaseExecutionResult:
         result = self._backend.run_operator(request)
-        outputs = self._write_outputs(output_dir, run_name, result, request.output_formats)
+        outputs = self._write_outputs(output_dir, run_name, result)
         result_path = outputs.get("json")
         if result_path is None and outputs:
             result_path = next(iter(outputs.values()))
@@ -78,8 +78,6 @@ class RemoteBenchExecutor(BenchCaseExecutor):
         capture_output: bool,
         warmup: int,
         iterations: int,
-        deploy_simt_op: bool,
-        use_simt_op: bool = False,
         implementation: str | None = None,
         implementation_version: str | None = None,
     ) -> BenchCaseExecutionResult:
@@ -95,8 +93,6 @@ class RemoteBenchExecutor(BenchCaseExecutor):
                 profile_device_time=True,
                 warmup=warmup,
                 iterations=iterations,
-                deploy_simt_op=deploy_simt_op,
-                use_simt_op=use_simt_op,
                 implementation=implementation,
                 implementation_version=implementation_version,
             )

@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 
 from cannbench.datasets import get_operator_case
-from cannbench.core.output import SUPPORTED_OUTPUT_FORMATS
 from cannbench.core.result import SUPPORTED_SOFTMAX_DIMS
 
 SUPPORTED_DTYPES = {"float32", "float16", "bfloat16"}
@@ -31,12 +30,7 @@ class OperatorBenchmarkRequest:
     iterations: int
     implementation: str | None = None
     seed: int = 0
-    use_simt_op: bool = False
-    deploy_simt_op: bool = False
     implementation_version: str | None = None
-    output_formats: tuple[str, ...] = field(
-        default_factory=lambda: ("json", "csv")
-    )
     case_payload: dict[str, object] = field(init=False)
     dimensions: tuple[int, ...] | None = field(init=False, default=None)
     dim: int | None = field(init=False, default=None)
@@ -59,18 +53,6 @@ class OperatorBenchmarkRequest:
             raise ValueError(f"Unknown operator dataset: {self.dataset}")
         if not self.case_id.strip():
             raise ValueError("case_id must not be empty")
-        if self.output_formats and any(
-            format_name not in SUPPORTED_OUTPUT_FORMATS
-            for format_name in self.output_formats
-        ):
-            unsupported = sorted(
-                {
-                    format_name
-                    for format_name in self.output_formats
-                    if format_name not in SUPPORTED_OUTPUT_FORMATS
-                }
-            )
-            raise ValueError(f"unsupported output format: {', '.join(unsupported)}")
         if self.warmup < 0:
             raise ValueError("warmup must be >= 0")
         if self.iterations <= 0:

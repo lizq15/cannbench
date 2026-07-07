@@ -186,7 +186,7 @@ cannbench compare \
   --output runs/softmax-accuracy.json
 ```
 
-Use `--left-deploy-simt-op` or `--right-deploy-simt-op` when one side should use an Ascend SIMT implementation.
+Use `--left-implementation simt` or `--right-implementation simt` when one side should use an Ascend SIMT implementation. Add the matching `--*-implementation-version` option to select a specific SIMT version.
 
 ## Publishing
 

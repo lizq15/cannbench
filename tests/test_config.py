@@ -228,20 +228,6 @@ def test_operator_request_rejects_unknown_dtype():
         )
 
 
-def test_operator_request_defaults_output_formats():
-    request = OperatorBenchmarkRequest(
-        backend="nvidia",
-        op="softmax",
-        dtype="float16",
-        dataset="smoke",
-        case_id="tiny_logits",
-        warmup=5,
-        iterations=10,
-    )
-
-    assert request.output_formats == ("json", "csv")
-
-
 def test_operator_request_defaults_seed():
     request = OperatorBenchmarkRequest(
         backend="nvidia",
@@ -319,18 +305,4 @@ def test_operator_request_rejects_non_positive_iterations():
             case_id="tiny_logits",
             warmup=0,
             iterations=0,
-        )
-
-
-def test_operator_request_rejects_unsupported_output_formats():
-    with pytest.raises(ValueError, match="unsupported output format"):
-        OperatorBenchmarkRequest(
-            backend="nvidia",
-            op="softmax",
-            dtype="float16",
-            dataset="smoke",
-            case_id="tiny_logits",
-            warmup=0,
-            iterations=1,
-            output_formats=("json", "yaml"),
         )

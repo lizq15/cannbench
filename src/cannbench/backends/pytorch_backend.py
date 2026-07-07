@@ -1084,10 +1084,8 @@ class AscendBackend(TorchOperatorBackend):
         return operator
 
     def _before_run_operator(self, request: OperatorBenchmarkRequest) -> None:
-        if request.deploy_simt_op:
-            self._deploy_simt_op(request, request.op)
-        elif request.use_simt_op:
-            self._load_simt_op_module(request, request.op)
+        if request.implementation == "simt":
+            self._install_simt_op(request, request.op)
 
     def _simt_op_root(self, op_name: str):
         return files(f"cannbench.operators.builtin.{op_name}").joinpath("simt")
@@ -1096,7 +1094,7 @@ class AscendBackend(TorchOperatorBackend):
         version = request.implementation_version or "v1"
         return self._simt_op_root(op_name).joinpath(version)
 
-    def _deploy_simt_op(self, request: OperatorBenchmarkRequest, op_name: str) -> None:
+    def _install_simt_op(self, request: OperatorBenchmarkRequest, op_name: str) -> None:
         simt_op_dir = self._simt_op_base_dir(request, op_name)
         if not simt_op_dir.is_dir():
             raise RuntimeError(
@@ -1144,7 +1142,7 @@ class AscendBackend(TorchOperatorBackend):
             )
 
     def _softmax(self, torch, tensor, dim: int | None, request: OperatorBenchmarkRequest):
-        if request.use_simt_op or request.deploy_simt_op:
+        if request.implementation == "simt":
             module_name = self._simt_op_module_name(request.op, request.implementation_version)
             if module_name is None:
                 raise RuntimeError(

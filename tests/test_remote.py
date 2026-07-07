@@ -116,7 +116,7 @@ def test_collect_remote_artifacts_runs_capture_and_downloads_output(tmp_path):
         output_dir=tmp_path / "results",
         run_id="softmax-run",
         capture_output=True,
-        deploy_simt_op=True,
+        implementation="simt",
         runner=fake_runner,
     )
 
@@ -136,7 +136,7 @@ def test_collect_remote_artifacts_runs_capture_and_downloads_output(tmp_path):
         [
             "ssh",
             "user@ascend-host",
-            "cd /opt/cannbench && ASCEND_VISIBLE_DEVICES=0 python3 -m cannbench internal-run --backend ascend --prepared-input .cannbench-runs/softmax-run/prepared.json --output-dir .cannbench-runs/softmax-run/output --run-name captured-output --use-simt-op --deploy-simt-op",
+            "cd /opt/cannbench && ASCEND_VISIBLE_DEVICES=0 python3 -m cannbench internal-run --backend ascend --prepared-input .cannbench-runs/softmax-run/prepared.json --output-dir .cannbench-runs/softmax-run/output --run-name captured-output --implementation simt",
         ],
         [
             "scp",
@@ -269,14 +269,13 @@ def test_collect_remote_artifacts_passes_simt_op_version_to_internal_run(tmp_pat
         run_id="softmax-run",
         capture_output=False,
         profile_device_time=True,
-        deploy_simt_op=True,
+        implementation="simt",
         implementation_version="v2",
         runner=fake_runner,
     )
 
+    assert "--implementation simt" in commands[2][2]
     assert "--implementation-version v2" in commands[2][2]
-    assert "--use-simt-op" in commands[2][2]
-    assert "--deploy-simt-op" in commands[2][2]
 
 
 def test_collect_remote_artifacts_passes_external_implementation_to_internal_run(tmp_path):
@@ -379,14 +378,12 @@ def test_collect_remote_artifacts_can_use_predeployed_simt_op_without_deploying(
         run_id="softmax-run",
         capture_output=False,
         profile_device_time=True,
-        deploy_simt_op=False,
-        use_simt_op=True,
+        implementation="simt",
         implementation_version="v2",
         runner=fake_runner,
     )
 
-    assert "--implementation-version v2 --use-simt-op" in commands[2][2]
-    assert "--deploy-simt-op" not in commands[2][2]
+    assert "--implementation simt --implementation-version v2" in commands[2][2]
 
 
 def test_collect_remote_artifacts_runs_nvidia_ncu_profile(tmp_path):
