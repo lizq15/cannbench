@@ -272,7 +272,7 @@ cannbench bench \
 - `realistic`: model-shaped cases with source metadata
 - `stress`: operator-specific boundary cases
 
-Dataset catalogs and case tables are documented under `src/cannbench/datasets/data/<operator>/README.md`.
+Dataset catalogs and case tables are documented under each operator data directory. Existing historical datasets live under `src/cannbench/datasets/data/<operator>/`; new operator plugins should keep their data beside the plugin under `src/cannbench/operators/builtin/<operator>/data/`.
 
 This command writes a canonical run directory under `results/`, for example:
 
@@ -324,10 +324,11 @@ cannbench bench \
   --implementation simt
 ```
 
-When `--implementation simt` is set, CannBench deploys the selected SIMT version. The default version is `v1`; pass `--implementation-version v2` to select `v2`. CannBench looks for:
+When `--implementation simt` is set, CannBench deploys the selected SIMT version. The default version is `v1`; pass `--implementation-version v2` to select `v2`. CannBench looks for SIMT projects in either the historical dataset directory or the operator plugin directory:
 
 ```text
 src/cannbench/datasets/data/<operator>/simt/<version>/install.sh
+src/cannbench/operators/builtin/<operator>/simt/<version>/install.sh
 ```
 
 SIMT operator versions use versioned Python packages and torch namespaces, for example `aten_softmax` for `v1` and `aten_softmax_v2` for `v2`. This allows different SIMT versions to be installed and profiled concurrently in the same Python environment when the target devices and profiler output directories are isolated.

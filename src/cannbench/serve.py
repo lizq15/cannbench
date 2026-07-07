@@ -102,48 +102,77 @@ def _datasets_root() -> Path:
     return Path(__file__).resolve().parent / "datasets" / "data"
 
 
+def _operators_builtin_root() -> Path:
+    return Path(__file__).resolve().parent / "operators" / "builtin"
+
+
 def _validate_component(value: str, field_name: str) -> str:
     if not SAFE_COMPONENT_RE.fullmatch(value):
         raise ValueError(f"{field_name} must match {SAFE_COMPONENT_RE.pattern}")
     return value
 
 
-def _resolve_simt_operator_dir(operator: str, version: str, datasets_root: Path | None = None) -> Path:
+def _simt_roots(operator: str, datasets_root: Path | None = None) -> tuple[tuple[Path, Path], ...]:
     safe_operator = _validate_component(operator, "operator")
+    if datasets_root is not None:
+        root = datasets_root.resolve()
+        return ((root, (root / safe_operator / "simt").resolve()),)
+    dataset_root = _datasets_root().resolve()
+    builtin_root = _operators_builtin_root().resolve()
+    return (
+        (dataset_root, (dataset_root / safe_operator / "simt").resolve()),
+        (builtin_root, (builtin_root / safe_operator / "simt").resolve()),
+    )
+
+
+def _resolve_simt_operator_dir(operator: str, version: str, datasets_root: Path | None = None) -> Path:
     safe_version = _validate_component(version, "version")
-    root = (datasets_root or _datasets_root()).resolve()
-    target = (root / safe_operator / "simt" / safe_version).resolve()
+    candidates: list[Path] = []
+    for root, simt_root in _simt_roots(operator, datasets_root):
+        target = (simt_root / safe_version).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("resolved diff path escapes SIMT root") from exc
+        candidates.append(target)
+        if target.is_dir():
+            return target
+    formatted = ", ".join(str(candidate) for candidate in candidates)
+    raise FileNotFoundError(f"SIMT operator directory not found: {formatted}")
+
+
+def _logical_simt_root(operator: str, base_dir: Path, datasets_root: Path | None = None) -> Path:
+    if datasets_root is not None:
+        return Path("src") / "cannbench" / "datasets" / "data" / operator / "simt" / operator
+    resolved = base_dir.resolve()
+    builtin_simt = (_operators_builtin_root() / operator / "simt").resolve()
     try:
-        target.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("resolved diff path escapes datasets root") from exc
-    if not target.is_dir():
-        raise FileNotFoundError(f"SIMT operator directory not found: {target}")
-    return target
+        resolved.relative_to(builtin_simt)
+    except ValueError:
+        return Path("src") / "cannbench" / "datasets" / "data" / operator / "simt" / operator
+    return Path("src") / "cannbench" / "operators" / "builtin" / operator / "simt" / operator
 
 
 def list_simt_operator_versions(
     operator: str,
     datasets_root: Path | None = None,
 ) -> tuple[str, ...]:
-    safe_operator = _validate_component(operator, "operator")
-    root = (datasets_root or _datasets_root()).resolve()
-    target = (root / safe_operator / "simt").resolve()
-    try:
-        target.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("resolved versions path escapes datasets root") from exc
-    if not target.is_dir():
-        return ()
-    return tuple(
-        sorted(
+    versions: set[str] = set()
+    for root, target in _simt_roots(operator, datasets_root):
+        try:
+            target.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("resolved versions path escapes SIMT root") from exc
+        if not target.is_dir():
+            continue
+        versions.update(
             path.name
             for path in target.iterdir()
             if path.is_dir()
             and path.name not in EXCLUDED_SIMT_VERSION_DIRS
             and not path.name.startswith(".")
         )
-    )
+    return tuple(sorted(versions))
 
 
 def _read_text_lines(path: Path) -> list[str]:
@@ -190,7 +219,7 @@ def build_simt_operator_diff(
     compare_files = _iter_version_files(compare_dir)
     patch_chunks: list[str] = []
 
-    logical_root = Path("src") / "cannbench" / "datasets" / "data" / operator / "simt" / operator
+    logical_root = _logical_simt_root(operator, base_dir, datasets_root)
     for relative_path in sorted(set(base_files) | set(compare_files)):
         base_path = base_files.get(relative_path)
         compare_path = compare_files.get(relative_path)

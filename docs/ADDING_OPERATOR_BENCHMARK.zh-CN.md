@@ -26,21 +26,116 @@ PYTHONPATH=src python3 -m cannbench bench \
   --output-dir runs
 ```
 
-如果这里报 `invalid choice`，说明 registry 或 CLI 未接入；如果报 `Unknown <op> dataset/case`，说明 dataset loader 未接入；如果报 `Unsupported operator for <backend> backend`，说明 backend dispatch 未接入。
+如果这里报 `invalid choice`，说明 operator plugin 未被发现；如果报 `Unknown <op> dataset/case`，说明 plugin 的 dataset/case 函数或数据文件未接入；如果报 `Unsupported operator for <backend> backend`，说明 plugin 的 torch callable 或后端特化实现未接入。
 
 ## 代码接入清单
 
-### 1. 注册算子
+### 1. 新增 operator plugin
 
-在 `src/cannbench/operators/registry.py` 添加 `OperatorSpec`：
+推荐新增一个独立算子目录：
+
+```text
+src/cannbench/operators/builtin/my_op/
+  __init__.py
+  data/
+    smoke.json
+    realistic.json
+    stress.json
+    README.md
+  simt/                # 可选，仅 Ascend SIMT 算子需要
+    v1/
+```
+
+普通 PyTorch baseline 算子只需要在 `__init__.py` 里声明 spec、dataset/case 加载函数、输入 materialize 函数和 torch callable 构造函数。materialize 函数建议放在该算子目录内；不要为了新算子修改中心 `datasets/materialize.py`。
 
 ```python
-"my_op": OperatorSpec(
-    name="my_op",
-    supported_dtypes=("float32", "float16", "bfloat16"),
-    dataset_namespace="my_op",
-    runner_name="my_op",
-),
+import json
+from dataclasses import dataclass
+from functools import lru_cache
+from importlib.resources import files
+
+from cannbench.operators.plugin import OperatorPlugin
+from cannbench.operators.spec import OperatorSpec
+
+
+@dataclass(frozen=True)
+class MyOpCase:
+    case_id: str
+    family: str
+    input_shape: tuple[int, ...]
+    dim: int
+    source_kind: str
+    source_project: str
+    source_model: str
+    source_file: str
+    source_op: str
+
+    @property
+    def payload(self) -> dict[str, object]:
+        return {
+            "input_shape": self.input_shape,
+            "dim": self.dim,
+        }
+
+
+@dataclass(frozen=True)
+class MyOpDataset:
+    name: str
+    cases: tuple[MyOpCase, ...]
+
+
+@lru_cache(maxsize=None)
+def get_my_op_dataset(name: str) -> MyOpDataset:
+    resource = files(__package__).joinpath("data", f"{name}.json")
+    payload = json.loads(resource.read_text())
+    cases = tuple(
+        MyOpCase(
+            input_shape=tuple(item["input_shape"]),
+            **{key: value for key, value in item.items() if key != "input_shape"},
+        )
+        for item in payload["cases"]
+    )
+    return MyOpDataset(name=payload["name"], cases=cases)
+
+
+def get_my_op_case(dataset_name: str, case_id: str) -> MyOpCase:
+    for case in get_my_op_dataset(dataset_name).cases:
+        if case.case_id == case_id:
+            return case
+    raise ValueError(f"Unknown my_op case: {case_id}")
+
+
+def materialize_my_op_inputs(case, *, dtype: str, seed: int) -> dict[str, object]:
+    ...
+
+
+def _build_torch_callable(ctx):
+    payload = materialize_my_op_inputs(
+        ctx.case,
+        dtype=ctx.request.dtype,
+        seed=ctx.request.seed,
+    )
+    input_tensor = ctx.backend._tensor(
+        ctx.torch,
+        payload["values"],
+        device=ctx.device,
+        dtype=ctx.dtype,
+    ).reshape(payload["input_shape"])
+    return lambda: ctx.torch.my_op(input_tensor, payload["dim"])
+
+
+PLUGIN = OperatorPlugin(
+    spec=OperatorSpec(
+        name="my_op",
+        supported_dtypes=("float32", "float16", "bfloat16"),
+        dataset_namespace="my_op",
+        runner_name="my_op",
+    ),
+    get_dataset=get_my_op_dataset,
+    get_case=get_my_op_case,
+    materialize_inputs=materialize_my_op_inputs,
+    build_torch_callable=_build_torch_callable,
+)
 ```
 
 这一步决定：
@@ -49,9 +144,11 @@ PYTHONPATH=src python3 -m cannbench bench \
 - release 构建时是否会生成 prepared inputs。
 - 前端 published 结果里算子名如何分组。
 
+不需要修改 `src/cannbench/operators/registry.py`、`src/cannbench/datasets/loader.py`、`src/cannbench/datasets/__init__.py` 或 `src/cannbench/backends/torch_backend_base.py`。这些公共文件会自动发现 `cannbench.operators.builtin` 下的 `PLUGIN`。
+
 ### 2. 添加 dataset model 和 JSON
 
-新增 `src/cannbench/datasets/my_op.py`，建议结构参考 `softmax.py`、`topk.py` 或 DSA 的 `lightning_indexer.py`。
+dataset model 建议放在 `src/cannbench/operators/builtin/my_op/__init__.py`，与 plugin 同目录维护。现有历史算子仍有 `src/cannbench/datasets/<op>.py`，但新增算子不建议继续扩散到该目录。
 
 至少提供：
 
@@ -64,8 +161,7 @@ PYTHONPATH=src python3 -m cannbench bench \
 新增数据目录：
 
 ```text
-src/cannbench/datasets/data/my_op/
-  __init__.py
+src/cannbench/operators/builtin/my_op/data/
   smoke.json
   realistic.json
   stress.json
@@ -87,20 +183,9 @@ JSON case 建议字段：
 
 真实模型 shape 要在 `source_*` 字段里写清楚来源。前端不会理解算子的业务语义，只会展示 benchmark record 里的 `operator`、`dataset`、`case_id`、`family`、`source_*` 和 `payload`。
 
-### 3. 接入 dataset loader
+### 3. 添加 materialize 逻辑
 
-在 `src/cannbench/datasets/loader.py` 中补齐三处：
-
-- import `get_my_op_case` / `get_my_op_dataset`。
-- `OperatorDataset.get()` 支持 `dataset_namespace == "my_op"`。
-- `get_operator_dataset("my_op")`。
-- `get_operator_case("my_op", dataset_name, case_id)`。
-
-同时在 `src/cannbench/datasets/__init__.py` 导出新 dataset API。
-
-### 4. 添加 materialize 逻辑
-
-在 `src/cannbench/datasets/materialize.py` 添加：
+在算子自己的文件中添加 materialize 逻辑，推荐放在 `src/cannbench/operators/builtin/my_op/__init__.py`：
 
 ```python
 def materialize_my_op_inputs(case: MyOpCase, *, dtype: str, seed: int) -> dict[str, object]:
@@ -114,24 +199,29 @@ def materialize_my_op_inputs(case: MyOpCase, *, dtype: str, seed: int) -> dict[s
 - 数值数据用 tuple 或 `array("f")` 兼容现有 `_tensor()` 创建路径。
 - index 类 tensor 明确 dtype，后端里通常用 `torch.long` 或 `torch.int32`。
 
-### 5. 接入 backend baseline
+新增算子的 plugin 需要把该函数填到 `OperatorPlugin.materialize_inputs`。公共 `materialize_operator_inputs()` 会通过 plugin 分发。`src/cannbench/datasets/materialize.py` 里保留的是历史算子的共享实现，新算子不需要修改它。
 
-通用 PyTorch baseline 在 `src/cannbench/backends/torch_backend_base.py`。
+### 4. 接入 backend baseline
 
-需要补三类路径：
+通用 PyTorch baseline 由 plugin 的 `build_torch_callable` 提供。公共 `TorchOperatorBackend` 会统一处理：
 
-- `_operator_callable()`：性能测试 warmup/iteration 调用。
-- `_capture_operator_tensor()`：输出捕获，用于 compare。
-- `run_operator()`：如果算子不走 `_operator_callable()` 通用分支，就要单独写 warmup/iteration。
+- warmup / iteration 循环。
+- device synchronize。
+- 输出捕获。
+- `OperatorBenchmarkResult` 生成。
 
-建议新算子优先复用 `_operator_callable()`，让 `run_operator()` 只需进入通用分支；如果当前结构里没有通用分支，就按现有算子模式补一段。
+因此普通算子不要再往 `torch_backend_base.py` 增加 `if request.op == ...` 分支。只有下面情况才改后端类：
 
-### 6. 测试覆盖
+- NVIDIA `--implementation cuda_library` 需要接外部 CUDA adapter。
+- Ascend `--implementation vllm_ascend` 需要接 `torch.ops._C_ascend` 等自定义入口。
+- Ascend `--implementation simt` 需要调用 SIMT 版本模块。
+
+### 5. 测试覆盖
 
 至少补这些测试：
 
-- `tests/test_operators.py`：算子已注册。
-- `tests/test_datasets.py`：dataset 能加载、case metadata 和 payload 正确。
+- `tests/test_operator_plugins.py`：plugin 能被发现，并能加载 dataset/case/materialize。
+- `tests/test_operators.py`：算子已注册，`list_operator_names()` 包含新算子。
 - `tests/test_operator_dispatch.py` 或 backend 相关测试：prepared input、backend dispatch 能跑到新算子。
 - 如果有外部 adapter，补 adapter 解析和错误信息测试。
 
@@ -222,7 +312,7 @@ PYTHONPATH=src python3 -m cannbench bench \
 
 ### 默认 CANN ops 路径
 
-`--backend ascend --implementation cann_ops_library` 默认会走 PyTorch / torch_npu 暴露的算子。如果新算子能用 `torch` 或 `torch_npu` 直接表达，在 `AscendBackend` 里不需要特殊分支，通用 baseline 即可运行。
+`--backend ascend --implementation cann_ops_library` 默认会走 plugin 中的 PyTorch / torch_npu 表达。如果新算子能用 `torch` 或 `torch_npu` 直接表达，在 `AscendBackend` 里不需要特殊分支，通用 plugin callable 即可运行。
 
 命令：
 
@@ -241,7 +331,7 @@ PYTHONPATH=src python3 -m cannbench bench \
 
 ### 自定义 CANN / vLLM Ascend op
 
-如果目标是 CANN 自定义 op 或 vLLM Ascend op，需要在 `AscendBackend._operator_callable()` 中增加专用分支。
+如果目标是 CANN 自定义 op 或 vLLM Ascend op，需要在 `AscendBackend._operator_callable()` 中增加专用分支。这类分支应该只处理 `implementation` 特化，不要复制普通 PyTorch baseline 的 warmup/iteration 循环。
 
 DSA 示例使用：
 
@@ -289,10 +379,10 @@ PYTHONPATH=src python3 -m cannbench bench \
 
 ## Ascend SIMT op 接入
 
-SIMT op 当前按算子和版本放在 dataset 目录下：
+新增 SIMT op 建议放在同一个 operator plugin 目录下：
 
 ```text
-src/cannbench/datasets/data/my_op/simt/
+src/cannbench/operators/builtin/my_op/simt/
   README.md
   v1/
     install.sh
@@ -306,6 +396,8 @@ src/cannbench/datasets/data/my_op/simt/
         simt/
           *.asc
 ```
+
+历史 softmax SIMT 目录仍位于 `src/cannbench/datasets/data/softmax/simt/`，后续迁移时再统一目录结构；新增算子不要继续扩散到历史目录。
 
 需要补：
 
@@ -325,7 +417,7 @@ if request.use_simt_op or request.deploy_simt_op:
     return module.ops.<simt_entry>(...)
 ```
 
-新增算子也需要类似分支，不能只放 SIMT 目录。
+新增算子也需要类似分支，不能只放 SIMT 目录。建议让 plugin 的 callable 调用 backend 可覆写方法，例如 `ctx.backend._my_op(...)`，这样 CANN ops library 和 SIMT 的分流都留在 backend 方法里。
 
 3. `install.sh` 必须能在 Ascend 节点上完成编译/安装，并让 Python 能 import `<python_module>`。
 
@@ -388,6 +480,7 @@ PYTHONPATH=src python3 -m cannbench publish \
 代码层面：
 
 - `cannbench bench --help` 中 `--op` 包含新算子。
+- `get_operator_plugin("my_op")` 能返回 plugin。
 - `PYTHONPATH=src python3 -m cannbench prepare --op my_op ...` 能生成 prepared input。
 - `PYTHONPATH=src python3 -m cannbench bench --backend nvidia --op my_op ...` 能跑 smoke。
 - Ascend CANN ops 或 vLLM Ascend 路径能跑 smoke。
@@ -405,8 +498,9 @@ PYTHONPATH=src python3 -m cannbench publish \
 
 ## 常见遗漏
 
-- 只加 JSON，没加 `get_operator_dataset()`，CLI 找不到 case。
-- 只加 registry，没加 backend dispatch，运行时报 unsupported operator。
+- 只加 JSON，没加 `operators/builtin/my_op.py`，CLI 找不到算子。
+- plugin 里 `get_case`、`get_dataset` 或 `materialize_inputs` 填错，prepared input 和 benchmark 使用了不同 case 语义。
+- plugin 没有实现 `build_torch_callable`，运行时报 unsupported operator 或 callable 构造失败。
 - 只加 SIMT 目录，没注册 `_ASCEND_SIMT_OP_MODULES`，`--implementation simt` 实际没有调用 SIMT op。
 - CANN ops 需要 metadata op，但把 metadata 放进 benchmark loop，导致统计包含 setup 开销。
 - CUDA 和 Ascend 使用不同 layout 或不同 topK，前端看起来在比较同一个 case，实际不可比。

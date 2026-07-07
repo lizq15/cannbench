@@ -23,6 +23,15 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
+"cannbench.operators.builtin.*" = [
+  "data/*.json",
+  "data/*.md",
+  "simt/*",
+  "simt/*/*",
+  "simt/*/csrc/*",
+  "simt/*/csrc/simt/*",
+  "simt/test/*",
+]
 "cannbench.datasets.data.*" = ["*.json"]
 "cannbench.datasets.data.*.simt.*" = [
   "*",

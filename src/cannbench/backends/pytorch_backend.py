@@ -1090,9 +1090,21 @@ class AscendBackend(TorchOperatorBackend):
     def _simt_op_root(self, op_name: str):
         return files("cannbench.datasets.data").joinpath(op_name, "simt")
 
+    def _simt_op_roots(self, op_name: str):
+        roots = [self._simt_op_root(op_name)]
+        try:
+            plugin_root = files(f"cannbench.operators.builtin.{op_name}").joinpath("simt")
+        except (ModuleNotFoundError, TypeError):
+            return tuple(roots)
+        return tuple(roots + [plugin_root])
+
     def _simt_op_base_dir(self, request: OperatorBenchmarkRequest, op_name: str):
         version = request.implementation_version or "v1"
-        return self._simt_op_root(op_name).joinpath(version)
+        candidates = [root.joinpath(version) for root in self._simt_op_roots(op_name)]
+        for candidate in candidates:
+            if candidate.is_dir():
+                return candidate
+        return candidates[0]
 
     def _deploy_simt_op(self, request: OperatorBenchmarkRequest, op_name: str) -> None:
         simt_op_dir = self._simt_op_base_dir(request, op_name)

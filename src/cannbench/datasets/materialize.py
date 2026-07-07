@@ -390,3 +390,15 @@ def materialize_scatter_inputs(
         "indices": indices,
         "src": src,
     }
+
+
+def materialize_operator_inputs(
+    op_name: str,
+    case,
+    *,
+    dtype: str,
+    seed: int,
+) -> dict[str, object]:
+    from cannbench.operators import get_operator_plugin
+
+    return get_operator_plugin(op_name).materialize_inputs(case, dtype=dtype, seed=seed)
