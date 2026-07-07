@@ -54,6 +54,8 @@ RECORD_FIELDS = {
 
 METRIC_FIELDS = {"latency_ms_avg", "latency_ms_p50", "latency_ms_p95", "sample_count"}
 ACCURACY_FIELDS = {"passed", "max_abs_error", "max_rel_error"}
+GPU_IMPLEMENTATIONS = {"cuda-pytorch", "cuda_library"}
+GPU_IMPLEMENTATION_VERSIONS = {"cuda-pytorch", "cuda-library"}
 SAFE_COMPONENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 CODE_LIKE_PATTERNS = (
     re.compile(r"```"),
@@ -324,11 +326,11 @@ def _validate_record(record: Any, index: int, errors: list[str]) -> None:
     if record.get("backend") not in {"nvidia", "gpu"}:
         errors.append(f"{path}.backend must be nvidia or gpu")
 
-    if record.get("implementation") != "cuda-pytorch":
-        errors.append(f"{path}.implementation must be cuda-pytorch")
+    if record.get("implementation") not in GPU_IMPLEMENTATIONS:
+        errors.append(f"{path}.implementation must be cuda-pytorch or cuda_library")
 
-    if record.get("implementation_version") != "cuda-pytorch":
-        errors.append(f"{path}.implementation_version must be cuda-pytorch")
+    if record.get("implementation_version") not in GPU_IMPLEMENTATION_VERSIONS:
+        errors.append(f"{path}.implementation_version must be cuda-pytorch or cuda-library")
 
     shape = record.get("shape")
     if not isinstance(shape, list) or not shape or len(shape) > 8:

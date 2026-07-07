@@ -39,6 +39,8 @@ const RECORD_FIELDS = new Set([
 
 const METRIC_FIELDS = new Set(["latency_ms_avg", "latency_ms_p50", "latency_ms_p95", "sample_count"]);
 const ACCURACY_FIELDS = new Set(["passed", "max_abs_error", "max_rel_error"]);
+const GPU_IMPLEMENTATIONS = new Set(["cuda-pytorch", "cuda_library"]);
+const GPU_IMPLEMENTATION_VERSIONS = new Set(["cuda-pytorch", "cuda-library"]);
 
 const CODE_LIKE_PATTERNS = [
   /```/,
@@ -176,12 +178,15 @@ function validateRecord(record: unknown, index: number, errors: string[]): void 
     errors.push(`${path}.backend must be nvidia or gpu`);
   }
 
-  if (record.implementation !== "cuda-pytorch") {
-    errors.push(`${path}.implementation must be cuda-pytorch`);
+  if (typeof record.implementation !== "string" || !GPU_IMPLEMENTATIONS.has(record.implementation)) {
+    errors.push(`${path}.implementation must be cuda-pytorch or cuda_library`);
   }
 
-  if (record.implementation_version !== "cuda-pytorch") {
-    errors.push(`${path}.implementation_version must be cuda-pytorch`);
+  if (
+    typeof record.implementation_version !== "string" ||
+    !GPU_IMPLEMENTATION_VERSIONS.has(record.implementation_version)
+  ) {
+    errors.push(`${path}.implementation_version must be cuda-pytorch or cuda-library`);
   }
 
   if (!Array.isArray(record.shape) || record.shape.length === 0 || record.shape.length > 8) {

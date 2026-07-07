@@ -55,6 +55,21 @@ def test_validate_gpu_benchmark_upload_accepts_minimal_gpu_record():
     assert result.errors == ()
 
 
+def test_validate_gpu_benchmark_upload_accepts_cuda_library_record():
+    payload = _valid_gpu_upload()
+    payload["records"][0]["run_id"] = "opbench-nvidia-h800-cuda-library-dsa_decode-realistic-bfloat16"
+    payload["records"][0]["operator"] = "dsa_decode"
+    payload["records"][0]["dtype"] = "bfloat16"
+    payload["records"][0]["implementation"] = "cuda_library"
+    payload["records"][0]["implementation_version"] = "cuda-library"
+
+    result = validate_gpu_benchmark_upload(payload)
+
+    assert result.ok is True
+    assert result.accepted_count == 1
+    assert result.errors == ()
+
+
 def test_validate_gpu_benchmark_upload_rejects_sensitive_fields():
     payload = _valid_gpu_upload()
     payload["records"][0]["env"] = {"CUDA_VISIBLE_DEVICES": "0"}
@@ -92,7 +107,7 @@ def test_validate_gpu_benchmark_upload_rejects_non_cuda_pytorch_implementation()
     result = validate_gpu_benchmark_upload(payload)
 
     assert result.ok is False
-    assert "records[0].implementation must be cuda-pytorch" in result.errors
+    assert "records[0].implementation must be cuda-pytorch or cuda_library" in result.errors
 
 
 def test_list_simt_operator_versions_returns_sorted_directory_names(

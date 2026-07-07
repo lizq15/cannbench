@@ -32,6 +32,24 @@ describe("validateGpuBenchmarkUpload", () => {
     expect(result.acceptedCount).toBe(1);
   });
 
+  it("accepts GPU CUDA library benchmark records", () => {
+    const result = validateGpuBenchmarkUpload({
+      records: [
+        {
+          ...validRecord,
+          run_id: "opbench-nvidia-h800-cuda-library-dsa_decode-realistic-bfloat16",
+          operator: "dsa_decode",
+          dtype: "bfloat16",
+          implementation: "cuda_library",
+          implementation_version: "cuda-library"
+        }
+      ]
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.acceptedCount).toBe(1);
+  });
+
   it("rejects non-GPU records", () => {
     const result = validateGpuBenchmarkUpload({ records: [{ ...validRecord, backend: "ascend" }] });
 
