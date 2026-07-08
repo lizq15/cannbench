@@ -790,17 +790,78 @@ def test_ascend_backend_runs_simt_lightning_indexer_through_registered_op(monkey
     assert captured["family"] == "family_64x128"
 
 
-def test_ascend_backend_resolves_lightning_indexer_simt_v1_module_name():
+def test_ascend_backend_runs_simt_sparse_attention_through_registered_op(monkeypatch):
+    captured: dict[str, object] = {
+        "simt_calls": 0,
+        "tensor_dtypes": [],
+        "family": None,
+        "phase": None,
+        "causal": None,
+    }
+
+    class FakeTensor:
+        def reshape(self, shape):
+            del shape
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.npu = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake Ascend",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.long = "long"
+            self.tensor = self._tensor
+
+        def _tensor(self, values, device=None, dtype=None):
+            del values, device
+            captured["tensor_dtypes"].append(dtype)
+            return FakeTensor()
+
+    def fake_forward(query, keys, values, indices, *, phase, family, causal):
+        del query, keys, values, indices
+        captured["simt_calls"] += 1
+        captured["phase"] = phase
+        captured["family"] = family
+        captured["causal"] = causal
+        return FakeTensor()
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+    monkeypatch.setitem(
+        sys.modules,
+        "aten_dsa_sparse_attention",
+        SimpleNamespace(ops=SimpleNamespace(sparse_attention_forward=fake_forward)),
+    )
+
     from cannbench.backends.pytorch_backend import AscendBackend
 
     backend = AscendBackend()
-
-    assert (
-        backend._simt_op_module_name("lightning_indexer", "v1")
-        == "aten_dsa_lightning_indexer"
+    monkeypatch.setattr(backend, "_install_simt_op", lambda request, op_name: None)
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+        op="sparse_attention",
+        dtype="float16",
+        dataset="realistic_decode",
+        case_id="deepseek_128k_decode_top2048",
+        warmup=2,
+        iterations=3,
+        seed=7,
     )
-    assert backend._simt_op_module_name("lightning_indexer", "v2") is None
 
+    result = backend.run_operator(request)
+
+    assert result.op == "sparse_attention"
+    assert captured["simt_calls"] == 5
+    assert captured["tensor_dtypes"] == ["float16", "float16", "float16", "long"]
+    assert captured["phase"] == "decode"
+    assert captured["family"] == "family_hd128"
+    assert captured["causal"] is True
 
 @pytest.mark.parametrize(
     ("implementation_version", "module_name", "expected_counter"),

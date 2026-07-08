@@ -4,9 +4,10 @@ from .cases import (
     get_lightning_indexer_case,
     get_lightning_indexer_dataset,
 )
+from cannbench.core.profile import ProfileKernelSelection
 from cannbench.operators.materialize import materialized_values_to_buffer
 from .materialize import materialize_lightning_indexer_inputs
-from cannbench.operators.plugin import OperatorPlugin
+from cannbench.operators.plugin import OperatorPlugin, ProfileKernelSelectionContext
 from cannbench.operators.spec import OperatorSpec
 from .external import build_cuda_library_callable, build_vllm_ascend_callable
 
@@ -100,6 +101,24 @@ def _build_simt_callable(ctx):
     )
 
 
+def _build_profile_kernel_selection(ctx: ProfileKernelSelectionContext):
+    if ctx.implementation == "simt":
+        return ProfileKernelSelection(
+            kernel_name_patterns=("lightning_indexer", "aten_dsa_lightning_indexer")
+        )
+    return ProfileKernelSelection(kernel_name_patterns=("lightning", "indexer"))
+
+
+def _profile_launch_count(ctx: ProfileKernelSelectionContext) -> int | None:
+    if (
+        ctx.backend == "ascend"
+        and ctx.implementation == "simt"
+        and ctx.iterations is not None
+    ):
+        return ctx.iterations
+    return None
+
+
 PLUGIN = OperatorPlugin(
     spec=OperatorSpec(
         name="lightning_indexer",
@@ -116,4 +135,6 @@ PLUGIN = OperatorPlugin(
     build_vllm_ascend_callable=build_vllm_ascend_callable,
     build_simt_callable=_build_simt_callable,
     simt_module_name=_simt_module_name,
+    build_profile_kernel_selection=_build_profile_kernel_selection,
+    profile_launch_count=_profile_launch_count,
 )

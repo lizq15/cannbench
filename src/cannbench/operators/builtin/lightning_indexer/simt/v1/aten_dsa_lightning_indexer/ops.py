@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-import torch
+from importlib import import_module
+
+try:
+    torch = import_module("torch")
+except ImportError:
+    torch = None
 
 __all__ = [
     "lightning_indexer_forward",
@@ -20,10 +25,14 @@ def lightning_indexer_forward(
 ):
     if phase == "prefill" and family in {"family_64x128", "family_4x64"}:
         return _prefill_reference(query, keys, weights, top_k=top_k)
+    if phase == "decode" and family in {"family_64x128", "family_4x64"}:
+        return _decode_reference(query, keys, weights, top_k=top_k)
     return _fallback_reference(query, keys, weights, top_k=top_k)
 
 
 def _prefill_reference(query, keys, weights, *, top_k: int):
+    if torch is None:
+        raise RuntimeError("torch is required for lightning_indexer reference wrapper")
     scores = torch.einsum("bqhd,bcd->bqhc", query, keys)
     scores = torch.relu(scores)
     scores = scores * weights.unsqueeze(-1)
@@ -38,4 +47,8 @@ def _prefill_reference(query, keys, weights, *, top_k: int):
 
 
 def _fallback_reference(query, keys, weights, *, top_k: int):
+    return _prefill_reference(query, keys, weights, top_k=top_k)
+
+
+def _decode_reference(query, keys, weights, *, top_k: int):
     return _prefill_reference(query, keys, weights, top_k=top_k)

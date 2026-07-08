@@ -167,6 +167,66 @@ def test_index_add_plugin_profile_patterns_filter_cann_tensor_move(tmp_path):
     )
     assert summary.sample_count == 1
     assert summary.latency_ms_avg == 0.00975
+
+
+def test_lightning_indexer_plugin_uses_simt_profile_patterns():
+    selection = get_operator_plugin("lightning_indexer").profile_kernel_selection(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+    )
+
+    assert selection.kernel_name_patterns == (
+        "lightning_indexer",
+        "aten_dsa_lightning_indexer",
+    )
+
+
+def test_lightning_indexer_plugin_uses_simt_profile_launch_count_hook():
+    plugin = get_operator_plugin("lightning_indexer")
+
+    assert plugin.profile_launch_count is not None
+    assert (
+        plugin.device_profile_launch_count(
+            backend="ascend",
+            implementation="simt",
+            implementation_version="v1",
+            dtype="float16",
+            iterations=7,
+        )
+        == 7
+    )
+
+
+def test_sparse_attention_plugin_uses_simt_profile_patterns():
+    selection = get_operator_plugin("sparse_attention").profile_kernel_selection(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+    )
+
+    assert selection.kernel_name_patterns == (
+        "sparse_attention",
+        "aten_dsa_sparse_attention",
+    )
+
+
+def test_sparse_attention_plugin_uses_simt_profile_launch_count_hook():
+    plugin = get_operator_plugin("sparse_attention")
+
+    assert plugin.profile_launch_count is not None
+    assert (
+        plugin.device_profile_launch_count(
+            backend="ascend",
+            implementation="simt",
+            implementation_version="v1",
+            dtype="float16",
+            iterations=9,
+        )
+        == 9
+    )
+
+
 def test_write_device_profile_summary_json(tmp_path):
     profile_dir = tmp_path / "profile"
     profile_dir.mkdir()
