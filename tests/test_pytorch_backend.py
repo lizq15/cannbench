@@ -790,6 +790,18 @@ def test_ascend_backend_runs_simt_lightning_indexer_through_registered_op(monkey
     assert captured["family"] == "family_64x128"
 
 
+def test_ascend_backend_resolves_lightning_indexer_simt_v1_module_name():
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+
+    assert (
+        backend._simt_op_module_name("lightning_indexer", "v1")
+        == "aten_dsa_lightning_indexer"
+    )
+    assert backend._simt_op_module_name("lightning_indexer", "v2") is None
+
+
 @pytest.mark.parametrize(
     ("implementation_version", "module_name", "expected_counter"),
     [
