@@ -1,80 +1,128 @@
-# Lightning Indexer SIMT Custom-Op V1 Design
+# Ascend DSA SIMT Custom-Op Rollout Design
 
 ## Status
 
-Approved design for the first real Ascend `<<<>>>` custom-op implementation
-behind the existing `lightning_indexer` SIMT `v1` interface.
+Approved design for moving the current DSA SIMT path from Python reference
+wrappers toward real Ascend `<<<>>>` custom-ops while preserving the existing
+CannBench plugin boundaries.
 
-This phase replaces part of the current Python reference-wrapper path with a
-real custom-op while preserving the CannBench plugin boundary and fallback
-behavior.
+This spec covers the full intended scope:
+
+- `lightning_indexer`
+- `sparse_attention`
+- `prefill`
+- `decode`
+
+Implementation priority is allowed to be staged later in the plan, but scope is
+defined here in full.
 
 ## Goal
 
-Build the first real Ascend SIMT custom-op for `lightning_indexer` under the
-existing `simt/v1` package, targeting:
+Build real Ascend SIMT custom-op implementations behind the existing CannBench
+SIMT plugin interfaces for:
 
-- operator: `lightning_indexer`
-- phase: `prefill`
-- fast-path family: `family_4x64`
+- `lightning_indexer`
+- `sparse_attention`
 
-Success for this phase means:
+across both:
 
-- the custom-op builds and installs through the existing operator-local SIMT
-  package flow
-- `torch.ops.aten_dsa_lightning_indexer.*` is registered and callable
-- the `family_4x64 + prefill` path runs through the real custom-op
-- output matches the current Python reference wrapper exactly
-- all other paths continue to use safe fallback behavior
+- `prefill`
+- `decode`
+
+while preserving:
+
+- the current operator plugin boundaries
+- the current `implementation=simt, implementation_version=v1` integration
+  boundary
+- safe fallback behavior when a real custom-op is unavailable or a shape is not
+  yet supported
 
 ## Non-Goals
 
-This phase does not include:
+This design does not introduce:
 
-- `decode`
-- `family_64x128`
-- `sparse_attention`
-- generic shape support
-- performance gates against `vllm-ascend`
 - `aclnn`
+- workflow-level fused public kernels for `dsa_prefill` or `dsa_decode`
+- concrete DSA branches in `cli.py`, `core/`, or shared backend classes
+- generic-shape-first implementation
+- a pure-SIMT strategy for matrix-heavy work better served by cube core
 
 ## Constraints
 
 - Ascend-only scope
-- keep all operator-specific logic inside
-  `src/cannbench/operators/builtin/lightning_indexer/`
-- do not add concrete operator branches to `cli.py`, `core/`, or shared backend
-  classes
-- continue to use the existing `implementation=simt, implementation_version=v1`
-  boundary
-- use `softmax`-style custom-op engineering shape:
-  `setup.py`, `install.sh`, `scripts/common.sh`, `register.asc`, Python `_C`
-  loading, and `torch.ops` dispatch
+- keep all operator-specific logic inside:
+  - `src/cannbench/operators/builtin/lightning_indexer/`
+  - `src/cannbench/operators/builtin/sparse_attention/`
+- keep workflow-specific logic inside:
+  - `src/cannbench/operators/builtin/dsa_prefill/`
+  - `src/cannbench/operators/builtin/dsa_decode/`
+- continue to use `softmax`-style custom-op engineering shape:
+  - `setup.py`
+  - `install.sh`
+  - `scripts/common.sh`
+  - `register.asc`
+  - Python `_C` loading
+  - `torch.ops` dispatch
+- matrix-heavy work stays on cube core in the long-term target architecture
+- vector, sparse, control, merge, layout, and glue work moves to SIMT
+
+## Intended Full Scope
+
+The final intended scope covered by this spec is:
+
+### `lightning_indexer`
+
+- `prefill`
+  - `family_4x64`
+  - `family_64x128`
+- `decode`
+  - `family_4x64`
+  - `family_64x128`
+
+### `sparse_attention`
+
+- `prefill`
+  - `family_hd128`
+  - `family_hd512`
+- `decode`
+  - `family_hd128`
+  - `family_hd512`
+
+The fact that implementation starts with only one family does not reduce the
+required product scope above.
 
 ## Main Decision
 
-Use the existing:
+Use the existing `simt/v1` package locations as the long-lived public
+integration points for the real custom-op rollout:
 
 - `src/cannbench/operators/builtin/lightning_indexer/simt/v1/aten_dsa_lightning_indexer/`
+- `src/cannbench/operators/builtin/sparse_attention/simt/v1/aten_dsa_sparse_attention/`
 
-as the first real custom-op home.
-
-`v1` remains the public integration point. The package evolves from:
+These packages evolve from:
 
 - Python reference wrapper only
 
 to:
 
-- real custom-op when `_C` is available and the request matches the first
-  supported fast path
-- Python reference fallback for unsupported shapes, phases, or environments
+- real custom-op when `_C` is available and the current shape/phase is
+  supported
+- Python reference fallback for unsupported shapes, unsupported phases, or
+  build/runtime environments where the custom-op is not available
 
-This avoids duplicating plugin integration in a new `v2` while keeping rollout
-risk low.
+This keeps:
+
+- plugin integration stable
+- versioning stable
+- rollout risk low
+
+and avoids duplicating the same dispatch path again under `v2`.
 
 ## Package Structure
 
-The custom-op package should follow the `softmax` engineering shape:
+Each operator package should follow the `softmax` SIMT engineering shape.
+
+### `lightning_indexer`
 
 - `aten_dsa_lightning_indexer/__init__.py`
   - load `_C`
@@ -93,9 +141,30 @@ The custom-op package should follow the `softmax` engineering shape:
 - `install.sh`, `scripts/install.sh`, `scripts/common.sh`
   - Ascend environment and install flow
 
-## Public Runtime Interface
+### `sparse_attention`
 
-The first real custom-op should preserve the existing wrapper boundary:
+- `aten_dsa_sparse_attention/__init__.py`
+  - load `_C`
+  - expose `ops`
+- `aten_dsa_sparse_attention/ops.py`
+  - route to real `torch.ops` when available and supported
+  - otherwise route to Python reference fallback
+- `aten_dsa_sparse_attention/csrc/register.asc`
+  - minimal Python extension entry
+- `aten_dsa_sparse_attention/csrc/*.asc`
+  - host-side registration and bridge logic
+- `aten_dsa_sparse_attention/csrc/simt/*.asc`
+  - actual `<<<>>>` kernel implementation
+- `setup.py`
+  - `bisheng -x asc --enable-simt`
+- `install.sh`, `scripts/install.sh`, `scripts/common.sh`
+  - Ascend environment and install flow
+
+## Public Runtime Interfaces
+
+### `lightning_indexer`
+
+The runtime namespace remains:
 
 ```python
 torch.ops.aten_dsa_lightning_indexer.lightning_indexer_forward(
@@ -114,23 +183,65 @@ The Python package continues to expose:
 lightning_indexer_forward(query, keys, weights, *, top_k: int, phase: str, family: str)
 ```
 
-but internally the behavior becomes:
+### `sparse_attention`
 
-1. if `_C` is loaded, the op is registered, and the request is
-   `phase == "prefill"` and `family == "family_4x64"`, call the real custom-op
-2. otherwise, use the existing Python reference path
+The runtime namespace remains:
 
-## First Kernel Scope
+```python
+torch.ops.aten_dsa_sparse_attention.sparse_attention_forward(
+    query,
+    keys,
+    values,
+    indices,
+    phase: str,
+    family: str,
+    causal: bool,
+) -> tuple[Tensor, Tensor]
+```
 
-The first real kernel handles only:
+The Python package continues to expose:
 
-- `phase == "prefill"`
-- `family == "family_4x64"`
-- logical shape family:
-  - `index_heads = 4`
-  - `index_dim = 64`
+```python
+sparse_attention_forward(
+    query,
+    keys,
+    values,
+    indices,
+    *,
+    phase: str,
+    family: str,
+    causal: bool,
+)
+```
 
-Expected logical computation remains aligned with the current reference:
+## Routing Model
+
+The runtime routing strategy is the same for both operators.
+
+### Preferred path
+
+Use real `torch.ops` when all of the following are true:
+
+- `_C` is loaded
+- the namespace op is registered
+- the requested `phase` is implemented
+- the requested `family` is implemented
+
+### Fallback path
+
+Use the existing Python reference wrapper when any of the following are true:
+
+- `_C` is not built
+- `_C` is not importable
+- the namespace op is not registered
+- the requested `phase` is not yet implemented
+- the requested `family` is not yet implemented
+
+This keeps `v1` usable throughout the rollout.
+
+## `lightning_indexer` Semantics
+
+The externally visible semantics remain aligned with the current reference:
 
 ```python
 scores = einsum("bqhd,bcd->bqhc", query, keys)
@@ -140,47 +251,109 @@ reduced = scores.sum(dim=2)
 indices = topk(reduced, top_k).indices.to(int32)
 ```
 
-The implementation strategy is not required to mirror PyTorch operator
-composition. It only needs to preserve externally visible results.
+Output contract:
+
+- shape: `[B, Q, top_k]`
+- dtype: `int32`
+
+The real custom-op implementation does not need to mirror PyTorch operator
+composition internally. It only needs to preserve the output contract.
+
+## `sparse_attention` Semantics
+
+The externally visible semantics remain aligned with the current reference:
+
+- gather selected keys and values
+- compute query-key scores
+- apply causal masking when required
+- softmax over selected tokens
+- reduce with selected values
+- return:
+  - attention output
+  - log-sum-exp tensor
+
+Output contract:
+
+- output tensor shape follows the current plugin-local reference contract
+- LSE tensor shape follows the current plugin-local reference contract
+
+As with `lightning_indexer`, the real custom-op implementation may choose a
+different internal decomposition as long as the public contract remains stable.
+
+## First Deliverable
+
+Although this spec covers the full target scope, the first real custom-op
+deliverable should be:
+
+- operator: `lightning_indexer`
+- phase: `prefill`
+- family: `family_4x64`
+
+Reasons:
+
+- smaller state space
+- easier SIMT launch and buffer organization
+- lower risk for proving the full custom-op toolchain
+- best first step for validating:
+  - build
+  - install
+  - registration
+  - `torch.ops` dispatch
+  - CannBench plugin integration
+
+This is a priority decision, not a scope reduction.
 
 ## Programming Model
 
-This first phase uses the agreed mixed-model direction conservatively:
+The long-term architecture remains the agreed mixed model:
 
-- the custom-op is implemented through the Ascend SIMT toolchain and `<<<>>>`
-  launch path
-- only the small first target family is supported
-- the purpose is to prove the real custom-op chain, not to finish the full
-  cube-plus-SIMT decomposition in one step
+- cube core for matrix-heavy work
+- SIMT for vector, sparse, control, merge, and layout work
 
-The current phase therefore prioritizes:
+The first deliverable does not need to fully realize that decomposition. Its
+job is to establish:
 
-- real operator registration
-- real device execution
-- exact correctness against reference
+- a real `<<<>>>` execution path
+- correct operator registration
+- exact reference parity
 
-over:
+Then later phases can move the implementation toward the full mixed cube-plus-
+SIMT target.
 
-- full shape coverage
-- throughput optimization
+## Rollout Phases
 
-## Fallback Strategy
+The design assumes the following rollout sequence.
 
-Fallback remains mandatory.
+### Phase 1
 
-The Python wrapper must fall back when:
+- `lightning_indexer`
+- `prefill`
+- `family_4x64`
 
-- `_C` is not built or not importable
-- the namespace op is not registered
-- `phase != "prefill"`
-- `family != "family_4x64"`
+### Phase 2
 
-Fallback behavior must preserve the current `v1` contract so CannBench runs do
-not regress when the real custom-op is unavailable.
+- `lightning_indexer`
+- remaining families and `decode`
+
+### Phase 3
+
+- `sparse_attention`
+- `prefill`
+- first implemented family
+
+### Phase 4
+
+- `sparse_attention`
+- remaining families and `decode`
+
+### Phase 5
+
+- performance-directed optimization toward the mixed cube-plus-SIMT target
 
 ## Testing And Acceptance
 
-Acceptance is split into four layers.
+Acceptance applies to the full scope, with each phase validating the relevant
+subset.
 
 ### 1. Build And Registration
 
@@ -188,22 +361,23 @@ Prove that:
 
 - the package installs through the operator-local SIMT install flow
 - `_C` imports successfully
-- `torch.ops.aten_dsa_lightning_indexer.lightning_indexer_forward` exists
+- the expected `torch.ops` namespace entry exists
 
 ### 2. Wrapper Routing
 
 Prove that:
 
-- `prefill + family_4x64` routes to the real custom-op
-- unsupported shapes or phases route to Python fallback
+- supported `phase + family` pairs route to the real custom-op
+- unsupported `phase + family` pairs route to Python fallback
 
 ### 3. Correctness
 
 Prove that:
 
-- for at least one real `family_4x64` case, the custom-op output matches the
-  current Python reference exactly
-- output dtype remains `int32`
+- each newly implemented `phase + family` pair matches the current Python
+  reference exactly
+- `lightning_indexer` preserves `int32` output dtype
+- `sparse_attention` preserves tuple-output contract
 
 ### 4. CannBench Integration
 
@@ -211,30 +385,25 @@ Prove that:
 
 - `implementation=simt`
 - `implementation_version=v1`
-- `op=lightning_indexer`
+- operator-local plugin dispatch still works through the backend path
+- DSA workflow coverage remains valid for both:
+  - `dsa_prefill`
+  - `dsa_decode`
 
-continues to run through the backend and plugin layers successfully.
+### 5. Repository Verification
 
-Full repository verification must remain green with:
+The repository must remain green under:
 
 ```bash
 pytest -q
 ```
 
-## Recommended Execution Order
-
-1. clone the `softmax` SIMT engineering shell into the `lightning_indexer`
-   `v1` package shape
-2. register a minimal real op under `torch.ops.aten_dsa_lightning_indexer`
-3. route `ops.py` to prefer the real op for `prefill + family_4x64`
-4. implement a first correct kernel for the `family_4x64` path
-5. validate exact correctness and full CannBench integration
-
 ## Follow-On Work
 
-If this phase succeeds, the natural next steps are:
+After the first real custom-op succeeds, subsequent work should:
 
-1. expand `lightning_indexer` to `family_64x128`
-2. add real `decode` support
-3. apply the same custom-op engineering shell to `sparse_attention`
-4. then optimize toward the mixed cube-plus-SIMT target performance model
+1. expand `lightning_indexer` family coverage
+2. add `lightning_indexer decode`
+3. bring `sparse_attention` onto the same real custom-op engineering shell
+4. expand `sparse_attention` family and phase coverage
+5. optimize toward the final mixed cube-plus-SIMT performance target
