@@ -58,6 +58,9 @@ def test_operator_plugins_own_external_implementation_hooks():
     assert softmax.simt_module_name("v2") == "aten_softmax_v2"
     assert softmax.simt_module_name("v3") == "aten_softmax_v3"
 
+    assert callable(lightning_indexer.build_simt_callable)
+    assert lightning_indexer.simt_module_name("v1") == "aten_dsa_lightning_indexer"
+    assert lightning_indexer.simt_module_name("v2") is None
     assert callable(lightning_indexer.build_cuda_library_callable)
     assert callable(lightning_indexer.build_vllm_ascend_callable)
     assert callable(sparse_attention.build_cuda_library_callable)

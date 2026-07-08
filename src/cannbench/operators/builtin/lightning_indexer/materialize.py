@@ -28,6 +28,8 @@ def materialize_lightning_indexer_inputs(
         "query_shape": query_shape,
         "key_shape": key_shape,
         "weight_shape": weight_shape,
+        "index_heads": case.index_heads,
+        "index_dim": case.index_dim,
         "top_k": case.top_k,
         "dtype": dtype,
         "query": query,

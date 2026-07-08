@@ -717,6 +717,79 @@ def test_ascend_backend_runs_simt_index_add_through_registered_op(monkeypatch):
     assert captured["tensor_dtypes"][1] == "int32"
 
 
+def test_ascend_backend_runs_simt_lightning_indexer_through_registered_op(monkeypatch):
+    captured: dict[str, object] = {
+        "simt_calls": 0,
+        "tensor_dtypes": [],
+        "family": None,
+        "phase": None,
+        "top_k": None,
+    }
+
+    class FakeTensor:
+        def reshape(self, shape):
+            del shape
+            return self
+
+    class FakeTorch:
+        def __init__(self) -> None:
+            self.npu = SimpleNamespace(
+                is_available=lambda: True,
+                synchronize=lambda: None,
+                get_device_name=lambda device: "Fake Ascend",
+            )
+            self.device = lambda kind: kind
+            self.float16 = "float16"
+            self.tensor = self._tensor
+
+        def _tensor(self, values, device=None, dtype=None):
+            del values, device
+            captured["tensor_dtypes"].append(dtype)
+            return FakeTensor()
+
+    def fake_forward(query, keys, weights, *, top_k, phase, family):
+        del query, keys, weights
+        captured["simt_calls"] += 1
+        captured["top_k"] = top_k
+        captured["phase"] = phase
+        captured["family"] = family
+        return FakeTensor()
+
+    monkeypatch.setitem(sys.modules, "torch", FakeTorch())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+    monkeypatch.setitem(
+        sys.modules,
+        "aten_dsa_lightning_indexer",
+        SimpleNamespace(ops=SimpleNamespace(lightning_indexer_forward=fake_forward)),
+    )
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_install_simt_op", lambda request, op_name: None)
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        implementation="simt",
+        implementation_version="v1",
+        op="lightning_indexer",
+        dtype="float16",
+        dataset="smoke",
+        case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
+        warmup=2,
+        iterations=3,
+        seed=7,
+    )
+
+    result = backend.run_operator(request)
+
+    assert result.op == "lightning_indexer"
+    assert captured["simt_calls"] == 5
+    assert captured["tensor_dtypes"] == ["float16", "float16", "float16"]
+    assert captured["top_k"] == 512
+    assert captured["phase"] == "decode"
+    assert captured["family"] == "family_64x128"
+
+
 @pytest.mark.parametrize(
     ("implementation_version", "module_name", "expected_counter"),
     [
