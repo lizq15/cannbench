@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import math
 
+from cannbench.core.profile import ProfileKernelSelection
 from cannbench.operators.materialize import materialized_values_to_buffer
 from .materialize import materialize_sparse_attention_inputs
 from .cases import (
     get_sparse_attention_case,
     get_sparse_attention_dataset,
 )
-from cannbench.operators.plugin import OperatorPlugin
+from cannbench.operators.plugin import OperatorPlugin, ProfileKernelSelectionContext
 from cannbench.operators.spec import OperatorSpec
 from .external import build_cuda_library_callable, build_vllm_ascend_callable
 
@@ -75,6 +76,86 @@ def _build_torch_callable(ctx):
     return operator
 
 
+def _simt_module_name(version: str | None) -> str | None:
+    if (version or "v1") == "v1":
+        return "aten_dsa_sparse_attention"
+    return None
+
+
+def _select_simt_family(payload: dict[str, object]) -> str:
+    if payload["head_dim"] == 512 and payload["kv_heads"] == 1:
+        return "family_hd512"
+    if (
+        payload["head_dim"] == 128
+        and payload["kv_heads"] == 1
+        and payload["query_heads"] == 128
+    ):
+        return "family_hd128"
+    return "fallback"
+
+
+def _build_simt_callable(ctx):
+    if ctx.implementation_module is None:
+        raise RuntimeError("sparse_attention SIMT implementation module is not loaded")
+    payload = materialize_sparse_attention_inputs(
+        ctx.case,
+        dtype=ctx.request.dtype,
+        seed=ctx.request.seed,
+    )
+    family = _select_simt_family(payload)
+    query = ctx.backend._tensor(
+        ctx.torch,
+        materialized_values_to_buffer(payload["query"]),
+        device=ctx.device,
+        dtype=ctx.dtype,
+    ).reshape(payload["query_shape"])
+    keys = ctx.backend._tensor(
+        ctx.torch,
+        materialized_values_to_buffer(payload["keys"]),
+        device=ctx.device,
+        dtype=ctx.dtype,
+    ).reshape(payload["key_shape"])
+    values = ctx.backend._tensor(
+        ctx.torch,
+        materialized_values_to_buffer(payload["values"]),
+        device=ctx.device,
+        dtype=ctx.dtype,
+    ).reshape(payload["value_shape"])
+    indices = ctx.backend._tensor(
+        ctx.torch,
+        payload["indices"],
+        device=ctx.device,
+        dtype=ctx.torch.long,
+    ).reshape(payload["indices_shape"])
+    return lambda: ctx.implementation_module.ops.sparse_attention_forward(
+        query,
+        keys,
+        values,
+        indices,
+        phase=str(payload["phase"]),
+        family=family,
+        causal=bool(payload["causal"]),
+    )
+
+
+def _build_profile_kernel_selection(ctx: ProfileKernelSelectionContext):
+    if ctx.implementation == "simt":
+        return ProfileKernelSelection(
+            kernel_name_patterns=("sparse_attention", "aten_dsa_sparse_attention")
+        )
+    return ProfileKernelSelection(kernel_name_patterns=("sparse", "attention"))
+
+
+def _profile_launch_count(ctx: ProfileKernelSelectionContext) -> int | None:
+    if (
+        ctx.backend == "ascend"
+        and ctx.implementation == "simt"
+        and ctx.iterations is not None
+    ):
+        return ctx.iterations
+    return None
+
+
 PLUGIN = OperatorPlugin(
     spec=OperatorSpec(
         name="sparse_attention",
@@ -89,4 +170,8 @@ PLUGIN = OperatorPlugin(
     sort_order=13,
     build_cuda_library_callable=build_cuda_library_callable,
     build_vllm_ascend_callable=build_vllm_ascend_callable,
+    build_simt_callable=_build_simt_callable,
+    simt_module_name=_simt_module_name,
+    build_profile_kernel_selection=_build_profile_kernel_selection,
+    profile_launch_count=_profile_launch_count,
 )

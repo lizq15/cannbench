@@ -63,6 +63,9 @@ def test_operator_plugins_own_external_implementation_hooks():
     assert lightning_indexer.simt_module_name("v2") is None
     assert callable(lightning_indexer.build_cuda_library_callable)
     assert callable(lightning_indexer.build_vllm_ascend_callable)
+    assert callable(sparse_attention.build_simt_callable)
+    assert sparse_attention.simt_module_name("v1") == "aten_dsa_sparse_attention"
+    assert sparse_attention.simt_module_name("v2") is None
     assert callable(sparse_attention.build_cuda_library_callable)
     assert callable(sparse_attention.build_vllm_ascend_callable)
 
