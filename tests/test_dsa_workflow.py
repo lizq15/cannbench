@@ -14,14 +14,14 @@ from cannbench.operators.builtin.dsa_prefill import (
 
 def test_build_decode_workflow_uses_indexer_then_sparse_decode():
     workflow = build_dsa_decode_workflow(
-        dataset="smoke",
+        dataset="realistic",
         case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
         dtype="bfloat16",
         seed=7,
     )
 
     assert workflow.phase == "decode"
-    assert workflow.dataset == "smoke"
+    assert workflow.dataset == "realistic"
     assert workflow.case_id == "vllm_ascend_a5_decode_b1_ctx512_top512"
     assert [step.contract for step in workflow.steps] == [
         "dsa_index_select",
@@ -59,11 +59,30 @@ def test_build_prefill_workflow_uses_indexer_then_sparse_prefill():
 
 
 def test_list_dsa_workflows_filters_to_cases_with_matching_component_cases():
-    decode_workflows = list_dsa_decode_workflows("smoke")
+    decode_workflows = list_dsa_decode_workflows("realistic")
     prefill_workflows = list_dsa_prefill_workflows("smoke")
 
     assert [workflow.case_id for workflow in decode_workflows] == [
         "vllm_ascend_a5_decode_b1_ctx512_top512",
+        "deepseek_a5_decode_b1_ctx512_top512",
+        "deepseek_a5_decode_b1_ctx2048_top512",
+        "deepseek_a5_decode_b1_ctx4096_top512",
+        "deepseek_a5_decode_b1_ctx8192_top512",
+        "deepseek_a5_decode_b1_ctx16384_top1024",
+        "deepseek_a5_decode_b2_ctx4096_top512",
+        "deepseek_a5_decode_b4_ctx4096_top512",
+        "deepseek_a5_decode_b8_ctx2048_top512",
+        "deepseek_a5_mtp3_b64_ctx1024_top1024",
+        "deepseek_a5_mtp3_b64_ctx4096_top1024",
+        "deepseek_a5_mtp3_b64_ctx16384_top1024",
+        "deepseek_a5_mtp3_b64_ctx65536_top1024",
+        "deepseek_a5_mtp3_b16_ctx1024_top1024",
+        "deepseek_a5_mtp3_b16_ctx4096_top1024",
+        "deepseek_a5_mtp3_b16_ctx16384_top1024",
+        "deepseek_a5_mtp3_b16_ctx65536_top1024",
+        "deepseek_a5_mtp3_b16_ctx262144_top1024",
+        "deepseek_a5_mtp3_b64_ctx262144_top1024",
+        "deepseek_128k_decode_top2048",
     ]
     assert [workflow.case_id for workflow in prefill_workflows] == [
         "vllm_ascend_a5_prefill_b1_q512_ctx512_top512"
@@ -71,18 +90,37 @@ def test_list_dsa_workflows_filters_to_cases_with_matching_component_cases():
 
 
 def test_dsa_fused_operator_datasets_are_phase_specific_case_selection_sources():
-    decode_dataset = get_dsa_decode_dataset("smoke")
+    decode_dataset = get_dsa_decode_dataset("realistic")
     prefill_dataset = get_dsa_prefill_dataset("smoke")
 
-    assert decode_dataset.name == "smoke"
+    assert decode_dataset.name == "realistic"
     assert prefill_dataset.name == "smoke"
     assert [case.case_id for case in decode_dataset.cases] == [
         "vllm_ascend_a5_decode_b1_ctx512_top512",
+        "deepseek_a5_decode_b1_ctx512_top512",
+        "deepseek_a5_decode_b1_ctx2048_top512",
+        "deepseek_a5_decode_b1_ctx4096_top512",
+        "deepseek_a5_decode_b1_ctx8192_top512",
+        "deepseek_a5_decode_b1_ctx16384_top1024",
+        "deepseek_a5_decode_b2_ctx4096_top512",
+        "deepseek_a5_decode_b4_ctx4096_top512",
+        "deepseek_a5_decode_b8_ctx2048_top512",
+        "deepseek_a5_mtp3_b64_ctx1024_top1024",
+        "deepseek_a5_mtp3_b64_ctx4096_top1024",
+        "deepseek_a5_mtp3_b64_ctx16384_top1024",
+        "deepseek_a5_mtp3_b64_ctx65536_top1024",
+        "deepseek_a5_mtp3_b16_ctx1024_top1024",
+        "deepseek_a5_mtp3_b16_ctx4096_top1024",
+        "deepseek_a5_mtp3_b16_ctx16384_top1024",
+        "deepseek_a5_mtp3_b16_ctx65536_top1024",
+        "deepseek_a5_mtp3_b16_ctx262144_top1024",
+        "deepseek_a5_mtp3_b64_ctx262144_top1024",
+        "deepseek_128k_decode_top2048",
     ]
     assert [case.case_id for case in prefill_dataset.cases] == [
         "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
     ]
-    assert [case.workflow for case in decode_dataset.cases] == ["dsa_decode"]
+    assert all(case.workflow == "dsa_decode" for case in decode_dataset.cases)
     assert [case.workflow for case in prefill_dataset.cases] == ["dsa_prefill"]
 
 
@@ -93,9 +131,10 @@ def test_realistic_workflow_datasets_are_split_by_fused_operator():
     decode_case_ids = [workflow.case_id for workflow in decode_workflows]
     prefill_case_ids = [workflow.case_id for workflow in prefill_workflows]
 
-    assert len(decode_case_ids) == 8
-    assert len(prefill_case_ids) == 8
+    assert len(decode_case_ids) == 20
+    assert len(prefill_case_ids) == 20
     assert decode_case_ids == [
+        "vllm_ascend_a5_decode_b1_ctx512_top512",
         "deepseek_a5_decode_b1_ctx512_top512",
         "deepseek_a5_decode_b1_ctx2048_top512",
         "deepseek_a5_decode_b1_ctx4096_top512",
@@ -104,8 +143,20 @@ def test_realistic_workflow_datasets_are_split_by_fused_operator():
         "deepseek_a5_decode_b2_ctx4096_top512",
         "deepseek_a5_decode_b4_ctx4096_top512",
         "deepseek_a5_decode_b8_ctx2048_top512",
+        "deepseek_a5_mtp3_b64_ctx1024_top1024",
+        "deepseek_a5_mtp3_b64_ctx4096_top1024",
+        "deepseek_a5_mtp3_b64_ctx16384_top1024",
+        "deepseek_a5_mtp3_b64_ctx65536_top1024",
+        "deepseek_a5_mtp3_b16_ctx1024_top1024",
+        "deepseek_a5_mtp3_b16_ctx4096_top1024",
+        "deepseek_a5_mtp3_b16_ctx16384_top1024",
+        "deepseek_a5_mtp3_b16_ctx65536_top1024",
+        "deepseek_a5_mtp3_b16_ctx262144_top1024",
+        "deepseek_a5_mtp3_b64_ctx262144_top1024",
+        "deepseek_128k_decode_top2048",
     ]
     assert prefill_case_ids == [
+        "vllm_ascend_a5_prefill_b1_q512_ctx512_top512",
         "deepseek_a5_prefill_b1_q64_ctx512_top512",
         "deepseek_a5_prefill_b1_q128_ctx512_top512",
         "deepseek_a5_prefill_b1_q256_ctx512_top512",
@@ -114,6 +165,17 @@ def test_realistic_workflow_datasets_are_split_by_fused_operator():
         "deepseek_a5_prefill_b1_q512_ctx1024_top1024",
         "deepseek_a5_prefill_b2_q128_ctx512_top512",
         "deepseek_a5_prefill_b2_q256_ctx512_top512",
+        "deepseek_v4pro_prefill_b1_q256_ctx2048_top1024",
+        "deepseek_v4pro_prefill_b1_q512_ctx4096_top1024",
+        "deepseek_v4pro_prefill_b2_q512_ctx4096_top1024",
+        "deepseek_v4pro_prefill_b4_q256_ctx8192_top1024",
+        "deepseek_v4pro_prefill_b8_q128_ctx16384_top1024",
+        "deepseek_v32_prefill_b1_q128_ctx16384_top2048",
+        "deepseek_v32_prefill_b1_q128_ctx32768_top2048",
+        "deepseek_v32_prefill_b1_q128_ctx65536_top2048",
+        "deepseek_v32_prefill_b1_q128_ctx131072_top2048",
+        "deepseek_v32_prefill_b2_q128_ctx65536_top2048",
+        "deepseek_128k_prefill_microbatch_top2048",
     ]
     assert all(workflow.phase == "decode" for workflow in decode_workflows)
     assert all(workflow.phase == "prefill" for workflow in prefill_workflows)
@@ -122,11 +184,16 @@ def test_realistic_workflow_datasets_are_split_by_fused_operator():
 def test_build_workflow_rejects_case_outside_workflow_manifest():
     with pytest.raises(ValueError, match="Unknown DSA decode case"):
         build_dsa_decode_workflow(
-            dataset="smoke",
+            dataset="realistic",
             case_id="tiny_mqa_decode_top8",
             dtype="float16",
             seed=0,
         )
+
+
+def test_decode_smoke_and_stress_datasets_are_empty():
+    assert list_dsa_decode_workflows("smoke") == ()
+    assert list_dsa_decode_workflows("stress") == ()
 
 
 def test_prefill_stress_dataset_has_a_prefill_workflow_case():
@@ -146,7 +213,7 @@ def test_dsa_workflow_api_is_exported_from_operator_packages():
     )
 
     workflow = exported_decode_builder(
-        dataset="smoke",
+        dataset="realistic",
         case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
         dtype="bfloat16",
         seed=0,

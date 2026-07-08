@@ -27,11 +27,12 @@ def test_dsa_decode_and_prefill_are_registered_as_fused_operators():
 
     assert decode.spec.name == "dsa_decode"
     assert decode.spec.runner_name == "dsa_decode"
-    assert [case.phase for case in decode.get_dataset("smoke").cases] == ["decode"]
+    assert decode.get_dataset("smoke").cases == ()
+    assert all(case.phase == "decode" for case in decode.get_dataset("realistic").cases)
 
     assert prefill.spec.name == "dsa_prefill"
     assert prefill.spec.runner_name == "dsa_prefill"
-    assert [case.phase for case in prefill.get_dataset("smoke").cases] == ["prefill"]
+    assert all(case.phase == "prefill" for case in prefill.get_dataset("smoke").cases)
 
 
 def test_operator_datasets_are_not_kept_under_legacy_dataset_data_root():

@@ -2153,7 +2153,7 @@ def test_main_rejects_dsa_fused_operator_case_with_wrong_phase(capsys):
                 "--op",
                 "dsa_prefill",
                 "--dataset",
-                "smoke",
+                "realistic",
                 "--case-id",
                 "vllm_ascend_a5_decode_b1_ctx512_top512",
             ]
@@ -2437,7 +2437,7 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
             "--op",
             "dsa_decode",
             "--dataset",
-            "smoke",
+            "realistic",
             "--case-id",
             "vllm_ascend_a5_decode_b1_ctx512_top512",
             "--dtype",
@@ -2449,7 +2449,7 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
         ]
     )
 
-    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_decode-smoke-bfloat16"
+    run_name = "opbench-ascend-950pr-vllm-ascend-dsa_decode-realistic-bfloat16"
     layout = build_run_layout(tmp_path, run_name)
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
     captured = capsys.readouterr()
@@ -2474,13 +2474,13 @@ def test_main_runs_dsa_decode_workflow_as_two_local_cases(tmp_path, monkeypatch,
     assert (
         layout.prepared_dir
         / "lightning_indexer"
-        / "smoke"
+        / "realistic_decode"
         / "vllm_ascend_a5_decode_b1_ctx512_top512-bfloat16-seed7.json"
     ).exists()
     assert (
         layout.prepared_dir
         / "sparse_attention"
-        / "smoke"
+        / "realistic_decode"
         / "vllm_ascend_a5_decode_b1_ctx512_top512-bfloat16-seed7.json"
     ).exists()
     assert "[run] bench started run_name=" in captured.out
@@ -2536,7 +2536,7 @@ def test_main_runs_profiled_dsa_workflow_and_writes_workflow_benchmark_record(
             "--op",
             "dsa_decode",
             "--dataset",
-            "smoke",
+            "realistic",
             "--case-id",
             "vllm_ascend_a5_decode_b1_ctx512_top512",
             "--dtype",
@@ -2562,10 +2562,10 @@ def test_main_runs_profiled_dsa_workflow_and_writes_workflow_benchmark_record(
     record = benchmark_records["records"][0]
     assert record["run_id"] == (
         "dsa-decode-profiled/"
-        "dsa_decode-smoke-vllm_ascend_a5_decode_b1_ctx512_top512-bfloat16-seed0"
+        "dsa_decode-realistic-vllm_ascend_a5_decode_b1_ctx512_top512-bfloat16-seed0"
     )
     assert record["operator"] == "dsa_decode"
-    assert record["dataset"] == "smoke"
+    assert record["dataset"] == "realistic"
     assert record["case_id"] == "vllm_ascend_a5_decode_b1_ctx512_top512"
     assert record["family"] == "decode_workflow"
     assert record["shape"] == [1, 64, 512]
@@ -2659,7 +2659,7 @@ def test_main_defaults_dsa_decode_fused_operator_to_realistic_dataset(
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
 
     assert exit_code == 0
-    assert len(captured_requests) == 16
+    assert len(captured_requests) == 40
     assert {request.dataset for request in captured_requests} == {"realistic_decode"}
     assert [request.op for request in captured_requests[:4]] == [
         "lightning_indexer",
@@ -2668,7 +2668,7 @@ def test_main_defaults_dsa_decode_fused_operator_to_realistic_dataset(
         "sparse_attention",
     ]
     assert summary["metadata"]["run_name"] == run_name
-    assert summary["metadata"]["total_cases"] == 16
+    assert summary["metadata"]["total_cases"] == 40
 
 
 def test_main_defaults_dsa_prefill_fused_operator_to_realistic_dataset(
@@ -2705,7 +2705,7 @@ def test_main_defaults_dsa_prefill_fused_operator_to_realistic_dataset(
     summary = json.loads((layout.meta_dir / "summary.json").read_text())
 
     assert exit_code == 0
-    assert len(captured_requests) == 16
+    assert len(captured_requests) == 40
     assert {request.dataset for request in captured_requests} == {"realistic_prefill"}
     assert [request.op for request in captured_requests[:4]] == [
         "lightning_indexer",
@@ -2714,7 +2714,7 @@ def test_main_defaults_dsa_prefill_fused_operator_to_realistic_dataset(
         "sparse_attention",
     ]
     assert summary["metadata"]["run_name"] == run_name
-    assert summary["metadata"]["total_cases"] == 16
+    assert summary["metadata"]["total_cases"] == 40
 
 
 def test_main_runs_batch_bench_once_per_prepared_case(tmp_path, monkeypatch):

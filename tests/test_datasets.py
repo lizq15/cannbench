@@ -278,7 +278,7 @@ def test_lightning_indexer_dataset_loads_builtin_splits():
     stress = get_lightning_indexer_dataset("stress")
 
     assert smoke.name == "smoke"
-    assert len(smoke.cases) == 5
+    assert len(smoke.cases) >= 5
     assert {case.source_project for case in realistic.cases} >= {"TritonBench"}
     assert len(stress.cases) >= 3
 
@@ -330,17 +330,19 @@ def test_lightning_indexer_smoke_includes_vllm_ascend_a5_prefill_case():
 
 def test_lightning_indexer_realistic_splits_include_a5_cases():
     decode_case = get_lightning_indexer_case(
-        "realistic_decode", "deepseek_a5_decode_b1_ctx512_top512"
+        "realistic_decode", "deepseek_a5_mtp3_b16_ctx1024_top1024"
     )
     prefill_case = get_lightning_indexer_case(
         "realistic_prefill", "deepseek_a5_prefill_b1_q512_ctx512_top512"
     )
 
     assert decode_case.family == "decode_indexing"
-    assert decode_case.query_tokens == 1
+    assert decode_case.batch == 16
+    assert decode_case.query_tokens == 3
+    assert decode_case.context_tokens == 1024
     assert decode_case.index_heads == 64
     assert decode_case.index_dim == 128
-    assert decode_case.top_k == 512
+    assert decode_case.top_k == 1024
     assert prefill_case.family == "prefill_indexing"
     assert prefill_case.query_tokens == 512
     assert prefill_case.index_heads == 64
@@ -352,14 +354,52 @@ def test_lightning_indexer_realistic_splits_are_a5_fused_contract_compatible():
     for split in ("realistic_decode", "realistic_prefill"):
         dataset = get_lightning_indexer_dataset(split)
 
-        assert len(dataset.cases) == 8
-        assert all(case.source_kind == "library_compatible_realistic" for case in dataset.cases)
-        assert all(case.source_project == "vllm-ascend" for case in dataset.cases)
-        assert all(case.source_model == "DeepSeek-A5-compatible" for case in dataset.cases)
-        assert all(case.source_op == "npu_vllm_quant_lightning_indexer" for case in dataset.cases)
-        assert all(case.index_heads == 64 for case in dataset.cases)
-        assert all(case.index_dim == 128 for case in dataset.cases)
-        assert all(case.top_k in {512, 1024} for case in dataset.cases)
+        expected_len = 20 if split == "realistic_decode" else 20
+        assert len(dataset.cases) == expected_len
+        if split == "realistic_decode":
+            assert {case.source_kind for case in dataset.cases} == {
+                "library_compatible_realistic",
+                "paper_shape",
+            }
+            assert {case.source_project for case in dataset.cases} == {
+                "vllm-ascend",
+                "cannbench",
+                "DeepSeek",
+            }
+            assert {case.source_model for case in dataset.cases} == {
+                "DeepSeek-V4-compatible",
+                "DeepSeek-A5-compatible",
+                "DeepSeek-V3.2",
+            }
+            assert {case.source_op for case in dataset.cases} == {
+                "npu_vllm_quant_lightning_indexer",
+                "lightning_indexer",
+            }
+        else:
+            assert {case.source_kind for case in dataset.cases} == {
+                "library_compatible_realistic",
+                "paper_shape",
+            }
+            assert {case.source_project for case in dataset.cases} == {
+                "vllm-ascend",
+                "DeepSeek",
+            }
+            assert {case.source_model for case in dataset.cases} == {
+                "DeepSeek-V4-compatible",
+                "DeepSeek-A5-compatible",
+                "DeepSeek-V4-Pro-like",
+                "DeepSeek-V3.2",
+            }
+            assert {case.source_op for case in dataset.cases} == {
+                "npu_vllm_quant_lightning_indexer",
+                "lightning_indexer",
+            }
+        expected_index_heads = {64, 4}
+        expected_index_dim = {128, 64}
+        assert all(case.index_heads in expected_index_heads for case in dataset.cases)
+        assert all(case.index_dim in expected_index_dim for case in dataset.cases)
+        expected_topk = {512, 1024, 2048} if split == "realistic_decode" else {512, 1024, 2048}
+        assert all(case.top_k in expected_topk for case in dataset.cases)
         assert all(case.context_tokens % 128 == 0 for case in dataset.cases)
 
 
@@ -443,17 +483,19 @@ def test_sparse_attention_smoke_includes_vllm_ascend_a5_prefill_case():
 
 def test_sparse_attention_realistic_splits_include_a5_cases():
     decode_case = get_sparse_attention_case(
-        "realistic_decode", "deepseek_a5_decode_b1_ctx512_top512"
+        "realistic_decode", "deepseek_a5_mtp3_b16_ctx1024_top1024"
     )
     prefill_case = get_sparse_attention_case(
         "realistic_prefill", "deepseek_a5_prefill_b1_q512_ctx512_top512"
     )
 
     assert decode_case.phase == "decode"
-    assert decode_case.query_tokens == 1
+    assert decode_case.batch == 16
+    assert decode_case.query_tokens == 3
+    assert decode_case.context_tokens == 1024
     assert decode_case.query_heads == 64
     assert decode_case.kv_heads == 1
-    assert decode_case.selected_tokens == 512
+    assert decode_case.selected_tokens == 1024
     assert decode_case.head_dim == 512
     assert prefill_case.phase == "prefill"
     assert prefill_case.query_tokens == 512
@@ -470,16 +512,55 @@ def test_sparse_attention_realistic_splits_are_a5_fused_contract_compatible():
     ):
         dataset = get_sparse_attention_dataset(split)
 
-        assert len(dataset.cases) == 8
-        assert all(case.source_kind == "library_compatible_realistic" for case in dataset.cases)
-        assert all(case.source_project == "vllm-ascend" for case in dataset.cases)
-        assert all(case.source_model == "DeepSeek-A5-compatible" for case in dataset.cases)
-        assert all(case.source_op == "npu_kv_quant_sparse_attn_sharedkv" for case in dataset.cases)
+        expected_len = 20 if split == "realistic_decode" else 20
+        assert len(dataset.cases) == expected_len
+        if split == "realistic_decode":
+            assert {case.source_kind for case in dataset.cases} == {
+                "library_compatible_realistic",
+                "paper_shape",
+            }
+            assert {case.source_project for case in dataset.cases} == {
+                "vllm-ascend",
+                "cannbench",
+                "DeepSeek",
+            }
+            assert {case.source_model for case in dataset.cases} == {
+                "DeepSeek-V4-compatible",
+                "DeepSeek-A5-compatible",
+                "DeepSeek-V3.2",
+            }
+            assert {case.source_op for case in dataset.cases} == {
+                "npu_kv_quant_sparse_attn_sharedkv",
+                "sparse_attention",
+            }
+        else:
+            assert {case.source_kind for case in dataset.cases} == {
+                "library_compatible_realistic",
+                "paper_shape",
+            }
+            assert {case.source_project for case in dataset.cases} == {
+                "vllm-ascend",
+                "DeepSeek",
+            }
+            assert {case.source_model for case in dataset.cases} == {
+                "DeepSeek-V4-compatible",
+                "DeepSeek-A5-compatible",
+                "DeepSeek-V4-Pro-like",
+                "DeepSeek-V3.2",
+            }
+            assert {case.source_op for case in dataset.cases} == {
+                "npu_kv_quant_sparse_attn_sharedkv",
+                "sparse_attention",
+            }
         assert all(case.phase == phase for case in dataset.cases)
-        assert all(case.query_heads == 64 for case in dataset.cases)
-        assert all(case.kv_heads == 1 for case in dataset.cases)
-        assert all(case.head_dim == 512 for case in dataset.cases)
-        assert all(case.selected_tokens in {512, 1024} for case in dataset.cases)
+        expected_query_heads = {64, 128} if split == "realistic_decode" else {64, 128}
+        expected_kv_heads = {1}
+        expected_head_dim = {512, 128} if split == "realistic_decode" else {512, 128}
+        assert all(case.query_heads in expected_query_heads for case in dataset.cases)
+        assert all(case.kv_heads in expected_kv_heads for case in dataset.cases)
+        assert all(case.head_dim in expected_head_dim for case in dataset.cases)
+        expected_selected = {512, 1024, 2048} if split == "realistic_decode" else {512, 1024, 2048}
+        assert all(case.selected_tokens in expected_selected for case in dataset.cases)
         assert all(case.context_tokens % 128 == 0 for case in dataset.cases)
 
 
