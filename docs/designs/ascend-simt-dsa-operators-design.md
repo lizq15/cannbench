@@ -36,6 +36,9 @@ The design must cover both:
 - `prefill`
 - `decode`
 
+Both execution modes are required product scope for this work. Priority affects
+implementation order only; it does not reduce feature scope.
+
 Implementation priority is:
 
 1. `prefill`
@@ -362,6 +365,12 @@ Rationale:
 - decode is more sensitive to fixed overhead and should follow after the main
   dataflow is proven
 
+This priority order does not make decode optional. A complete delivery must
+include both:
+
+- `dsa_prefill`
+- `dsa_decode`
+
 ## Dataflow Contract Between Operators
 
 The `lightning_indexer` output layout and metadata contract must be designed so
@@ -471,6 +480,9 @@ must improve under realistic case families.
 
 - decode paths are optimized for low latency and workflow-level DSA results
   become competitive with or better than the current external baselines
+
+Across all phases, the intended feature-complete end state still includes both
+prefill and decode support for the targeted DSA operator families.
 
 ## Risks
 
