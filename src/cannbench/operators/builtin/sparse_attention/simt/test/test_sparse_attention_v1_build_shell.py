@@ -27,7 +27,7 @@ def test_sparse_attention_hd128_bridge_uses_hybrid_score_body():
         "aten_dsa_sparse_attention/csrc/sparse_attention.asc"
     ).read_text(encoding="utf-8")
 
-    assert "at::matmul(" in source or "at::bmm(" in source
+    assert "at::bmm(" in source
     assert "launch_sparse_attention_hd128_postprocess_float" in source
 
 
@@ -47,6 +47,7 @@ def test_sparse_attention_hd512_bridge_uses_hybrid_score_body():
         "aten_dsa_sparse_attention/csrc/sparse_attention.asc"
     ).read_text(encoding="utf-8")
 
+    assert "at::bmm(" in source
     assert "launch_sparse_attention_hd512_postprocess_float" in source
     assert "sparse_attention_forward_family_hd512_hybrid(" in source
 
@@ -68,6 +69,7 @@ def test_sparse_attention_hd512_bridge_extracts_tile_helper():
     ).read_text(encoding="utf-8")
 
     assert "run_sparse_attention_family_hd512_tile(" in source
+    assert "build_sparse_attention_score_tile(" in source
 
 
 def test_sparse_attention_hd128_bridge_extracts_tile_helper():
@@ -77,6 +79,7 @@ def test_sparse_attention_hd128_bridge_extracts_tile_helper():
     ).read_text(encoding="utf-8")
 
     assert "run_sparse_attention_family_hd128_tile(" in source
+    assert "build_sparse_attention_score_tile(" in source
 
 
 def test_sparse_attention_hd128_kernel_is_postprocess_only():
