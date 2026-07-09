@@ -338,6 +338,49 @@ def test_ascend_backend_deploys_requested_simt_op_version(monkeypatch, tmp_path)
     assert captured["loaded"] == ("softmax", "v2")
 
 
+def test_ascend_backend_load_simt_module_adds_version_dir_to_sys_path(
+    monkeypatch, tmp_path
+):
+    root = (
+        tmp_path
+        / "src"
+        / "cannbench"
+        / "operators"
+        / "builtin"
+        / "softmax"
+        / "simt"
+    )
+    simt_dir = root / "v3"
+    package_dir = simt_dir / "aten_softmax_v3"
+    package_dir.mkdir(parents=True)
+    (package_dir / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    monkeypatch.setitem(sys.modules, "torch", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_simt_op_root", lambda op_name: root)
+    monkeypatch.setattr(backend, "_simt_op_module_name", lambda op_name, version: "aten_softmax_v3")
+
+    sys.modules.pop("aten_softmax_v3", None)
+
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        implementation="simt",
+        implementation_version="v3",
+    )
+
+    module = backend._load_simt_op_module(request, "softmax")
+
+    assert module.VALUE == 1
+
+
 def test_ascend_backend_resolves_simt_op_under_plugin_directory(monkeypatch, tmp_path):
     plugin_root = tmp_path / "operators" / "builtin" / "softmax" / "simt"
     op_dir = plugin_root / "v1"

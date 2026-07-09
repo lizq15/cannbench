@@ -538,6 +538,11 @@ class AscendBackend(TorchOperatorBackend):
                 "Ascend SIMT operator requested but no Python module is registered "
                 f"for {op_name} version {request.implementation_version or 'v1'}"
             )
+        simt_op_dir = self._simt_op_base_dir(request, op_name)
+        with as_file(simt_op_dir) as simt_op_dir_path:
+            simt_op_path = str(simt_op_dir_path)
+            if simt_op_path not in sys.path:
+                sys.path.insert(0, simt_op_path)
         importlib.invalidate_caches()
         try:
             return importlib.import_module(module_name)
