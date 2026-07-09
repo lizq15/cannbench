@@ -33,6 +33,21 @@ def test_lightning_indexer_prefill_family_4x64_bridge_uses_bmm_for_score_body():
     )
 
 
+def test_lightning_indexer_prefill_family_4x64_bridge_tiles_context_scores():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/lightning_indexer.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "for (int64_t context_start = 0; context_start < context_count;" in source
+    assert "best_scores = at::full(" in source
+    assert "best_indices = at::zeros(" in source
+    assert (
+        "auto scores = at::bmm(query_2d, key_bmm).reshape("
+        not in source
+    )
+
+
 def test_lightning_indexer_prefill_family_4x64_kernel_is_postprocess_only():
     source = Path(
         "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
@@ -44,3 +59,15 @@ def test_lightning_indexer_prefill_family_4x64_kernel_is_postprocess_only():
         "for (int32_t dim_index = 0; dim_index < kFamily4x64HeadDim; ++dim_index)"
         not in source
     )
+
+
+def test_lightning_indexer_prefill_family_4x64_kernel_updates_existing_topk_state():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/simt/"
+        "lightning_indexer_prefill_family_4x64.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "best_scores" not in source
+    assert "best_indices" not in source
+    assert "context_start" in source
