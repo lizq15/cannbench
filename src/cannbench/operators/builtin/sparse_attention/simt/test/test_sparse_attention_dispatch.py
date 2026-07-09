@@ -60,8 +60,6 @@ def test_build_simt_callable_requires_loaded_module():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=1,
-        iterations=1,
         seed=7,
         implementation="simt",
     )
@@ -125,8 +123,6 @@ def test_build_simt_callable_passes_family_to_operator():
         dtype="float16",
         dataset="realistic_decode",
         case_id="deepseek_128k_decode_top2048",
-        warmup=1,
-        iterations=1,
         seed=7,
         implementation="simt",
     )

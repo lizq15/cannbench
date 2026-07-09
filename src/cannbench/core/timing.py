@@ -21,8 +21,5 @@ def summarize_timings_ms(values: list[float]) -> dict[str, float]:
 
     sorted_values = sorted(values)
     return {
-        "latency_ms_avg": mean(sorted_values),
-        "latency_ms_p50": _percentile(sorted_values, 0.50),
-        "latency_ms_p95": _percentile(sorted_values, 0.95),
-        "latency_ms_p99": _percentile(sorted_values, 0.99),
+        "latency_ms": mean(sorted_values),
     }

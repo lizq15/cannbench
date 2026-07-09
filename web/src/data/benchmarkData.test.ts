@@ -21,7 +21,7 @@ const records: BenchmarkRecord[] = [
     source_model: "GPTJForCausalLM",
     source_file: "hf_train/GPTJForCausalLM_train.json",
     source_op: "aten._softmax.default",
-    metrics: { latency_ms_avg: 0.011, latency_ms_p50: 0.011, latency_ms_p95: 0.012, sample_count: 1 },
+    metrics: { latency_ms: 0.011},
     accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
     diff_ref: null
   },
@@ -43,7 +43,7 @@ const records: BenchmarkRecord[] = [
     source_model: "GPTJForCausalLM",
     source_file: "hf_train/GPTJForCausalLM_train.json",
     source_op: "aten._softmax.default",
-    metrics: { latency_ms_avg: 0.014, latency_ms_p50: 0.014, latency_ms_p95: 0.015, sample_count: 1 },
+    metrics: { latency_ms: 0.014},
     accuracy: { passed: true, max_abs_error: 0.0004, max_rel_error: 0.0008 },
     diff_ref: "softmax/simt/v1"
   },
@@ -65,7 +65,7 @@ const records: BenchmarkRecord[] = [
     source_model: "smoke_fixture",
     source_file: "built-in",
     source_op: "softmax",
-    metrics: { latency_ms_avg: 0.021, latency_ms_p50: 0.02, latency_ms_p95: 0.024, sample_count: 1 },
+    metrics: { latency_ms: 0.021},
     accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
     diff_ref: null
   }
@@ -90,7 +90,7 @@ const dsaRecords: BenchmarkRecord[] = [
     source_model: "DeepSeek-V4-compatible",
     source_file: "benchmarks",
     source_op: "flash_mla_with_kvcache",
-    metrics: { latency_ms_avg: 0.06, latency_ms_p50: 0.06, latency_ms_p95: 0.07, sample_count: 1 },
+    metrics: { latency_ms: 0.06},
     accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
     diff_ref: null
   },
@@ -112,7 +112,7 @@ const dsaRecords: BenchmarkRecord[] = [
     source_model: "DeepSeek-V4-compatible",
     source_file: "csrc/attention/kv_quant_sparse_attn_sharedkv/README.md",
     source_op: "npu_kv_quant_sparse_attn_sharedkv",
-    metrics: { latency_ms_avg: 0.08, latency_ms_p50: 0.08, latency_ms_p95: 0.09, sample_count: 1 },
+    metrics: { latency_ms: 0.08},
     accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
     diff_ref: null
   },
@@ -134,7 +134,7 @@ const dsaRecords: BenchmarkRecord[] = [
     source_model: "DeepSeek-V4-compatible",
     source_file: "csrc/attention/kv_quant_sparse_attn_sharedkv/README.md",
     source_op: "npu_kv_quant_sparse_attn_sharedkv",
-    metrics: { latency_ms_avg: 1.8, latency_ms_p50: 1.8, latency_ms_p95: 1.9, sample_count: 1 },
+    metrics: { latency_ms: 1.8},
     accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
     diff_ref: null
   }

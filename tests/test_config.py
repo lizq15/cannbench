@@ -10,8 +10,6 @@ def test_operator_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.dataset == "smoke"
@@ -28,8 +26,6 @@ def test_embedding_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_token_lookup",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "embedding"
@@ -47,8 +43,6 @@ def test_gather_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_gather",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "gather"
@@ -66,8 +60,6 @@ def test_index_select_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_select",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "index_select"
@@ -85,8 +77,6 @@ def test_take_along_dim_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_take_along_dim",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "take_along_dim"
@@ -104,8 +94,6 @@ def test_masked_select_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_masked_select",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "masked_select"
@@ -123,8 +111,6 @@ def test_cross_entropy_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_token_classification_loss",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "cross_entropy"
@@ -142,8 +128,6 @@ def test_scatter_add_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_scatter_add",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "scatter_add"
@@ -162,8 +146,6 @@ def test_index_add_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_add",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "index_add"
@@ -182,8 +164,6 @@ def test_scatter_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_scatter",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "scatter"
@@ -202,8 +182,6 @@ def test_index_put_request_accepts_builtin_dataset_case():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_put",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.op == "index_put"
@@ -223,8 +201,6 @@ def test_operator_request_rejects_unknown_dtype():
             dtype="fp9",
             dataset="smoke",
             case_id="tiny_logits",
-            warmup=5,
-            iterations=10,
         )
 
 
@@ -235,8 +211,6 @@ def test_operator_request_defaults_seed():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=5,
-        iterations=10,
     )
 
     assert request.seed == 0
@@ -250,8 +224,6 @@ def test_operator_request_rejects_unknown_dataset():
             dtype="float16",
             dataset="unknown",
             case_id="tiny_logits",
-            warmup=5,
-            iterations=10,
         )
 
 
@@ -263,8 +235,6 @@ def test_embedding_request_rejects_unknown_case_id():
             dtype="float16",
             dataset="smoke",
             case_id="missing",
-            warmup=5,
-            iterations=10,
         )
 
 
@@ -277,32 +247,5 @@ def test_operator_request_rejects_empty_case_id(case_id: str):
             dtype="float16",
             dataset="smoke",
             case_id=case_id,
-            warmup=5,
-            iterations=10,
         )
 
-
-def test_operator_request_rejects_negative_warmup():
-    with pytest.raises(ValueError, match="warmup must be >= 0"):
-        OperatorBenchmarkRequest(
-            backend="nvidia",
-            op="softmax",
-            dtype="float16",
-            dataset="smoke",
-            case_id="tiny_logits",
-            warmup=-1,
-            iterations=10,
-        )
-
-
-def test_operator_request_rejects_non_positive_iterations():
-    with pytest.raises(ValueError, match="iterations must be > 0"):
-        OperatorBenchmarkRequest(
-            backend="nvidia",
-            op="softmax",
-            dtype="float16",
-            dataset="smoke",
-            case_id="tiny_logits",
-            warmup=0,
-            iterations=0,
-        )

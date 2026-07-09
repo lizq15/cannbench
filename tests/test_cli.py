@@ -40,8 +40,6 @@ def sample_result() -> OperatorBenchmarkResult:
             source_op="softmax",
             payload={"dimensions": (4, 8, 1024, 1024), "dim": -1},
         ),
-        warmup=2,
-        iterations=3,
     )
 
 
@@ -61,8 +59,6 @@ def result_for_request(request) -> OperatorBenchmarkResult:
             source_op=request.source_op,
             payload=request.case_payload,
         ),
-        warmup=request.warmup,
-        iterations=request.iterations,
     )
 
 
@@ -75,17 +71,11 @@ def remote_collect_result(
     capture_output: bool = False,
     profile_device_time: bool = False,
     device_name: str = "Ascend 910B",
-    warmup: int = 10,
-    iterations: int = 1,
     extra_perf_artifacts: tuple[tuple[str, bytes], ...] = (),
 ) -> RemoteCollectionResult:
     profile_summary = DeviceProfileSummary(
         backend=endpoint.backend,
-        sample_count=1,
-        latency_ms_avg=1.0,
-        latency_ms_p50=1.0,
-        latency_ms_p95=1.0,
-        latency_ms_p99=1.0,
+        latency_ms=1.0,
         source_files=("op_summary.csv",),
     )
     perf_payload = {
@@ -94,8 +84,6 @@ def remote_collect_result(
         "op": prepared.op,
         "dtype": prepared.dtype,
         "case": prepared.case.to_json_dict(),
-        "warmup": warmup,
-        "iterations": iterations,
     }
     profile = None
     if profile_device_time:
@@ -461,7 +449,7 @@ def test_build_parser_exposes_serve_subcommand():
     assert args.enable_gpu_upload is True
 
 
-def test_build_parser_defaults_internal_run_iterations_to_one():
+def test_build_parser_internal_run_omits_iterations_argument():
     parser = build_parser()
     args = parser.parse_args(
         [
@@ -477,10 +465,10 @@ def test_build_parser_defaults_internal_run_iterations_to_one():
         ]
     )
 
-    assert args.iterations == 1
+    assert not hasattr(args, "iterations")
 
 
-def test_build_parser_defaults_bench_iterations_to_one():
+def test_build_parser_bench_omits_iterations_argument():
     parser = build_parser()
     args = parser.parse_args(
         [
@@ -498,7 +486,7 @@ def test_build_parser_defaults_bench_iterations_to_one():
         ]
     )
 
-    assert args.iterations == 1
+    assert not hasattr(args, "iterations")
 
 
 def test_build_parser_defaults_bench_dataset_to_realistic():
@@ -588,10 +576,6 @@ def test_main_runs_internal_run_and_writes_outputs(tmp_path, monkeypatch):
             "realistic",
             "--case-id",
             "t5_attention",
-            "--warmup",
-            "2",
-            "--iterations",
-            "3",
             "--output-dir",
             str(tmp_path),
             "--run-name",
@@ -608,8 +592,6 @@ def test_main_runs_internal_run_and_writes_outputs(tmp_path, monkeypatch):
     assert request.case_id == "t5_attention"
     assert request.dimensions == (4, 8, 1024, 1024)
     assert request.dim == -1
-    assert request.warmup == 2
-    assert request.iterations == 3
     assert captured["output_dir"] == tmp_path
     assert captured["run_name"] == "softmax-run"
     assert captured["result"] is result
@@ -755,20 +737,16 @@ def test_main_remote_bench_uses_remote_executor(tmp_path, monkeypatch):
             prepared_input,
             layout_root,
             artifact_stem,
-                run_id,
-                capture_output,
-                warmup,
-                iterations,
-                implementation=None,
-                implementation_version=None,
-            ):
+            run_id,
+            capture_output,
+            implementation=None,
+            implementation_version=None,
+        ):
             captured["prepared_input"] = prepared_input
             captured["layout_root"] = layout_root
             captured["artifact_stem"] = artifact_stem
             captured["run_id"] = run_id
             captured["capture_output"] = capture_output
-            captured["warmup"] = warmup
-            captured["iterations"] = iterations
             captured["implementation"] = implementation
             captured["implementation_version"] = implementation_version
             return type(
@@ -786,11 +764,7 @@ def test_main_remote_bench_uses_remote_executor(tmp_path, monkeypatch):
                                     "device_name": "Ascend 910B",
                                     "profile_summary": DeviceProfileSummary(
                                         backend="ascend",
-                                        sample_count=1,
-                                        latency_ms_avg=1.0,
-                                        latency_ms_p50=1.0,
-                                        latency_ms_p95=1.0,
-                                        latency_ms_p99=1.0,
+                                        latency_ms=1.0,
                                         source_files=("op_summary.csv",),
                                     ),
                                     "profile_artifacts": (("op_summary.csv", b"Op Name,Task Duration(us)\nsoftmax,1000\n"),),
@@ -848,11 +822,7 @@ def test_main_runs_single_bench_with_profile_layout_and_meta(tmp_path, monkeypat
                     device_name="Fake GPU",
                     profile_summary=DeviceProfileSummary(
                         backend="nvidia",
-                        sample_count=1,
-                        latency_ms_avg=0.1,
-                        latency_ms_p50=0.1,
-                        latency_ms_p95=0.1,
-                        latency_ms_p99=0.1,
+                        latency_ms=0.1,
                         source_files=("ncu.csv",),
                     ),
                     profile_artifacts=(
@@ -931,8 +901,6 @@ def test_main_runs_single_remote_bench_with_profile_layout_and_meta(tmp_path, mo
             prepared=prepared,
             capture_output=True,
             profile_device_time=True,
-            warmup=kwargs["warmup"],
-            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -1042,11 +1010,7 @@ def test_main_single_local_bench_defaults_to_canonical_run_name(tmp_path, monkey
                     device_name="Fake GPU",
                     profile_summary=DeviceProfileSummary(
                         backend="nvidia",
-                        sample_count=1,
-                        latency_ms_avg=0.1,
-                        latency_ms_p50=0.1,
-                        latency_ms_p95=0.1,
-                        latency_ms_p99=0.1,
+                        latency_ms=0.1,
                         source_files=("ncu.csv",),
                     ),
                     profile_artifacts=(("ncu.csv", b"metric\n"),),
@@ -1096,11 +1060,7 @@ def test_main_single_bench_uses_single_result_metadata_shape(tmp_path, monkeypat
                     device_name="Fake GPU",
                     profile_summary=DeviceProfileSummary(
                         backend="nvidia",
-                        sample_count=1,
-                        latency_ms_avg=0.1,
-                        latency_ms_p50=0.1,
-                        latency_ms_p95=0.1,
-                        latency_ms_p99=0.1,
+                        latency_ms=0.1,
                         source_files=("ncu.csv",),
                     ),
                     profile_artifacts=(("ncu.csv", b"metric\n"),),
@@ -1309,8 +1269,6 @@ def test_main_compare_captures_outputs_and_writes_report(tmp_path, monkeypatch):
     assert captured["requests"][0].backend == "nvidia"
     assert captured["requests"][1].backend == "ascend"
     assert captured["requests"][0].seed == 7
-    assert captured["requests"][0].warmup == 0
-    assert captured["requests"][0].iterations == 1
     assert captured["report_path"] == tmp_path / "accuracy.json"
     assert captured["comparison"] is comparison
 
@@ -1349,8 +1307,6 @@ def test_main_bench_invokes_remote_collection(tmp_path, monkeypatch):
             prepared=read_prepared_operator_input(kwargs["prepared_input"]),
             capture_output=True,
             profile_device_time=True,
-            warmup=kwargs["warmup"],
-            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -1369,10 +1325,6 @@ def test_main_bench_invokes_remote_collection(tmp_path, monkeypatch):
             "--output-dir",
             str(output_dir),
             "--capture-output",
-            "--warmup",
-            "3",
-            "--iterations",
-            "5",
         ]
     )
 
@@ -1386,8 +1338,6 @@ def test_main_bench_invokes_remote_collection(tmp_path, monkeypatch):
     assert captured["run_id"] == canonical
     assert captured["capture_output"] is True
     assert captured["profile_device_time"] is True
-    assert captured["warmup"] == 3
-    assert captured["iterations"] == 5
 
 
 def test_main_remote_bench_builds_prepared_input_when_case_is_provided(tmp_path, monkeypatch):
@@ -1431,8 +1381,6 @@ def test_main_remote_bench_builds_prepared_input_when_case_is_provided(tmp_path,
             output_dir=kwargs["output_dir"],
             prepared=read_prepared_operator_input(kwargs["prepared_input"]),
             profile_device_time=True,
-            warmup=kwargs["warmup"],
-            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -1509,8 +1457,6 @@ def test_main_remote_bench_prepared_input_defaults_to_canonical_run_name(tmp_pat
             output_dir=kwargs["output_dir"],
             prepared=read_prepared_operator_input(kwargs["prepared_input"]),
             profile_device_time=True,
-            warmup=kwargs["warmup"],
-            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -1626,8 +1572,6 @@ def test_main_runs_batch_remote_bench_and_writes_aggregated_artifacts(tmp_path, 
             prepared=prepared,
             capture_output=True,
             profile_device_time=True,
-            warmup=kwargs["warmup"],
-            iterations=kwargs["iterations"],
             extra_perf_artifacts=(("benchmark.csv", b"header\nvalue\n"),),
         )
 
@@ -1691,7 +1635,7 @@ def test_main_runs_batch_remote_bench_and_writes_aggregated_artifacts(tmp_path, 
     assert benchmark_records["records"][0]["backend"] == "ascend"
     assert benchmark_records["records"][0]["implementation"] == "simt"
     assert benchmark_records["records"][0]["implementation_version"] == "v1"
-    assert benchmark_records["records"][0]["metrics"]["latency_ms_avg"] == 1.0
+    assert benchmark_records["records"][0]["metrics"]["latency_ms"] == 1.0
     assert failures["failure_count"] == 0
     assert failures["records"] == []
 
@@ -1740,8 +1684,6 @@ def test_main_batch_remote_bench_records_failures_and_continues(tmp_path, monkey
             output_dir=kwargs["output_dir"],
             prepared=read_prepared_operator_input(prepared_input),
             profile_device_time=True,
-            warmup=kwargs["warmup"],
-            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -1828,8 +1770,6 @@ def test_main_runs_batch_remote_bench_from_selection_expansion(tmp_path, monkeyp
             output_dir=kwargs["output_dir"],
             prepared=read_prepared_operator_input(kwargs["prepared_input"]),
             profile_device_time=True,
-            warmup=kwargs["warmup"],
-            iterations=kwargs["iterations"],
         )
 
     monkeypatch.setattr(
@@ -2019,10 +1959,6 @@ def test_main_runs_internal_run_from_prepared_input(tmp_path, monkeypatch):
             "nvidia",
             "--prepared-input",
             str(prepared_path),
-            "--warmup",
-            "2",
-            "--iterations",
-            "3",
             "--output-dir",
             str(tmp_path),
             "--run-name",
@@ -2040,44 +1976,6 @@ def test_main_runs_internal_run_from_prepared_input(tmp_path, monkeypatch):
     assert request.dimensions == (32, 128)
     assert request.implementation == "simt"
     assert captured["run_name"] == "prepared-run"
-
-
-def test_main_rejects_zero_iterations():
-    with pytest.raises(SystemExit):
-        main(
-            [
-                "internal-run",
-                "--backend",
-                "nvidia",
-                "--op",
-                "softmax",
-                "--dataset",
-                "smoke",
-                "--case-id",
-                "tiny_logits",
-                "--iterations",
-                "0",
-            ]
-        )
-
-
-def test_main_rejects_negative_warmup():
-    with pytest.raises(SystemExit):
-        main(
-            [
-                "internal-run",
-                "--backend",
-                "nvidia",
-                "--op",
-                "softmax",
-                "--dataset",
-                "smoke",
-                "--case-id",
-                "tiny_logits",
-                "--warmup",
-                "-1",
-            ]
-        )
 
 
 def test_main_rejects_prepared_input_and_prepared_dir_together(tmp_path, capsys):
@@ -2340,11 +2238,7 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
                     device_name="Fake GPU",
                     profile_summary=DeviceProfileSummary(
                         backend="nvidia",
-                        sample_count=1,
-                        latency_ms_avg=0.1,
-                        latency_ms_p50=0.1,
-                        latency_ms_p95=0.1,
-                        latency_ms_p99=0.1,
+                        latency_ms=0.1,
                         source_files=("ncu.csv",),
                     ),
                     profile_artifacts=(
@@ -2409,7 +2303,7 @@ def test_main_runs_batch_bench_from_selection_and_writes_summary(tmp_path, monke
     assert benchmark_records["records"][0]["backend"] == "nvidia"
     assert benchmark_records["records"][0]["implementation"] == "cuda-pytorch"
     assert benchmark_records["records"][0]["implementation_version"] == "cuda-pytorch"
-    assert benchmark_records["records"][0]["metrics"]["latency_ms_avg"] == 0.1
+    assert benchmark_records["records"][0]["metrics"]["latency_ms"] == 0.1
     assert failures["failure_count"] == 0
     assert failures["records"] == []
 
@@ -2505,11 +2399,7 @@ def test_main_runs_profiled_dsa_workflow_and_writes_workflow_benchmark_record(
                     device_name="NVIDIA H800 PCIe",
                     profile_summary=DeviceProfileSummary(
                         backend="nvidia",
-                        sample_count=1,
-                        latency_ms_avg=latency,
-                        latency_ms_p50=latency,
-                        latency_ms_p95=latency,
-                        latency_ms_p99=latency,
+                        latency_ms=latency,
                         source_files=("ncu.csv",),
                     ),
                     profile_artifacts=(("ncu.csv", b"Kernel Name,Metric Name,Metric Unit,Metric Value\n"),),
@@ -2571,10 +2461,7 @@ def test_main_runs_profiled_dsa_workflow_and_writes_workflow_benchmark_record(
     assert record["shape"] == [1, 64, 512]
     assert record["implementation"] == "cuda_library"
     assert record["implementation_version"] == "cuda-library"
-    assert record["metrics"]["latency_ms_avg"] == 0.01
-    assert record["metrics"]["latency_ms_p50"] == 0.01
-    assert record["metrics"]["latency_ms_p95"] == 0.01
-    assert record["metrics"]["sample_count"] == 1
+    assert record["metrics"]["latency_ms"] == 0.01
 
 
 def test_main_runs_dsa_prefill_workflow_selection_as_batch(tmp_path, monkeypatch):

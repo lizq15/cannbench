@@ -22,11 +22,7 @@ def test_build_collect_benchmark_record_for_ascend_simt():
     )
     profile_summary = DeviceProfileSummary(
         backend="ascend",
-        sample_count=1,
-        latency_ms_avg=1.0,
-        latency_ms_p50=1.0,
-        latency_ms_p95=1.1,
-        latency_ms_p99=1.2,
+        latency_ms=1.0,
         source_files=("op_summary.csv",),
     )
 
@@ -50,6 +46,7 @@ def test_build_collect_benchmark_record_for_ascend_simt():
     assert record["source_file"] == "hf_train/T5Small_train.json"
     assert record["source_op"] == "aten._softmax.default"
     assert record["diff_ref"] == "softmax/simt/v1"
+    assert record["metrics"] == {"latency_ms": 1.0}
 
 
 def test_build_collect_benchmark_record_for_ascend_simt_v2():
@@ -62,11 +59,7 @@ def test_build_collect_benchmark_record_for_ascend_simt_v2():
     )
     profile_summary = DeviceProfileSummary(
         backend="ascend",
-        sample_count=1,
-        latency_ms_avg=1.0,
-        latency_ms_p50=1.0,
-        latency_ms_p95=1.1,
-        latency_ms_p99=1.2,
+        latency_ms=1.0,
         source_files=("op_summary.csv",),
     )
 
@@ -95,11 +88,7 @@ def test_build_collect_benchmark_record_for_ascend_cann_ops():
     )
     profile_summary = DeviceProfileSummary(
         backend="ascend",
-        sample_count=2,
-        latency_ms_avg=0.9,
-        latency_ms_p50=0.9,
-        latency_ms_p95=1.0,
-        latency_ms_p99=1.1,
+        latency_ms=0.9,
         source_files=("op_summary.csv",),
     )
 
@@ -115,6 +104,7 @@ def test_build_collect_benchmark_record_for_ascend_cann_ops():
     assert record["implementation"] == "cann_ops_library"
     assert record["implementation_version"] == "cannops"
     assert record["device_class"] == "950PR"
+    assert record["metrics"] == {"latency_ms": 0.9}
 
 
 def test_build_benchmark_record_for_vllm_ascend_lightning_indexer_shape():
@@ -127,11 +117,7 @@ def test_build_benchmark_record_for_vllm_ascend_lightning_indexer_shape():
     )
     profile_summary = DeviceProfileSummary(
         backend="ascend",
-        sample_count=1,
-        latency_ms_avg=0.005,
-        latency_ms_p50=0.005,
-        latency_ms_p95=0.006,
-        latency_ms_p99=0.006,
+        latency_ms=0.005,
         source_files=("OpBasicInfo.csv",),
     )
 
@@ -159,11 +145,7 @@ def test_build_benchmark_record_for_vllm_ascend_sparse_attention_shape():
     )
     profile_summary = DeviceProfileSummary(
         backend="ascend",
-        sample_count=1,
-        latency_ms_avg=0.014,
-        latency_ms_p50=0.014,
-        latency_ms_p95=0.015,
-        latency_ms_p99=0.015,
+        latency_ms=0.014,
         source_files=("OpBasicInfo.csv",),
     )
 
@@ -191,11 +173,7 @@ def test_build_benchmark_record_for_nvidia_ncu():
     )
     profile_summary = DeviceProfileSummary(
         backend="nvidia",
-        sample_count=2,
-        latency_ms_avg=0.2,
-        latency_ms_p50=0.2,
-        latency_ms_p95=0.3,
-        latency_ms_p99=0.4,
+        latency_ms=0.2,
         source_files=("ncu.csv",),
     )
 
@@ -219,6 +197,7 @@ def test_build_benchmark_record_for_nvidia_ncu():
     assert record["source_file"] == "hf_train/T5Small_train.json"
     assert record["source_op"] == "aten._softmax.default"
     assert record["diff_ref"] is None
+    assert record["metrics"] == {"latency_ms": 0.2}
 
 
 def test_read_profile_summary_and_write_benchmark_records_json(tmp_path: Path):
@@ -228,11 +207,7 @@ def test_read_profile_summary_and_write_benchmark_records_json(tmp_path: Path):
         summary_path,
         DeviceProfileSummary(
             backend="nvidia",
-            sample_count=2,
-            latency_ms_avg=0.2,
-            latency_ms_p50=0.2,
-            latency_ms_p95=0.3,
-            latency_ms_p99=0.4,
+            latency_ms=0.2,
             source_files=("ncu.csv",),
         ),
     )

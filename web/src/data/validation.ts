@@ -37,7 +37,7 @@ const RECORD_FIELDS = new Set([
   "diff_ref"
 ]);
 
-const METRIC_FIELDS = new Set(["latency_ms_avg", "latency_ms_p50", "latency_ms_p95", "sample_count"]);
+const METRIC_FIELDS = new Set(["latency_ms"]);
 const ACCURACY_FIELDS = new Set(["passed", "max_abs_error", "max_rel_error"]);
 const GPU_IMPLEMENTATIONS = new Set(["cuda-pytorch", "cuda_library"]);
 const GPU_IMPLEMENTATION_VERSIONS = new Set(["cuda-pytorch", "cuda-library"]);

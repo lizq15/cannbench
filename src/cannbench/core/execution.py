@@ -76,8 +76,6 @@ class RemoteBenchExecutor(BenchCaseExecutor):
         artifact_stem: str,
         run_id: str,
         capture_output: bool,
-        warmup: int,
-        iterations: int,
         implementation: str | None = None,
         implementation_version: str | None = None,
     ) -> BenchCaseExecutionResult:
@@ -91,8 +89,6 @@ class RemoteBenchExecutor(BenchCaseExecutor):
                 run_id=run_id,
                 capture_output=capture_output,
                 profile_device_time=True,
-                warmup=warmup,
-                iterations=iterations,
                 implementation=implementation,
                 implementation_version=implementation_version,
             )

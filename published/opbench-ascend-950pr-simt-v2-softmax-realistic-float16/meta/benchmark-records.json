@@ -16,10 +16,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.161652985,
-        "latency_ms_p50": 0.161652985,
-        "latency_ms_p95": 0.161652985,
-        "sample_count": 1
+        "latency_ms": 0.161652985
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -52,10 +49,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 4.874109862999999,
-        "latency_ms_p50": 4.874109862999999,
-        "latency_ms_p95": 4.874109862999999,
-        "sample_count": 1
+        "latency_ms": 4.874109862999999
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -86,10 +80,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.012302002,
-        "latency_ms_p50": 1.012302002,
-        "latency_ms_p95": 1.012302002,
-        "sample_count": 1
+        "latency_ms": 1.012302002
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -122,10 +113,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.089112,
-        "latency_ms_p50": 0.089112,
-        "latency_ms_p95": 0.089112,
-        "sample_count": 1
+        "latency_ms": 0.089112
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -157,10 +145,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 4.427040527,
-        "latency_ms_p50": 4.427040527,
-        "latency_ms_p95": 4.427040527,
-        "sample_count": 1
+        "latency_ms": 4.427040527
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -191,10 +176,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.012414999999999999,
-        "latency_ms_p50": 0.012414999999999999,
-        "latency_ms_p95": 0.012414999999999999,
-        "sample_count": 1
+        "latency_ms": 0.012414999999999999
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -227,10 +209,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.5077799989999999,
-        "latency_ms_p50": 0.5077799989999999,
-        "latency_ms_p95": 0.5077799989999999,
-        "sample_count": 1
+        "latency_ms": 0.5077799989999999
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -263,10 +242,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.349522949,
-        "latency_ms_p50": 1.349522949,
-        "latency_ms_p95": 1.349522949,
-        "sample_count": 1
+        "latency_ms": 1.349522949
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -299,10 +275,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.01477,
-        "latency_ms_p50": 0.01477,
-        "latency_ms_p95": 0.01477,
-        "sample_count": 1
+        "latency_ms": 0.01477
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -335,10 +308,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.4235,
-        "latency_ms_p50": 0.4235,
-        "latency_ms_p95": 0.4235,
-        "sample_count": 1
+        "latency_ms": 0.4235
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -371,10 +341,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.891640015,
-        "latency_ms_p50": 1.891640015,
-        "latency_ms_p95": 1.891640015,
-        "sample_count": 1
+        "latency_ms": 1.891640015
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -407,10 +374,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 2.035182007,
-        "latency_ms_p50": 2.035182007,
-        "latency_ms_p95": 2.035182007,
-        "sample_count": 1
+        "latency_ms": 2.035182007
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -443,10 +407,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 5.852583008,
-        "latency_ms_p50": 5.852583008,
-        "latency_ms_p95": 5.852583008,
-        "sample_count": 1
+        "latency_ms": 5.852583008
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -479,10 +440,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 3.1640451659999997,
-        "latency_ms_p50": 3.1640451659999997,
-        "latency_ms_p95": 3.1640451659999997,
-        "sample_count": 1
+        "latency_ms": 3.1640451659999997
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -515,10 +473,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 3.9673740229999996,
-        "latency_ms_p50": 3.9673740229999996,
-        "latency_ms_p95": 3.9673740229999996,
-        "sample_count": 1
+        "latency_ms": 3.9673740229999996
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -549,10 +504,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 2.192049805,
-        "latency_ms_p50": 2.192049805,
-        "latency_ms_p95": 2.192049805,
-        "sample_count": 1
+        "latency_ms": 2.192049805
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -583,10 +535,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.42317199699999997,
-        "latency_ms_p50": 0.42317199699999997,
-        "latency_ms_p95": 0.42317199699999997,
-        "sample_count": 1
+        "latency_ms": 0.42317199699999997
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -619,10 +568,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 4.150608887000001,
-        "latency_ms_p50": 4.150608887000001,
-        "latency_ms_p95": 4.150608887000001,
-        "sample_count": 1
+        "latency_ms": 4.150608887000001
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -653,10 +599,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.584885986,
-        "latency_ms_p50": 1.584885986,
-        "latency_ms_p95": 1.584885986,
-        "sample_count": 1
+        "latency_ms": 1.584885986
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -687,10 +630,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.421110016,
-        "latency_ms_p50": 0.421110016,
-        "latency_ms_p95": 0.421110016,
-        "sample_count": 1
+        "latency_ms": 0.421110016
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -722,10 +662,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 4.213658691,
-        "latency_ms_p50": 4.213658691,
-        "latency_ms_p95": 4.213658691,
-        "sample_count": 1
+        "latency_ms": 4.213658691
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -757,10 +694,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 7.85110498,
-        "latency_ms_p50": 7.85110498,
-        "latency_ms_p95": 7.85110498,
-        "sample_count": 1
+        "latency_ms": 7.85110498
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -791,10 +725,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.18120700099999998,
-        "latency_ms_p50": 0.18120700099999998,
-        "latency_ms_p95": 0.18120700099999998,
-        "sample_count": 1
+        "latency_ms": 0.18120700099999998
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -826,10 +757,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.7815419920000001,
-        "latency_ms_p50": 0.7815419920000001,
-        "latency_ms_p95": 0.7815419920000001,
-        "sample_count": 1
+        "latency_ms": 0.7815419920000001
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -862,10 +790,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.404716064,
-        "latency_ms_p50": 1.404716064,
-        "latency_ms_p95": 1.404716064,
-        "sample_count": 1
+        "latency_ms": 1.404716064
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -898,10 +823,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.03862793,
-        "latency_ms_p50": 1.03862793,
-        "latency_ms_p95": 1.03862793,
-        "sample_count": 1
+        "latency_ms": 1.03862793
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -932,10 +854,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.649875,
-        "latency_ms_p50": 1.649875,
-        "latency_ms_p95": 1.649875,
-        "sample_count": 1
+        "latency_ms": 1.649875
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -967,10 +886,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 0.014291,
-        "latency_ms_p50": 0.014291,
-        "latency_ms_p95": 0.014291,
-        "sample_count": 1
+        "latency_ms": 0.014291
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -1003,10 +919,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 2.186951904,
-        "latency_ms_p50": 2.186951904,
-        "latency_ms_p95": 2.186951904,
-        "sample_count": 1
+        "latency_ms": 2.186951904
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",
@@ -1037,10 +950,7 @@
       "implementation": "simt",
       "implementation_version": "v2",
       "metrics": {
-        "latency_ms_avg": 1.346787964,
-        "latency_ms_p50": 1.346787964,
-        "latency_ms_p95": 1.346787964,
-        "sample_count": 1
+        "latency_ms": 1.346787964
       },
       "operator": "softmax",
       "run_id": "opbench-ascend-950pr-simt-v2-softmax-realistic-float16",

@@ -51,8 +51,6 @@ def _sample_result() -> OperatorBenchmarkResult:
             source_file="tests/fixtures",
             source_op="softmax",
         ),
-        iterations=10,
-        warmup=5,
     )
 
 
@@ -73,15 +71,11 @@ def test_result_to_json_dict_contains_core_fields():
             source_file="tritonbench/models/t5.py",
             source_op="softmax",
         ),
-        iterations=10,
-        warmup=5,
     )
 
     payload = result.to_json_dict()
 
     assert payload["backend"] == "nvidia"
-    assert payload["iterations"] == 10
-    assert payload["warmup"] == 5
     assert "metrics" not in payload
     assert payload["case"] == {
         "case_id": "t5_attention",
@@ -116,8 +110,6 @@ def test_write_benchmark_outputs_creates_json_and_csv(tmp_path):
         "family",
         "payload",
         "source_model",
-        "warmup",
-        "iterations",
     ]
     assert rows[1] == [
         "nvidia",
@@ -128,8 +120,6 @@ def test_write_benchmark_outputs_creates_json_and_csv(tmp_path):
         "lm_logits",
         "dimensions=128x128, dim=-1",
         "smoke_fixture",
-        "5",
-        "10",
     ]
 
 def test_operator_case_payload_summary_is_stable():

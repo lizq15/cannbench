@@ -21,21 +21,16 @@ class ProfileKernelSelection:
 @dataclass(frozen=True)
 class DeviceProfileSummary:
     backend: str
-    sample_count: int
-    latency_ms_avg: float
-    latency_ms_p50: float
-    latency_ms_p95: float
-    latency_ms_p99: float
     source_files: tuple[str, ...]
+    latency_ms: float
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "latency_ms", float(self.latency_ms))
 
     def to_json_dict(self) -> dict[str, object]:
         return {
             "backend": self.backend,
-            "sample_count": self.sample_count,
-            "latency_ms_avg": self.latency_ms_avg,
-            "latency_ms_p50": self.latency_ms_p50,
-            "latency_ms_p95": self.latency_ms_p95,
-            "latency_ms_p99": self.latency_ms_p99,
+            "latency_ms": self.latency_ms,
             "source_files": list(self.source_files),
         }
 
@@ -234,11 +229,7 @@ def read_device_profile(
     summary = summarize_timings_ms(samples)
     return DeviceProfileSummary(
         backend=backend,
-        sample_count=len(samples),
-        latency_ms_avg=summary["latency_ms_avg"],
-        latency_ms_p50=summary["latency_ms_p50"],
-        latency_ms_p95=summary["latency_ms_p95"],
-        latency_ms_p99=summary["latency_ms_p99"],
+        latency_ms=summary["latency_ms"],
         source_files=tuple(source_files),
     )
 

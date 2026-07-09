@@ -33,11 +33,7 @@ def test_bench_execution_artifacts_can_represent_profiled_case():
         device_name="Fake GPU",
         profile_summary=DeviceProfileSummary(
             backend="nvidia",
-            sample_count=1,
-            latency_ms_avg=0.1,
-            latency_ms_p50=0.1,
-            latency_ms_p95=0.1,
-            latency_ms_p99=0.1,
+            latency_ms=0.1,
             source_files=("ncu.csv",),
         ),
         profile_artifacts=(("ncu.csv", b"csv"),),

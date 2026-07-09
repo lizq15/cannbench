@@ -191,8 +191,6 @@ def test_collect_remote_artifacts_runs_ascend_profile_and_downloads_profile(tmp_
         run_id="softmax-run",
         capture_output=False,
         profile_device_time=True,
-        warmup=3,
-        iterations=5,
         runner=fake_runner,
     )
 
@@ -210,7 +208,7 @@ def test_collect_remote_artifacts_runs_ascend_profile_and_downloads_profile(tmp_
         [
             "ssh",
             "user@ascend-host",
-            "cd /opt/cannbench && source /usr/local/Ascend/cann/set_env.sh && ASCEND_VISIBLE_DEVICES=0 msprof op --output=/opt/cannbench/.cannbench-runs/softmax-run/profile --warm-up 3 --launch-count 5 python3 -m cannbench internal-run --backend ascend --prepared-input .cannbench-runs/softmax-run/prepared.json --warmup 3 --iterations 5 --output-dir .cannbench-runs/softmax-run/perf --run-name benchmark",
+            "cd /opt/cannbench && source /usr/local/Ascend/cann/set_env.sh && ASCEND_VISIBLE_DEVICES=0 msprof op --output=/opt/cannbench/.cannbench-runs/softmax-run/profile --launch-count 1 python3 -m cannbench internal-run --backend ascend --prepared-input .cannbench-runs/softmax-run/prepared.json --output-dir .cannbench-runs/softmax-run/perf --run-name benchmark",
         ],
         [
             "scp",
@@ -431,8 +429,6 @@ def test_collect_remote_artifacts_runs_nvidia_ncu_profile(tmp_path):
         run_id="softmax-run",
         capture_output=False,
         profile_device_time=True,
-        warmup=3,
-        iterations=5,
         runner=fake_runner,
     )
 
@@ -441,7 +437,7 @@ def test_collect_remote_artifacts_runs_nvidia_ncu_profile(tmp_path):
         "user@nvidia-host",
     ]
     command = commands[2][2]
-    assert "ncu --target-processes all --force-overwrite --launch-skip 3 --launch-count 5 --csv" in command
+    assert "ncu --target-processes all --force-overwrite --launch-count 1 --csv" in command
     assert "python3 -m cannbench internal-run --backend nvidia" in command
 
 
@@ -491,7 +487,7 @@ def test_collect_remote_artifacts_can_summarize_downloaded_profile(tmp_path):
 
     summary = tmp_path / "results" / "profile-summary.json"
     assert summary.is_file()
-    assert '"latency_ms_avg": 1.0' in summary.read_text()
+    assert '"latency_ms": 1.0' in summary.read_text()
 
 
 def test_collect_remote_artifacts_returns_unified_artifacts(tmp_path):

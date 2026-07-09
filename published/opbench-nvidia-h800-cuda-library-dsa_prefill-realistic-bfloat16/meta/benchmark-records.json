@@ -23,10 +23,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.01312,
-        "latency_ms_p50": 0.01312,
-        "latency_ms_p95": 0.01312,
-        "sample_count": 1
+        "latency_ms": 0.01312
       },
       "accuracy": {
         "passed": true,
@@ -58,10 +55,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.017952000000000003,
-        "latency_ms_p50": 0.017952000000000003,
-        "latency_ms_p95": 0.017952000000000003,
-        "sample_count": 1
+        "latency_ms": 0.017952000000000003
       },
       "accuracy": {
         "passed": true,
@@ -93,10 +87,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.029408,
-        "latency_ms_p50": 0.029408,
-        "latency_ms_p95": 0.029408,
-        "sample_count": 1
+        "latency_ms": 0.029408
       },
       "accuracy": {
         "passed": true,
@@ -128,10 +119,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.052064,
-        "latency_ms_p50": 0.052064,
-        "latency_ms_p95": 0.052064,
-        "sample_count": 1
+        "latency_ms": 0.052064
       },
       "accuracy": {
         "passed": true,
@@ -163,10 +151,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.053024,
-        "latency_ms_p50": 0.053024,
-        "latency_ms_p95": 0.053024,
-        "sample_count": 1
+        "latency_ms": 0.053024
       },
       "accuracy": {
         "passed": true,
@@ -198,10 +183,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.052224,
-        "latency_ms_p50": 0.052224,
-        "latency_ms_p95": 0.052224,
-        "sample_count": 1
+        "latency_ms": 0.052224
       },
       "accuracy": {
         "passed": true,
@@ -233,10 +215,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.032928,
-        "latency_ms_p50": 0.032928,
-        "latency_ms_p95": 0.032928,
-        "sample_count": 1
+        "latency_ms": 0.032928
       },
       "accuracy": {
         "passed": true,
@@ -268,10 +247,7 @@
       "source_file": "serving_buckets/deepseek_a5_dsa.json",
       "source_op": "dsa_prefill",
       "metrics": {
-        "latency_ms_avg": 0.058783999999999996,
-        "latency_ms_p50": 0.058783999999999996,
-        "latency_ms_p95": 0.058783999999999996,
-        "sample_count": 1
+        "latency_ms": 0.058783999999999996
       },
       "accuracy": {
         "passed": true,

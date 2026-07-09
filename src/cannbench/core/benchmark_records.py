@@ -132,10 +132,7 @@ def build_benchmark_record(
         "source_file": prepared.case.source_file,
         "source_op": prepared.case.source_op,
         "metrics": {
-            "latency_ms_avg": profile_summary.latency_ms_avg,
-            "latency_ms_p50": profile_summary.latency_ms_p50,
-            "latency_ms_p95": profile_summary.latency_ms_p95,
-            "sample_count": profile_summary.sample_count,
+            "latency_ms": profile_summary.latency_ms,
         },
         "accuracy": {
             "passed": True,
@@ -179,11 +176,7 @@ def read_profile_summary(path: Path) -> DeviceProfileSummary:
     payload = json.loads(path.read_text())
     return DeviceProfileSummary(
         backend=str(payload["backend"]),
-        sample_count=int(payload["sample_count"]),
-        latency_ms_avg=float(payload["latency_ms_avg"]),
-        latency_ms_p50=float(payload["latency_ms_p50"]),
-        latency_ms_p95=float(payload["latency_ms_p95"]),
-        latency_ms_p99=float(payload["latency_ms_p99"]),
+        latency_ms=float(payload["latency_ms"]),
         source_files=tuple(str(item) for item in payload.get("source_files", [])),
     )
 

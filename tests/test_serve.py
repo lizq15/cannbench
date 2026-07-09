@@ -31,10 +31,7 @@ def _valid_gpu_upload():
                 "source_file": "hf_train/T5Small_train.json",
                 "source_op": "aten._softmax.default",
                 "metrics": {
-                    "latency_ms_avg": 1.0,
-                    "latency_ms_p50": 1.0,
-                    "latency_ms_p95": 1.1,
-                    "sample_count": 1,
+                    "latency_ms": 1.0,
                 },
                 "accuracy": {
                     "passed": True,

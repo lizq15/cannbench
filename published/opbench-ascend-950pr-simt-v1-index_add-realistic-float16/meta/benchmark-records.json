@@ -21,10 +21,7 @@
       "source_file": "hf_train/AllenaiLongformerBase_train.json",
       "source_op": "torch.Tensor.index_add_",
       "metrics": {
-        "latency_ms_avg": 0.597190002,
-        "latency_ms_p50": 0.597190002,
-        "latency_ms_p95": 0.597190002,
-        "sample_count": 1
+        "latency_ms": 0.597190002
       },
       "accuracy": {
         "passed": true,
@@ -55,10 +52,7 @@
       "source_file": "torchbench_train/basic_gnn_gin_train.json",
       "source_op": "torch.index_add",
       "metrics": {
-        "latency_ms_avg": 0.109333,
-        "latency_ms_p50": 0.109333,
-        "latency_ms_p95": 0.109333,
-        "sample_count": 1
+        "latency_ms": 0.109333
       },
       "accuracy": {
         "passed": true,
@@ -90,10 +84,7 @@
       "source_file": "torchbench_train/BERT_pytorch_train.json",
       "source_op": "torch.index_add",
       "metrics": {
-        "latency_ms_avg": 0.016806999,
-        "latency_ms_p50": 0.016806999,
-        "latency_ms_p95": 0.016806999,
-        "sample_count": 1
+        "latency_ms": 0.016806999
       },
       "accuracy": {
         "passed": true,
@@ -125,10 +116,7 @@
       "source_file": "torchbench_train/hf_BigBird_train.json",
       "source_op": "torch.index_add",
       "metrics": {
-        "latency_ms_avg": 0.037835999,
-        "latency_ms_p50": 0.037835999,
-        "latency_ms_p95": 0.037835999,
-        "sample_count": 1
+        "latency_ms": 0.037835999
       },
       "accuracy": {
         "passed": true,
@@ -160,10 +148,7 @@
       "source_file": "hf_train/OPTForCausalLM_train.json",
       "source_op": "torch.index_add",
       "metrics": {
-        "latency_ms_avg": 0.038089001000000004,
-        "latency_ms_p50": 0.038089001000000004,
-        "latency_ms_p95": 0.038089001000000004,
-        "sample_count": 1
+        "latency_ms": 0.038089001000000004
       },
       "accuracy": {
         "passed": true,
@@ -195,10 +180,7 @@
       "source_file": "hf_train/T5Small_train.json",
       "source_op": "torch.index_add",
       "metrics": {
-        "latency_ms_avg": 0.046967998999999996,
-        "latency_ms_p50": 0.046967998999999996,
-        "latency_ms_p95": 0.046967998999999996,
-        "sample_count": 1
+        "latency_ms": 0.046967998999999996
       },
       "accuracy": {
         "passed": true,
@@ -231,10 +213,7 @@
       "source_file": "hf_train/XLNetLMHeadModel_train.json",
       "source_op": "torch.index_add",
       "metrics": {
-        "latency_ms_avg": 1.025239014,
-        "latency_ms_p50": 1.025239014,
-        "latency_ms_p95": 1.025239014,
-        "sample_count": 1
+        "latency_ms": 1.025239014
       },
       "accuracy": {
         "passed": true,

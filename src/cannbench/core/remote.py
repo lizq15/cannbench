@@ -122,8 +122,6 @@ def collect_remote_artifacts(
     capture_output: bool,
     profile_device_time: bool = False,
     summarize_profile: bool = False,
-    warmup: int = 10,
-    iterations: int = 1,
     implementation: str | None = None,
     implementation_version: str | None = None,
     run_id: str | None = None,
@@ -194,8 +192,6 @@ def collect_remote_artifacts(
             f"{shlex.quote(endpoint.python)} -m cannbench internal-run "
             f"--backend {shlex.quote(endpoint.backend)} "
             f"--prepared-input {shlex.quote(relative_prepared)} "
-            f"--warmup {warmup} "
-            f"--iterations {iterations} "
             f"--output-dir {shlex.quote(relative_perf)} "
             f"--run-name benchmark{implementation_arg}{implementation_version_arg}"
         )
@@ -203,8 +199,7 @@ def collect_remote_artifacts(
             profiled_operator = (
                 f"msprof op "
                 f"--output={shlex.quote(remote_profile)} "
-                f"--warm-up {warmup} "
-                f"--launch-count {iterations} "
+                f"--launch-count 1 "
                 f"{base_operator}"
             )
             command = (
@@ -217,8 +212,7 @@ def collect_remote_artifacts(
             ncu_operator = (
                 f"{env_prefix}"
                 "ncu --target-processes all --force-overwrite "
-                f"--launch-skip {warmup} "
-                f"--launch-count {iterations} "
+                f"--launch-count 1 "
                 "--csv "
                 f"--log-file {shlex.quote(remote_profile + '/ncu.csv')} "
                 f"--export {shlex.quote(remote_profile + '/ncu-report')} "

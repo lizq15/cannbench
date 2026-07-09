@@ -19,7 +19,7 @@ const validRecord = {
   source_model: "GPTJForCausalLM",
   source_file: "hf_train/GPTJForCausalLM_train.json",
   source_op: "aten._softmax.default",
-  metrics: { latency_ms_avg: 0.011, latency_ms_p50: 0.011, latency_ms_p95: 0.012, sample_count: 1 },
+  metrics: { latency_ms: 0.011},
   accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
   diff_ref: null
 };

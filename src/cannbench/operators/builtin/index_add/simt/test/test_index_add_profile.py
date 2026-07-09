@@ -30,5 +30,4 @@ def test_index_add_plugin_profile_patterns_accept_nvidia_large_index_kernel(tmp_
         backend="nvidia",
         kernel_selection=selection,
     )
-    assert summary.sample_count == 1
-    assert summary.latency_ms_avg == 0.125
+    assert summary.latency_ms == 0.125

@@ -63,20 +63,6 @@ def _emit_run_event(message: str) -> None:
     print(message, flush=True)
 
 
-def _non_negative_int(value: str) -> int:
-    parsed = int(value)
-    if parsed < 0:
-        raise argparse.ArgumentTypeError("warmup must be >= 0")
-    return parsed
-
-
-def _positive_int(value: str) -> int:
-    parsed = int(value)
-    if parsed <= 0:
-        raise argparse.ArgumentTypeError("iterations must be > 0")
-    return parsed
-
-
 def _non_negative_float(value: str) -> float:
     parsed = float(value)
     if parsed < 0:
@@ -100,11 +86,9 @@ def _benchmark_args(parser: argparse.ArgumentParser) -> None:
         action=_StoreWithPresence,
     )
     parser.add_argument("--case-id")
-    parser.add_argument("--seed", type=_non_negative_int, default=0)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--prepared-input", type=Path)
     parser.add_argument("--prepared-dir", type=Path)
-    parser.add_argument("--warmup", type=_non_negative_int, default=10)
-    parser.add_argument("--iterations", type=_positive_int, default=1)
     parser.add_argument("--output-dir", type=Path, default=Path("results"))
     parser.add_argument("--run-name")
 
@@ -152,8 +136,6 @@ def _build_request_from_prepared(
         dtype=prepared.dtype,
         dataset=prepared.dataset,
         case_id=prepared.case.case_id,
-        warmup=args.warmup,
-        iterations=args.iterations,
         implementation=getattr(args, "implementation", None),
         seed=prepared.seed,
         implementation_version=_resolve_implementation_version(
@@ -176,8 +158,6 @@ def _build_request_from_args(args: argparse.Namespace) -> OperatorBenchmarkReque
         dtype=args.dtype,
         dataset=args.dataset,
         case_id=args.case_id,
-        warmup=args.warmup,
-        iterations=args.iterations,
         implementation=getattr(args, "implementation", None),
         seed=getattr(args, "seed", 0),
         implementation_version=_resolve_implementation_version(
@@ -204,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--dtype", default="float16")
     prepare.add_argument("--dataset", default="realistic")
     prepare.add_argument("--case-id", required=True)
-    prepare.add_argument("--seed", type=_non_negative_int, default=0)
+    prepare.add_argument("--seed", type=int, default=0)
     prepare.add_argument("--output", type=Path, required=True)
 
     compare = subparsers.add_parser("compare")
@@ -214,7 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--dtype", default="float16")
     compare.add_argument("--dataset", default="realistic")
     compare.add_argument("--case-id", required=True)
-    compare.add_argument("--seed", type=_non_negative_int, default=0)
+    compare.add_argument("--seed", type=int, default=0)
     compare.add_argument(
         "--left-implementation",
         choices=["cann_ops_library", "simt", "cuda_library", "vllm_ascend"],
@@ -674,14 +654,8 @@ def _aggregate_workflow_benchmark_records(
                 "source_model": workflow_case.source_model,
                 "source_file": workflow_case.source_file,
                 "source_op": workflow_case.source_op,
-                "metrics": {
-                    "latency_ms_avg": _sum_metric(ordered_component_records, "latency_ms_avg"),
-                    "latency_ms_p50": _sum_metric(ordered_component_records, "latency_ms_p50"),
-                    "latency_ms_p95": _sum_metric(ordered_component_records, "latency_ms_p95"),
-                    "sample_count": min(
-                        int(record["metrics"]["sample_count"])
-                        for record in ordered_component_records
-                    ),
+        "metrics": {
+                    "latency_ms": _sum_metric(ordered_component_records, "latency_ms"),
                 },
                 "accuracy": {
                     "passed": all(
@@ -947,8 +921,6 @@ def _run_remote_bench_with_plans(
                 artifact_stem=artifact_stem,
                 run_id=remote_run_id,
                 capture_output=args.capture_output,
-                warmup=args.warmup,
-                iterations=args.iterations,
                 implementation=args.implementation,
                 implementation_version=_resolve_implementation_version(
                     args.implementation,
@@ -1138,8 +1110,6 @@ def _run_compare_command(args: argparse.Namespace) -> None:
         dtype=args.dtype,
         dataset=args.dataset,
         case_id=args.case_id,
-        warmup=0,
-        iterations=1,
         implementation=args.left_implementation,
         seed=args.seed,
         implementation_version=_resolve_implementation_version(
@@ -1153,8 +1123,6 @@ def _run_compare_command(args: argparse.Namespace) -> None:
         dtype=args.dtype,
         dataset=args.dataset,
         case_id=args.case_id,
-        warmup=0,
-        iterations=1,
         implementation=args.right_implementation,
         seed=args.seed,
         implementation_version=_resolve_implementation_version(

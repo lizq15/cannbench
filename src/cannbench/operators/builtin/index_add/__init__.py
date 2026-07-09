@@ -94,24 +94,6 @@ def _build_profile_kernel_selection(ctx: ProfileKernelSelectionContext):
     return ProfileKernelSelection(kernel_name_patterns=("indexadd", "inplaceindexadd"))
 
 
-def _profile_launch_count(ctx: ProfileKernelSelectionContext) -> int | None:
-    if (
-        ctx.backend == "ascend"
-        and ctx.implementation == "simt"
-        and (ctx.implementation_version or "v1") == "v1"
-        and ctx.dtype in {"float16", "float32"}
-        and ctx.iterations is not None
-    ):
-        return ctx.iterations * 2
-    if (
-        ctx.backend == "ascend"
-        and ctx.implementation != "simt"
-        and ctx.iterations is not None
-    ):
-        return ctx.iterations * 10
-    return None
-
-
 PLUGIN = OperatorPlugin(
     spec=OperatorSpec(
         name="index_add",
@@ -127,5 +109,4 @@ PLUGIN = OperatorPlugin(
     build_simt_callable=_build_simt_callable,
     simt_module_name=_simt_module_name,
     build_profile_kernel_selection=_build_profile_kernel_selection,
-    profile_launch_count=_profile_launch_count,
 )

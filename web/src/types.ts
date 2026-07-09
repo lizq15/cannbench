@@ -10,10 +10,7 @@ export type BenchmarkImplementation =
   | "simt";
 
 export interface BenchmarkMetrics {
-  latency_ms_avg: number;
-  latency_ms_p50: number;
-  latency_ms_p95: number;
-  sample_count: number;
+  latency_ms: number;
 }
 
 export interface AccuracySummary {

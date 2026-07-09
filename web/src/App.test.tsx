@@ -31,7 +31,7 @@ const benchmarkPayload = {
       source_model: "smoke_fixture",
       source_file: "built-in",
       source_op: "softmax",
-      metrics: { latency_ms_avg: 0.003, latency_ms_p50: 0.003, latency_ms_p95: 0.004, sample_count: 1 },
+      metrics: { latency_ms: 0.003},
       accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
       diff_ref: null
     },
@@ -53,7 +53,7 @@ const benchmarkPayload = {
       source_model: "GPTJForCausalLM",
       source_file: "hf_train/GPTJForCausalLM_train.json",
       source_op: "aten._softmax.default",
-      metrics: { latency_ms_avg: 0.016, latency_ms_p50: 0.016, latency_ms_p95: 0.018, sample_count: 1 },
+      metrics: { latency_ms: 0.016},
       accuracy: { passed: true, max_abs_error: 0, max_rel_error: 0 },
       diff_ref: null
     },
@@ -75,7 +75,7 @@ const benchmarkPayload = {
       source_model: "GPTJForCausalLM",
       source_file: "hf_train/GPTJForCausalLM_train.json",
       source_op: "aten._softmax.default",
-      metrics: { latency_ms_avg: 0.014, latency_ms_p50: 0.014, latency_ms_p95: 0.015, sample_count: 1 },
+      metrics: { latency_ms: 0.014},
       accuracy: { passed: true, max_abs_error: 0.0004, max_rel_error: 0.0008 },
       diff_ref: "softmax/simt/v1"
     },

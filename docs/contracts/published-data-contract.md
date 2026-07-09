@@ -153,10 +153,7 @@ Each `published/<run-name>/meta/benchmark-records.json` must use this shape:
       "source_file": "hf_train/GPTJForCausalLM_train.json",
       "source_op": "aten._softmax.default",
       "metrics": {
-        "latency_ms_avg": 0.016,
-        "latency_ms_p50": 0.016,
-        "latency_ms_p95": 0.018,
-        "sample_count": 1
+        "latency_ms": 0.016
       },
       "accuracy": {
         "passed": true,
@@ -175,7 +172,7 @@ Rules:
 - `implementation` is the semantic execution class.
 - `implementation_version` is the normalized version token used by the frontend and diff tooling.
 - `device_class` is the normalized display and grouping key.
-- `metrics.latency_ms_avg`, `metrics.latency_ms_p50`, `metrics.latency_ms_p95`, and `metrics.sample_count` are required frontend fields.
+- `metrics.latency_ms` is the required frontend field.
 - `diff_ref` must be non-null only for SIMT records.
 
 ### NVIDIA Published Record Example
@@ -204,10 +201,7 @@ NVIDIA published records must follow the same schema:
       "source_file": "hf_train/GPTJForCausalLM_train.json",
       "source_op": "aten._softmax.default",
       "metrics": {
-        "latency_ms_avg": 0.011,
-        "latency_ms_p50": 0.011,
-        "latency_ms_p95": 0.012,
-        "sample_count": 1
+        "latency_ms": 0.011
       },
       "accuracy": {
         "passed": true,

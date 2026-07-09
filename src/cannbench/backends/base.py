@@ -12,10 +12,7 @@ class OperatorBackend:
     device_type: str
 
     def validate_request(self, request: OperatorBenchmarkRequest) -> None:
-        if request.warmup < 0:
-            raise ValueError("warmup must be >= 0")
-        if request.iterations <= 0:
-            raise ValueError("iterations must be > 0")
+        del request
 
     def run_operator(self, request: OperatorBenchmarkRequest) -> OperatorBenchmarkResult:
         raise NotImplementedError

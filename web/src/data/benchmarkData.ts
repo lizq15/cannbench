@@ -231,7 +231,7 @@ export function buildBenchmarkViewModel(records: BenchmarkRecord[]): BenchmarkVi
           const record = group.find((item) => item.case_id === caseId) ?? null;
           return {
             caseId,
-            latencyMs: record?.metrics.latency_ms_avg ?? null,
+            latencyMs: record?.metrics.latency_ms ?? null,
             record
           };
         })

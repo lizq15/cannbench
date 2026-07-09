@@ -144,21 +144,14 @@ class TorchOperatorBackend(OperatorBackend):
             dtype=dtype,
         )
 
-        for _ in range(request.warmup):
-            operator()
+        operator()
         self._synchronize(torch)
-
-        for _ in range(request.iterations):
-            operator()
-            self._synchronize(torch)
         return OperatorBenchmarkResult(
             backend=self.name,
             device_name=self._device_name(torch, device),
             op=request.op,
             dtype=request.dtype,
             case=get_operator_plugin(request.op).build_result_case(case),
-            warmup=request.warmup,
-            iterations=request.iterations,
         )
 
     def profile_operator_device_time(

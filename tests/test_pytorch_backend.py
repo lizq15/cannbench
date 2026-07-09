@@ -45,8 +45,6 @@ def test_backend_raises_clear_error_when_torch_is_missing(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
     )
 
     with pytest.raises(RuntimeError, match="PyTorch is required"):
@@ -68,8 +66,6 @@ def test_backend_raises_clear_error_when_cuda_is_unavailable(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
     )
 
     with pytest.raises(RuntimeError, match="CUDA is required"):
@@ -95,8 +91,6 @@ def test_ascend_backend_raises_clear_error_when_torch_npu_is_missing(monkeypatch
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
     )
 
     with pytest.raises(RuntimeError, match="torch_npu is required"):
@@ -119,8 +113,6 @@ def test_ascend_backend_raises_clear_error_when_npu_is_unavailable(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
     )
 
     with pytest.raises(RuntimeError, match="Ascend NPU is required"):
@@ -165,8 +157,6 @@ def test_ascend_backend_materializes_softmax_inputs_from_seed(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -219,8 +209,6 @@ def test_ascend_backend_skips_simt_op_deployment_when_disabled(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -290,8 +278,6 @@ def test_ascend_backend_deploys_v1_simt_op_when_enabled(monkeypatch, tmp_path):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
         seed=7,
         implementation="simt",
     )
@@ -341,8 +327,6 @@ def test_ascend_backend_deploys_requested_simt_op_version(monkeypatch, tmp_path)
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
         seed=7,
         implementation="simt",
         implementation_version="v2",
@@ -372,8 +356,6 @@ def test_ascend_backend_resolves_simt_op_under_plugin_directory(monkeypatch, tmp
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
         seed=7,
         implementation="simt",
     )
@@ -431,8 +413,6 @@ def test_ascend_backend_profiles_index_add_with_msprof(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_add",
-        warmup=2,
-        iterations=3,
         seed=7,
     )
 
@@ -441,16 +421,16 @@ def test_ascend_backend_profiles_index_add_with_msprof(monkeypatch):
     command = captured["command"]
     assert command[:3] == ["msprof", "op", f"--output={captured['cwd'] / 'profile'}"]
     assert "--launch-skip-before-match=1" not in command
-    assert "--warm-up=2" in command
-    assert "--launch-count=6" in command
+    assert "--warm-up=2" not in command
+    assert "--launch-count=1" in command
     assert "internal-run" in command
     assert command[command.index("--backend") + 1] == "ascend"
-    assert command[command.index("--warmup") + 1] == "2"
-    assert command[command.index("--iterations") + 1] == "3"
+    assert "--warmup" not in command
+    assert "--iterations" not in command
     assert command[command.index("--implementation") + 1] == "simt"
     assert result.profile.device_name == "Ascend 950PR"
     assert result.profile.profile_summary.backend == "ascend"
-    assert result.profile.profile_summary.latency_ms_avg == 1.0
+    assert result.profile.profile_summary.latency_ms == 1.0
     assert (
         "summary.csv",
         b"Op Name,Task Duration(us)\nindex_add,1000\n",
@@ -506,17 +486,14 @@ def test_ascend_backend_profiles_cann_index_add_past_tensor_move(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_add",
-        warmup=0,
-        iterations=1,
         seed=7,
     )
 
     result = AscendBackend().profile_operator_device_time(request)
 
     command = captured["command"]
-    assert "--launch-count=10" in command
-    assert result.profile.profile_summary.sample_count == 1
-    assert result.profile.profile_summary.latency_ms_avg == 0.00975
+    assert "--launch-count=1" in command
+    assert result.profile.profile_summary.latency_ms == 0.00975
 
 
 def test_ascend_backend_installs_simt_before_msprof_without_deploying_inside(monkeypatch):
@@ -571,8 +548,6 @@ def test_ascend_backend_installs_simt_before_msprof_without_deploying_inside(mon
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_add",
-        warmup=0,
-        iterations=1,
     )
 
     backend.profile_operator_device_time(request)
@@ -580,8 +555,8 @@ def test_ascend_backend_installs_simt_before_msprof_without_deploying_inside(mon
     command = captured["command"]
     assert captured["installed"] == ("index_add", "v1")
     assert "--launch-skip-before-match=1" not in command
-    assert "--warm-up=0" in command
-    assert "--launch-count=2" in command
+    assert "--warm-up=0" not in command
+    assert "--launch-count=1" in command
     assert "--use-simt-op" not in command
     assert command[command.index("--implementation") + 1] == "simt"
     assert command[command.index("--implementation-version") + 1] == "v1"
@@ -633,15 +608,13 @@ def test_ascend_backend_runs_simt_softmax_through_registered_op(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=2,
-        iterations=3,
         seed=7,
         implementation="simt",
     )
 
     backend.run_operator(request)
 
-    assert captured["simt_calls"] == 5
+    assert captured["simt_calls"] == 1
     assert captured["torch_softmax_calls"] == 0
 
 
@@ -704,15 +677,13 @@ def test_ascend_backend_runs_simt_index_add_through_registered_op(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_add",
-        warmup=2,
-        iterations=3,
         seed=7,
     )
 
     result = backend.run_operator(request)
 
     assert result.op == "index_add"
-    assert captured["simt_calls"] == 5
+    assert captured["simt_calls"] == 1
     assert captured["torch_index_add_calls"] == 0
     assert captured["tensor_dtypes"][1] == "int32"
 
@@ -779,15 +750,13 @@ def test_lightning_indexer_simt_v1_prefers_custom_op_for_prefill_family_4x64(
         dtype="float16",
         dataset="realistic",
         case_id="opt_prefill_2048_top512",
-        warmup=2,
-        iterations=3,
         seed=7,
     )
 
     result = backend.run_operator(request)
 
     assert result.op == "lightning_indexer"
-    assert captured["custom_calls"] == 5
+    assert captured["custom_calls"] == 1
     assert captured["tensor_dtypes"] == ["float16", "float16", "float16"]
     assert captured["top_k"] == 512
     assert captured["phase"] == "prefill"
@@ -854,15 +823,13 @@ def test_lightning_indexer_simt_v1_passes_decode_family_to_simt_module(monkeypat
         dtype="float16",
         dataset="realistic",
         case_id="llama4_decode_32760_top2048",
-        warmup=2,
-        iterations=3,
         seed=7,
     )
 
     result = backend.run_operator(request)
 
     assert result.op == "lightning_indexer"
-    assert captured["simt_calls"] == 5
+    assert captured["simt_calls"] == 1
     assert captured["tensor_dtypes"] == ["float16", "float16", "float16"]
     assert captured["top_k"] == 2048
     assert captured["phase"] == "decode"
@@ -931,15 +898,13 @@ def test_lightning_indexer_simt_v1_prefers_custom_op_for_decode_family_64x128(
         dtype="float16",
         dataset="realistic_decode",
         case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
-        warmup=2,
-        iterations=3,
         seed=7,
     )
 
     result = backend.run_operator(request)
 
     assert result.op == "lightning_indexer"
-    assert captured["custom_calls"] == 5
+    assert captured["custom_calls"] == 1
     assert captured["tensor_dtypes"] == ["float16", "float16", "float16"]
     assert captured["top_k"] == 512
     assert captured["phase"] == "decode"
@@ -1005,15 +970,13 @@ def test_ascend_backend_runs_simt_sparse_attention_through_registered_op(monkeyp
         dtype="float16",
         dataset="realistic_decode",
         case_id="deepseek_128k_decode_top2048",
-        warmup=2,
-        iterations=3,
         seed=7,
     )
 
     result = backend.run_operator(request)
 
     assert result.op == "sparse_attention"
-    assert captured["simt_calls"] == 5
+    assert captured["simt_calls"] == 1
     assert captured["tensor_dtypes"] == ["float16", "float16", "float16", "long"]
     assert captured["phase"] == "decode"
     assert captured["family"] == "family_hd128"
@@ -1081,15 +1044,13 @@ def test_ascend_backend_prefers_sparse_attention_custom_op_for_decode_family_hd5
         dtype="float16",
         dataset="realistic_decode",
         case_id="vllm_ascend_a5_decode_b1_ctx512_top512",
-        warmup=2,
-        iterations=3,
         seed=7,
     )
 
     result = backend.run_operator(request)
 
     assert result.op == "sparse_attention"
-    assert captured["simt_calls"] == 5
+    assert captured["simt_calls"] == 1
     assert captured["tensor_dtypes"] == ["float16", "float16", "float16", "long"]
     assert captured["phase"] == "decode"
     assert captured["family"] == "family_hd512"
@@ -1172,8 +1133,6 @@ def test_ascend_backend_runs_simt_softmax_through_versioned_module(
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=2,
-        iterations=3,
         seed=7,
         implementation="simt",
         implementation_version=implementation_version,
@@ -1181,7 +1140,7 @@ def test_ascend_backend_runs_simt_softmax_through_versioned_module(
 
     backend.run_operator(request)
 
-    assert captured[expected_counter] == 5
+    assert captured[expected_counter] == 1
     assert captured["simt_v1_calls"] == 0
     if expected_counter != "simt_v2_calls":
         assert captured["simt_v2_calls"] == 0
@@ -1255,8 +1214,6 @@ def test_ascend_backend_captures_simt_softmax_through_registered_op(monkeypatch)
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=0,
-        iterations=1,
         seed=7,
         implementation="simt",
     )
@@ -1305,8 +1262,6 @@ def test_backend_materializes_softmax_inputs_from_seed(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -1379,8 +1334,6 @@ def test_backend_captures_softmax_output_once(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=0,
-        iterations=1,
         seed=7,
     )
 
@@ -1462,8 +1415,6 @@ def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path, capsys)
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=2,
-        iterations=1,
         seed=7,
     )
 
@@ -1478,7 +1429,7 @@ def test_nvidia_backend_profiles_softmax_with_ncu(monkeypatch, tmp_path, capsys)
     assert result.profile.perf_artifacts[0][0] == "benchmark.json"
     profile_command = captured["profile_command"]
     assert profile_command[0] == "ncu"
-    assert profile_command[profile_command.index("--launch-skip") + 1] == "2"
+    assert "--launch-skip" not in profile_command
     assert profile_command[profile_command.index("--launch-count") + 1] == "1"
     assert "--export" in profile_command
     assert profile_command[profile_command.index("-m") - 1] == sys.executable
@@ -1530,8 +1481,6 @@ def test_nvidia_backend_profile_raises_when_ncu_fails(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=2,
-        iterations=1,
         seed=7,
     )
 
@@ -1588,8 +1537,6 @@ def test_ascend_profile_operator_device_time_uses_msprof_launch_controls(monkeyp
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=3,
-        iterations=5,
         seed=7,
     )
 
@@ -1597,14 +1544,14 @@ def test_ascend_profile_operator_device_time_uses_msprof_launch_controls(monkeyp
 
     command = captured["profile_command"]
     assert command[:2] == ["msprof", "op"]
-    assert "--warm-up=3" in command
-    assert "--launch-count=5" in command
-    assert command[command.index("--warmup") + 1] == "3"
-    assert command[command.index("--iterations") + 1] == "5"
+    assert "--warm-up=3" not in command
+    assert "--launch-count=1" in command
+    assert "--warmup" not in command
+    assert "--iterations" not in command
     assert "internal-run" in command
     assert result.profile.device_name == "Ascend 950PR"
     assert result.profile.profile_summary.backend == "ascend"
-    assert result.profile.profile_summary.latency_ms_avg == 1.0
+    assert result.profile.profile_summary.latency_ms == 1.0
 
 
 def test_backend_runs_embedding_with_materialized_inputs(monkeypatch):
@@ -1664,8 +1611,6 @@ def test_backend_runs_embedding_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_token_lookup",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -1727,8 +1672,6 @@ def test_backend_runs_gather_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_gather",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -1789,8 +1732,6 @@ def test_backend_runs_index_select_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_select",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -1851,8 +1792,6 @@ def test_backend_runs_take_along_dim_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_take_along_dim",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -1913,8 +1852,6 @@ def test_backend_runs_masked_select_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_masked_select",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -1978,8 +1915,6 @@ def test_backend_runs_cross_entropy_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_token_classification_loss",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -2043,8 +1978,6 @@ def test_backend_runs_scatter_add_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_scatter_add",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -2110,8 +2043,6 @@ def test_backend_runs_index_add_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_add",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -2177,8 +2108,6 @@ def test_backend_runs_scatter_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_scatter",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -2243,8 +2172,6 @@ def test_backend_runs_index_put_with_materialized_inputs(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_rank2_index_put",
-        warmup=1,
-        iterations=1,
         seed=7,
     )
 
@@ -2257,32 +2184,6 @@ def test_backend_runs_index_put_with_materialized_inputs(monkeypatch):
     assert captured["tensor_calls"][1]["dtype"] == "long"
     assert captured["tensor_calls"][2]["dtype"] == "long"
     assert captured["tensor_calls"][3]["dtype"] == "float16"
-
-
-def test_backend_rejects_non_positive_iterations():
-    with pytest.raises(ValueError, match="iterations must be > 0"):
-        OperatorBenchmarkRequest(
-            backend="nvidia",
-            op="softmax",
-            dtype="float16",
-            dataset="smoke",
-            case_id="tiny_logits",
-            warmup=1,
-            iterations=0,
-        )
-
-
-def test_backend_rejects_negative_warmup():
-    with pytest.raises(ValueError, match="warmup must be >= 0"):
-        OperatorBenchmarkRequest(
-            backend="nvidia",
-            op="softmax",
-            dtype="float16",
-            dataset="smoke",
-            case_id="tiny_logits",
-            warmup=-1,
-            iterations=1,
-        )
 
 
 def test_nvidia_profile_operator_device_time_invokes_internal_run(monkeypatch):
@@ -2367,16 +2268,14 @@ def test_nvidia_profile_operator_device_time_invokes_internal_run(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_logits",
-        warmup=2,
-        iterations=3,
     )
 
     result = backend.profile_operator_device_time(request)
 
     assert result.profile.device_name == "NVIDIA H800 PCIe"
     assert "internal-run" in " ".join(captured["profile_command"])
-    assert captured["profile_command"][captured["profile_command"].index("--launch-skip") + 1] == "2"
-    assert captured["profile_command"][captured["profile_command"].index("--launch-count") + 1] == "3"
+    assert "--launch-skip" not in captured["profile_command"]
+    assert captured["profile_command"][captured["profile_command"].index("--launch-count") + 1] == "1"
     assert " operator " not in f" {' '.join(captured['profile_command'])} "
     assert captured["render_command"][:2] == ["ncu", "--import"]
     assert "--page" in captured["render_command"]
@@ -2442,8 +2341,6 @@ def test_nvidia_profile_operator_device_time_preserves_external_implementation(m
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=2,
-        iterations=3,
     )
 
     NvidiaBackend().profile_operator_device_time(request)

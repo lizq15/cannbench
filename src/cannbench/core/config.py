@@ -18,8 +18,6 @@ class OperatorBenchmarkRequest:
     dtype: str
     dataset: str
     case_id: str
-    warmup: int
-    iterations: int
     implementation: str | None = None
     seed: int = 0
     implementation_version: str | None = None
@@ -43,10 +41,6 @@ class OperatorBenchmarkRequest:
             raise ValueError(f"Unsupported dtype: {self.dtype}")
         if not self.case_id.strip():
             raise ValueError("case_id must not be empty")
-        if self.warmup < 0:
-            raise ValueError("warmup must be >= 0")
-        if self.iterations <= 0:
-            raise ValueError("iterations must be > 0")
         if self.seed < 0:
             raise ValueError("seed must be >= 0")
         if self.implementation_version is not None:

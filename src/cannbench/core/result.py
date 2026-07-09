@@ -119,8 +119,6 @@ class OperatorBenchmarkResult:
     op: str
     dtype: str
     case: OperatorCase
-    warmup: int
-    iterations: int
 
     def to_json_dict(self) -> dict[str, object]:
         return {
@@ -129,6 +127,4 @@ class OperatorBenchmarkResult:
             "op": self.op,
             "dtype": self.dtype,
             "case": self.case.to_json_dict(),
-            "warmup": self.warmup,
-            "iterations": self.iterations,
         }

@@ -52,7 +52,7 @@ RECORD_FIELDS = {
     "diff_ref",
 }
 
-METRIC_FIELDS = {"latency_ms_avg", "latency_ms_p50", "latency_ms_p95", "sample_count"}
+METRIC_FIELDS = {"latency_ms"}
 ACCURACY_FIELDS = {"passed", "max_abs_error", "max_rel_error"}
 GPU_IMPLEMENTATIONS = {"cuda-pytorch", "cuda_library"}
 GPU_IMPLEMENTATION_VERSIONS = {"cuda-pytorch", "cuda-library"}

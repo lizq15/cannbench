@@ -41,8 +41,6 @@ def write_benchmark_outputs(
                 "family",
                 "payload",
                 "source_model",
-                "warmup",
-                "iterations",
             ]
         )
         writer.writerow(
@@ -55,8 +53,6 @@ def write_benchmark_outputs(
                 result.case.family,
                 result.case.payload_summary,
                 result.case.source_model,
-                result.warmup,
-                result.iterations,
             ]
         )
     created["csv"] = csv_path

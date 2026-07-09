@@ -30,8 +30,6 @@ def test_operator_request_preserves_external_implementation():
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     assert request.implementation == "vllm_ascend"
@@ -46,8 +44,6 @@ def test_operator_request_rejects_unknown_implementation():
             dtype="float16",
             dataset="smoke",
             case_id="tiny_decode_top4",
-            warmup=0,
-            iterations=1,
         )
 
 
@@ -100,8 +96,6 @@ def test_ascend_vllm_adapter_calls_torch_npu_lightning_indexer(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     result = AscendBackend().run_operator(request)
@@ -169,8 +163,6 @@ def test_ascend_vllm_adapter_prefers_a5_quant_lightning_indexer(monkeypatch):
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     result = AscendBackend().run_operator(request)
@@ -268,8 +260,6 @@ def test_ascend_vllm_sparse_attention_calls_sharedkv_metadata_and_op(monkeypatch
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     result = AscendBackend().run_operator(request)
@@ -351,8 +341,6 @@ def test_ascend_vllm_sparse_attention_prefers_a5_quant_sharedkv_ops(monkeypatch)
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     result = AscendBackend().run_operator(request)
@@ -584,8 +572,6 @@ def test_nvidia_cuda_library_uses_external_lightning_indexer_adapter(monkeypatch
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     result = NvidiaBackend().run_operator(request)
@@ -644,8 +630,6 @@ def test_nvidia_cuda_library_uses_external_sparse_attention_adapter(monkeypatch)
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     result = NvidiaBackend().run_operator(request)
@@ -690,8 +674,6 @@ def test_nvidia_cuda_library_default_dsa_adapter_requires_flash_mla(monkeypatch)
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     with pytest.raises(RuntimeError, match="flash_mla"):
@@ -719,8 +701,6 @@ def test_nvidia_cuda_library_rejects_adapter_without_required_callable(monkeypat
         dtype="float16",
         dataset="smoke",
         case_id="tiny_decode_top4",
-        warmup=0,
-        iterations=1,
     )
 
     with pytest.raises(RuntimeError, match="callable sparse_attention"):

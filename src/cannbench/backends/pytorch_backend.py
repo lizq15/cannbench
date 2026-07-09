@@ -39,17 +39,10 @@ def _ascend_msprof_op_options(
     profile_dir: Path,
     request: OperatorBenchmarkRequest,
 ) -> list[str]:
-    launch_count = get_operator_plugin(request.op).device_profile_launch_count(
-        backend="ascend",
-        implementation=request.implementation,
-        implementation_version=request.implementation_version,
-        dtype=request.dtype,
-        iterations=request.iterations,
-    )
+    del request
     return [
         f"--output={profile_dir}",
-        f"--warm-up={request.warmup}",
-        f"--launch-count={launch_count}",
+        f"--launch-count=1",
     ]
 
 
@@ -114,10 +107,8 @@ class NvidiaBackend(TorchOperatorBackend):
                 "--target-processes",
                 "all",
                 "--force-overwrite",
-                "--launch-skip",
-                str(request.warmup),
                 "--launch-count",
-                str(request.iterations),
+                "1",
                 "--export",
                 str(profile_dir / "ncu-report"),
                 sys.executable,
@@ -128,10 +119,6 @@ class NvidiaBackend(TorchOperatorBackend):
                 "nvidia",
                 "--prepared-input",
                 str(prepared_path),
-                "--warmup",
-                str(request.warmup),
-                "--iterations",
-                str(request.iterations),
                 "--output-dir",
                 str(perf_dir),
                 "--run-name",
@@ -223,8 +210,6 @@ class NvidiaBackend(TorchOperatorBackend):
                     source_op=request.source_op,
                     payload=request.case_payload,
                 ),
-                warmup=request.warmup,
-                iterations=request.iterations,
             ),
             profile=profile,
         )
@@ -279,10 +264,6 @@ class AscendBackend(TorchOperatorBackend):
                 "ascend",
                 "--prepared-input",
                 str(prepared_path),
-                "--warmup",
-                str(request.warmup),
-                "--iterations",
-                str(request.iterations),
                 "--output-dir",
                 str(perf_dir),
                 "--run-name",
@@ -347,8 +328,6 @@ class AscendBackend(TorchOperatorBackend):
                     source_op=request.source_op,
                     payload=request.case_payload,
                 ),
-                warmup=request.warmup,
-                iterations=request.iterations,
             ),
             profile=profile,
         )

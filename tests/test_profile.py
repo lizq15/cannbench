@@ -22,9 +22,7 @@ def test_read_ascend_msprof_csv_duration_summary(tmp_path):
     summary = read_device_profile(profile_dir, backend="ascend")
 
     assert summary.backend == "ascend"
-    assert summary.sample_count == 2
-    assert summary.latency_ms_avg == 1.5
-    assert summary.latency_ms_p50 == 1.5
+    assert summary.latency_ms == 1.5
     assert summary.source_files == ("op_summary.csv",)
 
 
@@ -40,9 +38,7 @@ def test_read_nvidia_ncu_csv_duration_metric_summary(tmp_path):
     summary = read_device_profile(profile_dir, backend="nvidia")
 
     assert summary.backend == "nvidia"
-    assert summary.sample_count == 2
-    assert summary.latency_ms_avg == 1.5
-    assert summary.latency_ms_p95 == 1.95
+    assert summary.latency_ms == 1.5
     assert summary.source_files == ("ncu.csv",)
 
 
@@ -58,8 +54,7 @@ def test_read_nvidia_ncu_wide_csv_uses_avg_duration_and_unit_row(tmp_path):
     summary = read_device_profile(profile_dir, backend="nvidia")
 
     assert summary.backend == "nvidia"
-    assert summary.sample_count == 1
-    assert summary.latency_ms_avg == 0.060125
+    assert summary.latency_ms == 0.060125
     assert summary.source_files == ("ncu.csv",)
 
 
@@ -78,8 +73,7 @@ def test_read_device_profile_filters_to_expected_kernel_name(tmp_path):
         expected_kernel_name_patterns=("softmax",),
     )
 
-    assert summary.sample_count == 1
-    assert summary.latency_ms_avg == 0.058
+    assert summary.latency_ms == 0.058
     assert summary.source_files == ("OpBasicInfo.csv",)
 
 
@@ -101,8 +95,7 @@ def test_read_device_profile_can_sum_multiple_matching_kernels(tmp_path):
         ),
     )
 
-    assert summary.sample_count == 1
-    assert summary.latency_ms_avg == 1.0
+    assert summary.latency_ms == 1.0
 
 
 def test_read_device_profile_rejects_unexpected_kernel_name(tmp_path):
@@ -165,8 +158,7 @@ def test_index_add_plugin_profile_patterns_filter_cann_tensor_move(tmp_path):
         backend="ascend",
         kernel_selection=selection,
     )
-    assert summary.sample_count == 1
-    assert summary.latency_ms_avg == 0.00975
+    assert summary.latency_ms == 0.00975
 
 
 def test_lightning_indexer_plugin_uses_simt_profile_patterns():
@@ -182,22 +174,6 @@ def test_lightning_indexer_plugin_uses_simt_profile_patterns():
     )
 
 
-def test_lightning_indexer_plugin_uses_simt_profile_launch_count_hook():
-    plugin = get_operator_plugin("lightning_indexer")
-
-    assert plugin.profile_launch_count is not None
-    assert (
-        plugin.device_profile_launch_count(
-            backend="ascend",
-            implementation="simt",
-            implementation_version="v1",
-            dtype="float16",
-            iterations=7,
-        )
-        == 7
-    )
-
-
 def test_sparse_attention_plugin_uses_simt_profile_patterns():
     selection = get_operator_plugin("sparse_attention").profile_kernel_selection(
         backend="ascend",
@@ -209,24 +185,6 @@ def test_sparse_attention_plugin_uses_simt_profile_patterns():
         "sparse_attention",
         "aten_dsa_sparse_attention",
     )
-
-
-def test_sparse_attention_plugin_uses_simt_profile_launch_count_hook():
-    plugin = get_operator_plugin("sparse_attention")
-
-    assert plugin.profile_launch_count is not None
-    assert (
-        plugin.device_profile_launch_count(
-            backend="ascend",
-            implementation="simt",
-            implementation_version="v1",
-            dtype="float16",
-            iterations=9,
-        )
-        == 9
-    )
-
-
 def test_write_device_profile_summary_json(tmp_path):
     profile_dir = tmp_path / "profile"
     profile_dir.mkdir()
@@ -237,4 +195,4 @@ def test_write_device_profile_summary_json(tmp_path):
 
     payload = json.loads(path.read_text())
     assert payload["backend"] == "ascend"
-    assert payload["latency_ms_avg"] == 1.25
+    assert payload["latency_ms"] == 1.25
