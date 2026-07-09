@@ -109,3 +109,44 @@ def test_lightning_indexer_prefill_family_4x64_kernel_updates_existing_topk_stat
     assert "best_scores" not in source
     assert "best_indices" not in source
     assert "context_start" in source
+
+
+def test_lightning_indexer_prefill_family_64x128_bridge_uses_named_tile_constants():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/lightning_indexer.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "constexpr int64_t kFamily64x128QueryTile" in source
+    assert "constexpr int64_t kFamily64x128ContextTile" in source
+
+
+def test_lightning_indexer_prefill_family_64x128_bridge_extracts_tile_helper():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/lightning_indexer.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "run_lightning_indexer_family_64x128_tile(" in source
+
+
+def test_lightning_indexer_prefill_family_64x128_uses_postprocess_kernel():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/lightning_indexer.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "launch_lightning_indexer_prefill_family_64x128_postprocess_float" in source
+
+
+def test_lightning_indexer_family_64x128_kernel_is_postprocess_only():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/simt/"
+        "lightning_indexer_decode_family_64x128.asc"
+    ).read_text(encoding="utf-8")
+
+    assert (
+        "for (int32_t dim_index = 0; dim_index < kFamily64x128HeadDim; ++dim_index)"
+        not in source
+    )
