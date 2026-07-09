@@ -67,6 +67,25 @@ def test_lightning_indexer_prefill_family_4x64_bridge_tiles_queries_too():
     assert "query.narrow(1, query_start, current_query)" in source
 
 
+def test_lightning_indexer_prefill_family_4x64_bridge_uses_named_tile_constants():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/lightning_indexer.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "constexpr int64_t kFamily4x64QueryTile" in source
+    assert "constexpr int64_t kFamily4x64ContextTile" in source
+
+
+def test_lightning_indexer_prefill_family_4x64_bridge_extracts_tile_postprocess_helper():
+    source = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/lightning_indexer.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "run_lightning_indexer_family_4x64_tile(" in source
+
+
 def test_lightning_indexer_prefill_family_4x64_kernel_is_postprocess_only():
     source = Path(
         "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
