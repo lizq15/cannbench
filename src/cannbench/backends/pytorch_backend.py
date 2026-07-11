@@ -217,6 +217,8 @@ class NvidiaBackend(TorchOperatorBackend):
 class AscendBackend(TorchOperatorBackend):
     def __init__(self) -> None:
         super().__init__(name="ascend", device_type="npu")
+        self._installed_simt_ops: set[tuple[str, str, str]] = set()
+        self._loaded_simt_modules: dict[tuple[str, str], object] = {}
 
     def _torch_module(self):
         try:
@@ -509,6 +511,11 @@ class AscendBackend(TorchOperatorBackend):
         return self._simt_op_root(op_name).joinpath(version)
 
     def _install_simt_op(self, request: OperatorBenchmarkRequest, op_name: str) -> None:
+        version = request.implementation_version or "v1"
+        install_key = (op_name, version, sys.executable)
+        if install_key in self._installed_simt_ops:
+            self._load_simt_op_module(request, op_name)
+            return
         simt_op_dir = self._simt_op_base_dir(request, op_name)
         if not simt_op_dir.is_dir():
             raise RuntimeError(
@@ -523,6 +530,7 @@ class AscendBackend(TorchOperatorBackend):
             )
         with as_file(install_script) as script_path:
             self._run_simt_op_install(script_path)
+        self._installed_simt_ops.add(install_key)
         self._load_simt_op_module(request, op_name)
 
     def _simt_op_module_name(self, op_name: str, version: str | None) -> str | None:
@@ -532,11 +540,16 @@ class AscendBackend(TorchOperatorBackend):
         return plugin.simt_module_name(version)
 
     def _load_simt_op_module(self, request: OperatorBenchmarkRequest, op_name: str):
+        version = request.implementation_version or "v1"
+        module_key = (op_name, version)
+        cached_module = self._loaded_simt_modules.get(module_key)
+        if cached_module is not None:
+            return cached_module
         module_name = self._simt_op_module_name(op_name, request.implementation_version)
         if module_name is None:
             raise RuntimeError(
                 "Ascend SIMT operator requested but no Python module is registered "
-                f"for {op_name} version {request.implementation_version or 'v1'}"
+                f"for {op_name} version {version}"
             )
         simt_op_dir = self._simt_op_base_dir(request, op_name)
         with as_file(simt_op_dir) as simt_op_dir_path:
@@ -545,12 +558,14 @@ class AscendBackend(TorchOperatorBackend):
                 sys.path.insert(0, simt_op_path)
         importlib.invalidate_caches()
         try:
-            return importlib.import_module(module_name)
+            module = importlib.import_module(module_name)
         except ModuleNotFoundError as exc:
             raise RuntimeError(
                 "Ascend SIMT operator deployment completed but Python module "
                 f"{module_name!r} could not be imported"
             ) from exc
+        self._loaded_simt_modules[module_key] = module
+        return module
 
     def _run_simt_op_install(self, script_path: Path) -> None:
         result = subprocess.run(

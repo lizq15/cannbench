@@ -1,4 +1,5 @@
 import builtins
+import importlib
 import json
 import subprocess
 import sys
@@ -338,6 +339,106 @@ def test_ascend_backend_deploys_requested_simt_op_version(monkeypatch, tmp_path)
     assert captured["loaded"] == ("softmax", "v2")
 
 
+def test_ascend_backend_installs_each_simt_version_once_per_process(monkeypatch, tmp_path):
+    captured: dict[str, object] = {"installs": 0, "loads": 0}
+    root = (
+        tmp_path
+        / "src"
+        / "cannbench"
+        / "operators"
+        / "builtin"
+        / "softmax"
+        / "simt"
+    )
+    op_dir = root / "v3"
+    op_dir.mkdir(parents=True)
+    install_script = op_dir / "install.sh"
+    install_script.write_text("#!/bin/sh\nexit 0\n")
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_simt_op_root", lambda op_name: root)
+    monkeypatch.setattr(
+        backend,
+        "_run_simt_op_install",
+        lambda script: captured.__setitem__("installs", captured["installs"] + 1),
+    )
+    monkeypatch.setattr(
+        backend,
+        "_load_simt_op_module",
+        lambda request, op_name: captured.__setitem__("loads", captured["loads"] + 1),
+    )
+
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        seed=7,
+        implementation="simt",
+        implementation_version="v3",
+    )
+
+    backend._install_simt_op(request, "softmax")
+    backend._install_simt_op(request, "softmax")
+
+    assert captured["installs"] == 1
+    assert captured["loads"] == 2
+
+
+def test_ascend_backend_caches_loaded_simt_module(monkeypatch, tmp_path):
+    root = (
+        tmp_path
+        / "src"
+        / "cannbench"
+        / "operators"
+        / "builtin"
+        / "softmax"
+        / "simt"
+    )
+    simt_dir = root / "v3"
+    package_dir = simt_dir / "aten_softmax_v3"
+    package_dir.mkdir(parents=True)
+    (package_dir / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    monkeypatch.setitem(sys.modules, "torch", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "torch_npu", SimpleNamespace())
+
+    from cannbench.backends.pytorch_backend import AscendBackend
+
+    backend = AscendBackend()
+    monkeypatch.setattr(backend, "_simt_op_root", lambda op_name: root)
+    monkeypatch.setattr(backend, "_simt_op_module_name", lambda op_name, version: "aten_softmax_v3")
+
+    captured: dict[str, int] = {"imports": 0}
+    original_import_module = importlib.import_module
+
+    def fake_import_module(name):
+        captured["imports"] += 1
+        return original_import_module(name)
+
+    monkeypatch.setattr(importlib, "import_module", fake_import_module)
+    sys.modules.pop("aten_softmax_v3", None)
+
+    request = OperatorBenchmarkRequest(
+        backend="ascend",
+        op="softmax",
+        dtype="float16",
+        dataset="smoke",
+        case_id="tiny_logits",
+        implementation="simt",
+        implementation_version="v3",
+    )
+
+    first = backend._load_simt_op_module(request, "softmax")
+    second = backend._load_simt_op_module(request, "softmax")
+
+    assert first is second
+    assert captured["imports"] == 1
+
+
 def test_ascend_backend_load_simt_module_adds_version_dir_to_sys_path(
     monkeypatch, tmp_path
 ):
@@ -465,7 +566,7 @@ def test_ascend_backend_profiles_index_add_with_msprof(monkeypatch):
     assert command[:3] == ["msprof", "op", f"--output={captured['cwd'] / 'profile'}"]
     assert "--launch-skip-before-match=1" not in command
     assert "--warm-up=2" not in command
-    assert "--launch-count=1" in command
+    assert "--launch-count=10" in command
     assert "internal-run" in command
     assert command[command.index("--backend") + 1] == "ascend"
     assert "--warmup" not in command
@@ -535,7 +636,7 @@ def test_ascend_backend_profiles_cann_index_add_past_tensor_move(monkeypatch):
     result = AscendBackend().profile_operator_device_time(request)
 
     command = captured["command"]
-    assert "--launch-count=1" in command
+    assert "--launch-count=10" in command
     assert result.profile.profile_summary.latency_ms == 0.00975
 
 
@@ -599,7 +700,7 @@ def test_ascend_backend_installs_simt_before_msprof_without_deploying_inside(mon
     assert captured["installed"] == ("index_add", "v1")
     assert "--launch-skip-before-match=1" not in command
     assert "--warm-up=0" not in command
-    assert "--launch-count=1" in command
+    assert "--launch-count=10" in command
     assert "--use-simt-op" not in command
     assert command[command.index("--implementation") + 1] == "simt"
     assert command[command.index("--implementation-version") + 1] == "v1"
@@ -1886,7 +1987,7 @@ def test_ascend_profile_operator_device_time_uses_msprof_launch_controls(monkeyp
     command = captured["profile_command"]
     assert command[:2] == ["msprof", "op"]
     assert "--warm-up=3" not in command
-    assert "--launch-count=1" in command
+    assert "--launch-count=10" in command
     assert "--warmup" not in command
     assert "--iterations" not in command
     assert "internal-run" in command
