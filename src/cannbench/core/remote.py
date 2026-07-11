@@ -15,6 +15,7 @@ from cannbench.core.profile import (
     write_device_profile_summary,
 )
 from cannbench.operators import get_operator_plugin
+from cannbench.backends.pytorch_backend import _SKIP_SIMT_INSTALL_ENV
 
 
 CommandRunner = Callable[[list[str]], None]
@@ -85,6 +86,23 @@ def _remote_command_prefix(endpoint: RemoteEndpoint) -> str:
     if endpoint.setup:
         prefix = f"{prefix}{endpoint.setup} && "
     return prefix
+
+
+def _simt_install_script_relative_path(
+    *,
+    op: str,
+    implementation_version: str | None,
+) -> str:
+    version = implementation_version or "v1"
+    plugin = get_operator_plugin(op)
+    if plugin.simt_module_name is None:
+        raise ValueError(f"{op} does not register a SIMT module")
+    module_name = plugin.simt_module_name(version)
+    if module_name is None:
+        raise ValueError(f"{op} does not provide SIMT version {version}")
+    return (
+        f"src/cannbench/operators/builtin/{op}/simt/{version}/install.sh"
+    )
 
 
 def _ssh_command(endpoint: RemoteEndpoint, remote_command: str) -> list[str]:
@@ -158,6 +176,20 @@ def collect_remote_artifacts(
     )
     runner(_scp_upload_command(endpoint, prepared_input, remote_prepared))
 
+    prepared = read_prepared_operator_input(prepared_input)
+    operator_env = dict(endpoint.env)
+    if implementation == "simt":
+        install_script = _simt_install_script_relative_path(
+            op=prepared.op,
+            implementation_version=implementation_version,
+        )
+        install_command = (
+            f"{_remote_command_prefix(endpoint)}"
+            f"{shlex.quote(install_script)}"
+        )
+        runner(_ssh_command(endpoint, install_command))
+        operator_env[_SKIP_SIMT_INSTALL_ENV] = "1"
+
     output_artifacts: tuple[tuple[str, bytes], ...] = ()
     profile_artifacts_result: RemoteProfileArtifacts | None = None
     implementation_version_arg = (
@@ -174,7 +206,7 @@ def collect_remote_artifacts(
     if capture_output:
         command = (
             f"{_remote_command_prefix(endpoint)}"
-            f"{_remote_command_env(endpoint.env)}"
+            f"{_remote_command_env(operator_env)}"
             f"{shlex.quote(endpoint.python)} -m cannbench internal-run "
             f"--backend {shlex.quote(endpoint.backend)} "
             f"--prepared-input {shlex.quote(relative_prepared)} "
@@ -199,16 +231,16 @@ def collect_remote_artifacts(
             profiled_operator = (
                 f"msprof op "
                 f"--output={shlex.quote(remote_profile)} "
-                f"--launch-count 1 "
+                f"--launch-count=10 "
                 f"{base_operator}"
             )
             command = (
                 f"{_remote_command_prefix(endpoint)}"
-                f"{_remote_command_env(endpoint.env)}"
+                f"{_remote_command_env(operator_env)}"
                 f"{profiled_operator}"
             )
         elif endpoint.backend == "nvidia":
-            env_prefix = _remote_command_env(endpoint.env)
+            env_prefix = _remote_command_env(operator_env)
             ncu_operator = (
                 f"{env_prefix}"
                 "ncu --target-processes all --force-overwrite "
@@ -227,7 +259,6 @@ def collect_remote_artifacts(
             _scp_download_command(endpoint, remote_profile, output_dir / "profile")
         )
         runner(_scp_download_command(endpoint, remote_perf, output_dir / "perf"))
-        prepared = read_prepared_operator_input(prepared_input)
         summary = read_device_profile(
             output_dir / "profile",
             backend=endpoint.backend,
