@@ -1559,8 +1559,13 @@ def test_main_runs_batch_remote_bench_and_writes_aggregated_artifacts(tmp_path, 
     write_prepared_operator_input(prepared_dir / "b.json", beta)
 
     captured_calls: list[dict[str, object]] = []
+    preinstalls: list[dict[str, object]] = []
 
     monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
+    monkeypatch.setattr(
+        "cannbench.cli.preinstall_remote_simt_op",
+        lambda **kwargs: preinstalls.append(kwargs),
+    )
 
     def fake_collect_remote_artifacts(**kwargs):
         captured_calls.append(kwargs)
@@ -1610,8 +1615,16 @@ def test_main_runs_batch_remote_bench_and_writes_aggregated_artifacts(tmp_path, 
         "softmax-remote-batch/softmax-smoke-tiny_logits-float16-seed1",
         "softmax-remote-batch/softmax-stress-wide_vocab_lm_logits-float16-seed2",
     ]
+    assert preinstalls == [
+        {
+            "endpoint": endpoint,
+            "op": "softmax",
+            "implementation_version": "v1",
+        }
+    ]
     assert all(call["endpoint"] == endpoint for call in captured_calls)
     assert all(call["implementation"] == "simt" for call in captured_calls)
+    assert all(call["preinstalled_simt"] is True for call in captured_calls)
     assert all(Path(call["prepared_input"]).is_relative_to(layout.prepared_dir) for call in captured_calls)
     assert (layout.prepared_dir / "softmax" / "smoke" / "tiny_logits-float16-seed1.json").exists()
     assert (layout.prepared_dir / "softmax" / "stress" / "wide_vocab_lm_logits-float16-seed2.json").exists()
@@ -1670,8 +1683,13 @@ def test_main_batch_remote_bench_records_failures_and_continues(tmp_path, monkey
     write_prepared_operator_input(prepared_dir / "b.json", beta)
 
     run_ids: list[str] = []
+    preinstalls: list[dict[str, object]] = []
 
     monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
+    monkeypatch.setattr(
+        "cannbench.cli.preinstall_remote_simt_op",
+        lambda **kwargs: preinstalls.append(kwargs),
+    )
 
     def fake_collect_remote_artifacts(**kwargs):
         run_ids.append(kwargs["run_id"])
@@ -1719,6 +1737,7 @@ def test_main_batch_remote_bench_records_failures_and_continues(tmp_path, monkey
         "softmax-remote-batch/softmax-smoke-tiny_logits-float16-seed1",
         "softmax-remote-batch/softmax-stress-wide_vocab_lm_logits-float16-seed2",
     ]
+    assert preinstalls == []
     assert [row["status"] for row in summary["records"]] == ["failed", "ok"]
     assert failures["failure_count"] == 1
     assert failures["records"][0]["case_id"] == "tiny_logits"
@@ -1759,8 +1778,13 @@ def test_main_runs_batch_remote_bench_from_selection_expansion(tmp_path, monkeyp
     )
     output_dir = tmp_path / "results"
     collected_prepared: list[Path] = []
+    preinstalls: list[dict[str, object]] = []
 
     monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
+    monkeypatch.setattr(
+        "cannbench.cli.preinstall_remote_simt_op",
+        lambda **kwargs: preinstalls.append(kwargs),
+    )
 
     def fake_collect_remote_artifacts(**kwargs):
         collected_prepared.append(kwargs["prepared_input"])
@@ -1798,8 +1822,134 @@ def test_main_runs_batch_remote_bench_from_selection_expansion(tmp_path, monkeyp
 
     assert exit_code == 0
     assert collected_prepared
+    assert preinstalls == []
     assert all(path.is_relative_to(layout.prepared_dir) for path in collected_prepared)
     assert (layout.prepared_dir / "softmax" / "smoke" / "tiny_logits-float16-seed0.json").exists()
+
+
+def test_main_runs_simt_batch_remote_bench_from_selection_with_single_preinstall(
+    tmp_path, monkeypatch
+):
+    endpoint = RemoteEndpoint(
+        name="ascend-a2",
+        backend="ascend",
+        host="user@ascend-host",
+        workdir="/opt/cannbench",
+        python="python3",
+        env={},
+    )
+    output_dir = tmp_path / "results"
+    collected_calls: list[dict[str, object]] = []
+    preinstalls: list[dict[str, object]] = []
+
+    monkeypatch.setattr("cannbench.cli.read_remote_endpoint", lambda path: endpoint)
+    monkeypatch.setattr(
+        "cannbench.cli.preinstall_remote_simt_op",
+        lambda **kwargs: preinstalls.append(kwargs),
+    )
+
+    def fake_collect_remote_artifacts(**kwargs):
+        collected_calls.append(kwargs)
+        return remote_collect_result(
+            endpoint=endpoint,
+            run_id=kwargs["run_id"],
+            output_dir=kwargs["output_dir"],
+            prepared=read_prepared_operator_input(kwargs["prepared_input"]),
+            profile_device_time=True,
+        )
+
+    monkeypatch.setattr(
+        "cannbench.cli.collect_remote_artifacts", fake_collect_remote_artifacts
+    )
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "ascend",
+            "--endpoint",
+            str(tmp_path / "ascend.json"),
+            "--output-dir",
+            str(output_dir),
+            "--run-name",
+            "softmax-smoke-batch-simt",
+            "--op",
+            "softmax",
+            "--dataset",
+            "smoke",
+            "--implementation",
+            "simt",
+            "--implementation-version",
+            "v3",
+        ]
+    )
+
+    assert exit_code == 0
+    assert preinstalls == [
+        {
+            "endpoint": endpoint,
+            "op": "softmax",
+            "implementation_version": "v3",
+        }
+    ]
+    assert collected_calls
+    assert all(call["preinstalled_simt"] is True for call in collected_calls)
+
+
+def test_main_runs_local_simt_batch_with_single_backend_instance(tmp_path, monkeypatch):
+    output_dir = tmp_path / "results"
+    install_calls: list[tuple[str, str | None]] = []
+
+    class FakeBackend:
+        def __init__(self):
+            self.name = "ascend"
+
+        def run_operator(self, request):
+            if request.implementation == "simt":
+                key = (request.op, request.implementation_version)
+                if key not in install_calls:
+                    install_calls.append(key)
+            return result_for_request(request)
+
+        def profile_operator_device_time(self, request):
+            return LocalDeviceProfileResult(
+                benchmark_result=result_for_request(request),
+                profile=ProfileArtifacts(
+                    device_name="Ascend 910B",
+                    profile_summary=DeviceProfileSummary(
+                        backend="ascend",
+                        latency_ms=1.0,
+                        source_files=("op_summary.csv",),
+                    ),
+                    profile_artifacts=(("op_summary.csv", b"Op Name,Task Duration(us)\nsoftmax,1000\n"),),
+                    perf_artifacts=(("benchmark.json", b"{\"device_name\":\"Ascend 910B\"}\n"),),
+                ),
+            )
+
+    monkeypatch.setattr("cannbench.cli.get_backend", lambda backend: FakeBackend())
+
+    exit_code = main(
+        [
+            "bench",
+            "--backend",
+            "ascend",
+            "--output-dir",
+            str(output_dir),
+            "--run-name",
+            "softmax-smoke-batch-local-simt",
+            "--op",
+            "softmax",
+            "--dataset",
+            "smoke",
+            "--implementation",
+            "simt",
+            "--implementation-version",
+            "v3",
+        ]
+    )
+
+    assert exit_code == 0
+    assert install_calls == [("softmax", "v3")]
 
 
 def test_main_rejects_batch_remote_bench_when_run_directory_exists(tmp_path, monkeypatch, capsys):

@@ -40,7 +40,11 @@ from cannbench.core.prepared_input import (
     read_prepared_operator_input,
     write_prepared_operator_input,
 )
-from cannbench.core.remote import collect_remote_artifacts, read_remote_endpoint
+from cannbench.core.remote import (
+    collect_remote_artifacts,
+    preinstall_remote_simt_op,
+    read_remote_endpoint,
+)
 from cannbench.core.output import (
     build_benchmark_artifact_stem,
     write_benchmark_outputs,
@@ -901,6 +905,21 @@ def _run_remote_bench_with_plans(
     summary_rows: list[BatchResultRecord] = []
     benchmark_records: list[dict[str, object]] = []
     failure_rows: list[BatchFailureRecord] = []
+
+    if (
+        len(plans) > 1
+        and args.implementation == "simt"
+        and args.op is not None
+    ):
+        preinstall_remote_simt_op(
+            endpoint=endpoint,
+            op=args.op,
+            implementation_version=_resolve_implementation_version(
+                args.implementation,
+                args.implementation_version,
+            ),
+        )
+        executor.mark_simt_preinstalled()
 
     for plan in plans:
         prepared_path, prepared_reference = _prepared_reference_for_plan(

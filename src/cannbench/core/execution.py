@@ -67,6 +67,10 @@ class RemoteBenchExecutor(BenchCaseExecutor):
         self._collect_remote_artifacts = collect_remote_artifacts
         self._endpoint = endpoint
         self._endpoint_path = endpoint_path
+        self._preinstalled_simt = False
+
+    def mark_simt_preinstalled(self) -> None:
+        self._preinstalled_simt = True
 
     def execute_case(
         self,
@@ -91,6 +95,7 @@ class RemoteBenchExecutor(BenchCaseExecutor):
                 profile_device_time=True,
                 implementation=implementation,
                 implementation_version=implementation_version,
+                preinstalled_simt=self._preinstalled_simt,
             )
             return BenchCaseExecutionResult(
                 artifacts=remote_result.artifacts,

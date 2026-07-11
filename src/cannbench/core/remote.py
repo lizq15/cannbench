@@ -105,6 +105,24 @@ def _simt_install_script_relative_path(
     )
 
 
+def preinstall_remote_simt_op(
+    *,
+    endpoint: RemoteEndpoint,
+    op: str,
+    implementation_version: str | None = None,
+    runner: CommandRunner = _default_runner,
+) -> None:
+    install_script = _simt_install_script_relative_path(
+        op=op,
+        implementation_version=implementation_version,
+    )
+    install_command = (
+        f"{_remote_command_prefix(endpoint)}"
+        f"{shlex.quote(install_script)}"
+    )
+    runner(_ssh_command(endpoint, install_command))
+
+
 def _ssh_command(endpoint: RemoteEndpoint, remote_command: str) -> list[str]:
     command = ["ssh"]
     if endpoint.port is not None:
@@ -142,6 +160,7 @@ def collect_remote_artifacts(
     summarize_profile: bool = False,
     implementation: str | None = None,
     implementation_version: str | None = None,
+    preinstalled_simt: bool = False,
     run_id: str | None = None,
     endpoint: RemoteEndpoint | None = None,
     endpoint_path: Path | None = None,
@@ -179,15 +198,13 @@ def collect_remote_artifacts(
     prepared = read_prepared_operator_input(prepared_input)
     operator_env = dict(endpoint.env)
     if implementation == "simt":
-        install_script = _simt_install_script_relative_path(
-            op=prepared.op,
-            implementation_version=implementation_version,
-        )
-        install_command = (
-            f"{_remote_command_prefix(endpoint)}"
-            f"{shlex.quote(install_script)}"
-        )
-        runner(_ssh_command(endpoint, install_command))
+        if not preinstalled_simt:
+            preinstall_remote_simt_op(
+                endpoint=endpoint,
+                op=prepared.op,
+                implementation_version=implementation_version,
+                runner=runner,
+            )
         operator_env[_SKIP_SIMT_INSTALL_ENV] = "1"
 
     output_artifacts: tuple[tuple[str, bytes], ...] = ()
