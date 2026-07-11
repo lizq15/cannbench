@@ -35,6 +35,11 @@ class FakeTensor:
         assert dim == 4 or dim == 3
         return FakeTensor(_sum_along_dim(self.data, dim), dtype=self.dtype)
 
+    def all(self, dim: int):
+        if dim < 0:
+            dim = len(self.shape) + dim
+        return FakeTensor(_all_along_dim(self.data, dim), dtype="bool")
+
     def to(self, dtype):
         return FakeTensor(self.data, dtype=dtype)
 
@@ -125,6 +130,17 @@ def _sum_along_dim(data, dim: int):
             for index in range(len(data[0]))
         ]
     return [_sum_along_dim(item, dim - 1) for item in data]
+
+
+def _all_along_dim(data, dim: int):
+    if dim == 0:
+        if not isinstance(data[0], list):
+            return all(data)
+        return [
+            _all_along_dim([item[index] for item in data], 0)
+            for index in range(len(data[0]))
+        ]
+    return [_all_along_dim(item, dim - 1) for item in data]
 
 
 def _masked_fill(data, mask, fill_value):
@@ -281,6 +297,39 @@ def test_prefill_reference_returns_output_and_lse(monkeypatch):
 
     assert output.shape == (1, 2, 2, 2)
     assert lse.shape == (1, 2, 2)
+
+
+def test_prefill_reference_zeroes_all_masked_rows(monkeypatch):
+    monkeypatch.setattr(ops, "torch", FakeTorch)
+
+    all_masked_indices = FakeTensor([[[2, 2], [2, 2]]], dtype="int64")
+
+    output, lse = ops._prefill_reference(
+        _fake_query(),
+        _fake_keys(),
+        _fake_values(),
+        all_masked_indices,
+        causal=True,
+    )
+
+    assert output == FakeTensor(
+        [
+            [
+                [[0.0, 0.0], [0.0, 0.0]],
+                [[0.0, 0.0], [0.0, 0.0]],
+            ]
+        ],
+        dtype="float32",
+    )
+    assert lse == FakeTensor(
+        [
+            [
+                [float("-inf"), float("-inf")],
+                [float("-inf"), float("-inf")],
+            ]
+        ],
+        dtype="float32",
+    )
 
 
 def test_sparse_attention_forward_uses_fallback_reference_outside_prefill_fast_path(

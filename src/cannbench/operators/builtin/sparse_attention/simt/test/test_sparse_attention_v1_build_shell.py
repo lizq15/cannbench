@@ -28,7 +28,8 @@ def test_sparse_attention_hd128_bridge_uses_hybrid_score_body():
     ).read_text(encoding="utf-8")
 
     assert "at::bmm(" in source
-    assert "launch_sparse_attention_hd128_postprocess_float" in source
+    assert "launch_sparse_attention_hd128_softmax_float" in source
+    assert "launch_sparse_attention_hd128_weighted_sum_float" in source
 
 
 def test_sparse_attention_hd128_bridge_uses_named_tile_constants():
@@ -48,7 +49,8 @@ def test_sparse_attention_hd512_bridge_uses_hybrid_score_body():
     ).read_text(encoding="utf-8")
 
     assert "at::bmm(" in source
-    assert "launch_sparse_attention_hd512_postprocess_float" in source
+    assert "launch_sparse_attention_hd512_softmax_float" in source
+    assert "launch_sparse_attention_hd512_weighted_sum_float" in source
     assert "sparse_attention_forward_family_hd512_hybrid(" in source
 
 
@@ -109,7 +111,8 @@ def test_sparse_attention_hd128_postprocess_source_uses_postprocess_symbol_names
         "sparse_attention_postprocess_family_hd128.asc"
     ).read_text(encoding="utf-8")
 
-    assert "sparse_attention_postprocess_family_hd128_kernel" in source
+    assert "sparse_attention_softmax_family_hd128_kernel" in source
+    assert "sparse_attention_weighted_sum_family_hd128_kernel" in source
 
 
 def test_sparse_attention_hd512_postprocess_source_uses_postprocess_symbol_names():
@@ -119,4 +122,14 @@ def test_sparse_attention_hd512_postprocess_source_uses_postprocess_symbol_names
         "sparse_attention_postprocess_family_hd512.asc"
     ).read_text(encoding="utf-8")
 
-    assert "sparse_attention_postprocess_family_hd512_kernel" in source
+    assert "sparse_attention_softmax_family_hd512_kernel" in source
+    assert "sparse_attention_weighted_sum_family_hd512_kernel" in source
+
+
+def test_sparse_attention_bridge_does_not_keep_debug_zero_output_path():
+    source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/sparse_attention.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "output_tile.zero_();" not in source

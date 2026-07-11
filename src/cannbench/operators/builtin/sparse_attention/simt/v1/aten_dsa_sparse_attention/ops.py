@@ -46,14 +46,21 @@ def _prefill_reference(query, keys, values, indices, *, causal: bool):
     selected_keys = _gather_selected(expanded_keys, indices)
     selected_values = _gather_selected(expanded_values, indices)
     scores = (query.unsqueeze(3) * selected_keys).sum(dim=-1) / math.sqrt(query.shape[-1])
+    invalid_mask = None
     if causal and query.shape[2] > 1:
         positions = torch.arange(query.shape[2], device=getattr(query, "device", None)).reshape(
             1, 1, query.shape[2], 1
         )
-        scores = scores.masked_fill(indices[:, None, :, :] > positions, float("-inf"))
-    probabilities = torch.softmax(scores.float(), dim=-1)
+        invalid_mask = indices[:, None, :, :] > positions
+        scores = scores.masked_fill(invalid_mask, float("-inf"))
+    scores_float = scores.float()
+    probabilities = torch.softmax(scores_float, dim=-1)
+    lse = torch.logsumexp(scores_float, dim=-1)
+    if invalid_mask is not None:
+        all_invalid = invalid_mask.all(dim=-1)
+        probabilities = probabilities.masked_fill(all_invalid.unsqueeze(-1), 0.0)
+        lse = lse.masked_fill(all_invalid, float("-inf"))
     output = (probabilities.to(query.dtype).unsqueeze(-1) * selected_values).sum(dim=-2)
-    lse = torch.logsumexp(scores.float(), dim=-1)
     return output, lse
 
 
