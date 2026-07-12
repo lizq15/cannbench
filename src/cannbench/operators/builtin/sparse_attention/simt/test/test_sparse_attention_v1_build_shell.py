@@ -7,8 +7,38 @@ def test_sparse_attention_simt_v1_setup_uses_bisheng_toolchain():
     ).read_text(encoding="utf-8")
 
     assert "bisheng" in setup_py
-    assert "--enable-simt" in setup_py
     assert 'library_name = "aten_dsa_sparse_attention"' in setup_py
+    assert "\"-shared\"" in setup_py
+
+
+def test_sparse_attention_simt_v1_setup_does_not_force_enable_simt():
+    setup_py = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/setup.py"
+    ).read_text(encoding="utf-8")
+
+    assert "--enable-simt" not in setup_py
+
+
+def test_sparse_attention_hd512_postprocess_uses_mixed_vector_wrapper():
+    source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/simt/"
+        "sparse_attention_postprocess_family_hd512.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "__simt_vf__" in source
+    assert "asc_vf_call<" in source
+
+
+def test_sparse_attention_hd128_postprocess_uses_mixed_vector_wrapper():
+    source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/simt/"
+        "sparse_attention_postprocess_family_hd128.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "__simt_vf__" in source
+    assert "asc_vf_call<" in source
 
 
 def test_sparse_attention_simt_v1_register_has_python_module_entry():
