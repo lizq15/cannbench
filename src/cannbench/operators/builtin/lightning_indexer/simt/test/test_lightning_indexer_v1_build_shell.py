@@ -7,7 +7,7 @@ def test_lightning_indexer_simt_v1_setup_uses_bisheng_toolchain():
     ).read_text(encoding="utf-8")
 
     assert "bisheng" in setup_py
-    assert "--enable-simt" in setup_py
+    assert "--enable-simt" not in setup_py
     assert 'library_name = "aten_dsa_lightning_indexer"' in setup_py
 
 
@@ -21,13 +21,13 @@ def test_lightning_indexer_simt_v1_register_has_python_module_entry():
     assert "PyModuleDef_HEAD_INIT" in source
 
 
-def test_lightning_indexer_prefill_family_4x64_bridge_uses_bmm_for_score_body():
+def test_lightning_indexer_prefill_family_4x64_bridge_uses_tensor_api_score_body():
     source = Path(
         "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
         "aten_dsa_lightning_indexer/csrc/lightning_indexer.asc"
     ).read_text(encoding="utf-8")
 
-    assert "at::bmm(" in source or "at::matmul(" in source
+    assert "launch_lightning_indexer_score_4x64_float" in source
     assert (
         "launch_lightning_indexer_prefill_family_4x64_postprocess_float" in source
     )
@@ -42,10 +42,8 @@ def test_lightning_indexer_prefill_family_4x64_bridge_tiles_context_scores():
     assert "for (int64_t context_start = 0; context_start < context_count;" in source
     assert "best_scores = at::full(" in source
     assert "best_indices = at::zeros(" in source
-    assert (
-        "auto scores = at::bmm(query_2d, key_bmm).reshape("
-        not in source
-    )
+    assert "at::matmul(" not in source
+    assert "at::bmm(" not in source
 
 
 def test_lightning_indexer_prefill_family_4x64_bridge_avoids_key_repeat():
@@ -97,6 +95,8 @@ def test_lightning_indexer_prefill_family_4x64_kernel_is_postprocess_only():
         "for (int32_t dim_index = 0; dim_index < kFamily4x64HeadDim; ++dim_index)"
         not in source
     )
+    assert "__simt_vf__" in source
+    assert "asc_vf_call<" in source
 
 
 def test_lightning_indexer_prefill_family_4x64_kernel_updates_existing_topk_state():
@@ -150,14 +150,21 @@ def test_lightning_indexer_family_64x128_kernel_is_postprocess_only():
         "for (int32_t dim_index = 0; dim_index < kFamily64x128HeadDim; ++dim_index)"
         not in source
     )
+    assert "__simt_vf__" in source
+    assert "asc_vf_call<" in source
 
 
 def test_lightning_indexer_family_64x128_postprocess_kernel_has_dedicated_filename():
-    source = Path(
+    source_path = Path(
         "src/cannbench/operators/builtin/lightning_indexer/simt/v1/setup.py"
-    ).read_text(encoding="utf-8")
+    )
 
-    assert "lightning_indexer_postprocess_family_64x128.asc" in source
+    assert source_path.exists()
+    assert Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/simt/"
+        "lightning_indexer_postprocess_family_64x128.asc"
+    ).exists()
 
 
 def test_lightning_indexer_family_64x128_postprocess_source_uses_postprocess_symbol_names():
@@ -168,3 +175,21 @@ def test_lightning_indexer_family_64x128_postprocess_source_uses_postprocess_sym
     ).read_text(encoding="utf-8")
 
     assert "lightning_indexer_postprocess_family_64x128_kernel" in source
+
+
+def test_lightning_indexer_score_sources_use_tensor_api():
+    source_4x64 = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/simt/"
+        "lightning_indexer_score_family_4x64.asc"
+    ).read_text(encoding="utf-8")
+    source_64x128 = Path(
+        "src/cannbench/operators/builtin/lightning_indexer/simt/v1/"
+        "aten_dsa_lightning_indexer/csrc/simt/"
+        "lightning_indexer_score_family_64x128.asc"
+    ).read_text(encoding="utf-8")
+
+    for source in (source_4x64, source_64x128):
+        assert "tensor_api/tensor.h" in source
+        assert "MakeMmad(" in source
+        assert "__global__ __cube__" in source
