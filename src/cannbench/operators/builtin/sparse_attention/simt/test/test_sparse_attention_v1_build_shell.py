@@ -295,10 +295,10 @@ def test_sparse_attention_query_pack_replaces_aten_query_tile_materialization():
     assert "run_sparse_attention_query_pack_hd128_tile(" in bridge_source
     assert "query_query_stride" in bridge_source
     assert "query_query_offset" in bridge_source
-    assert "query_query_stride" not in hd128_score_source
-    assert "query_query_offset" not in hd128_score_source
-    assert "query_query_stride" not in hd512_score_source
-    assert "query_query_offset" not in hd512_score_source
+    assert "query_query_stride" in hd128_score_source
+    assert "query_query_offset" in hd128_score_source
+    assert "query_query_stride" in hd512_score_source
+    assert "query_query_offset" in hd512_score_source
     assert "query_query_stride" in hd128_query_pack_source
     assert "query_query_offset" in hd128_query_pack_source
     assert "query_query_stride" in hd512_query_pack_source
@@ -306,6 +306,26 @@ def test_sparse_attention_query_pack_replaces_aten_query_tile_materialization():
     assert "score_scale" in bridge_source
     assert "score_scale" in hd128_postprocess_source
     assert "score_scale" in hd512_postprocess_source
+
+
+def test_sparse_attention_half_query_fast_path_skips_query_pack():
+    bridge_source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/sparse_attention.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "query_half" in bridge_source
+    assert "query.scalar_type() == at::ScalarType::Half" in bridge_source
+    assert "query_is_half" in bridge_source
+    assert bridge_source.count("query_half,") == 4
+    assert "sparse_attention_forward_family_hd512_decode_fused(" in bridge_source
+    assert "sparse_attention_forward_family_hd512_hybrid(" in bridge_source
+    assert "sparse_attention_forward_family_hd128_decode_fused(" in bridge_source
+    assert "sparse_attention_forward_family_hd128_hybrid(" in bridge_source
+    assert "score_query_stride = query_tokens" in bridge_source
+    assert "score_query_stride = current_query" in bridge_source
+    assert "run_sparse_attention_query_pack_hd512_tile(" in bridge_source
+    assert "run_sparse_attention_query_pack_hd128_tile(" in bridge_source
 
 
 def test_sparse_attention_bridge_does_not_use_aten_gather_path():
