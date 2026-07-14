@@ -175,6 +175,32 @@ def test_sparse_attention_hd128_bridge_extracts_tile_helper():
     assert "run_sparse_attention_score_family_hd128_tile(" in source
 
 
+def test_sparse_attention_hd128_decode_bridge_uses_fused_decode_helpers():
+    source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/sparse_attention.asc"
+    ).read_text(encoding="utf-8")
+
+    assert 'phase == "decode"' in source
+    assert "sparse_attention_forward_family_hd128_decode_fused(" in source
+    assert "run_sparse_attention_keys_gather_pack_hd128_tile(" in source
+    assert "run_sparse_attention_score_family_hd128_tile(" in source
+    assert "run_sparse_attention_family_hd128_decode_direct_tile(" in source
+
+
+def test_sparse_attention_hd512_decode_bridge_uses_fused_decode_helpers():
+    source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/sparse_attention.asc"
+    ).read_text(encoding="utf-8")
+
+    assert 'phase == "decode"' in source
+    assert "sparse_attention_forward_family_hd512_decode_fused(" in source
+    assert "run_sparse_attention_keys_gather_pack_hd512_tile(" in source
+    assert "run_sparse_attention_score_family_hd512_tile(" in source
+    assert "run_sparse_attention_family_hd512_decode_direct_tile(" in source
+
+
 def test_sparse_attention_hd128_kernel_is_postprocess_only():
     source = Path(
         "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
@@ -213,6 +239,40 @@ def test_sparse_attention_hd512_postprocess_source_uses_postprocess_symbol_names
     ).read_text(encoding="utf-8")
 
     assert "sparse_attention_postprocess_family_hd512_kernel" in source
+
+
+def test_sparse_attention_hd128_decode_sources_keep_irregular_gather_out_of_score():
+    score_source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/simt/"
+        "sparse_attention_score_family_hd128.asc"
+    ).read_text(encoding="utf-8")
+    postprocess_source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/simt/"
+        "sparse_attention_postprocess_family_hd128.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "launch_sparse_attention_score_hd128_decode_direct_float" not in score_source
+    assert "indices[" not in score_source
+    assert "launch_sparse_attention_hd128_postprocess_decode_direct_float" in postprocess_source
+
+
+def test_sparse_attention_hd512_decode_sources_keep_irregular_gather_out_of_score():
+    score_source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/simt/"
+        "sparse_attention_score_family_hd512.asc"
+    ).read_text(encoding="utf-8")
+    postprocess_source = Path(
+        "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
+        "aten_dsa_sparse_attention/csrc/simt/"
+        "sparse_attention_postprocess_family_hd512.asc"
+    ).read_text(encoding="utf-8")
+
+    assert "launch_sparse_attention_score_hd512_decode_direct_float" not in score_source
+    assert "indices[" not in score_source
+    assert "launch_sparse_attention_hd512_postprocess_decode_direct_float" in postprocess_source
 
 
 def test_sparse_attention_bridge_does_not_keep_debug_zero_output_path():
