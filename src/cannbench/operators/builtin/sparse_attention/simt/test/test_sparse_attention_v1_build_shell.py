@@ -104,7 +104,10 @@ def test_sparse_attention_hd512_score_source_uses_tensor_api():
 
     assert "tensor_api/tensor.h" in source
     assert "MakeMmad(" in source
-    assert "__global__ __cube__" in source
+    assert "__global__ __aicore__" in source
+    assert "KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_MIX_AIC_1_2)" in source
+    assert "ASCEND_IS_AIC" in source
+    assert "TPipe" not in source
     assert "matmul_intf.h" not in source
 
 
@@ -117,7 +120,10 @@ def test_sparse_attention_hd128_score_source_uses_tensor_api():
 
     assert "tensor_api/tensor.h" in source
     assert "MakeMmad(" in source
-    assert "__global__ __cube__" in source
+    assert "__global__ __aicore__" in source
+    assert "KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_MIX_AIC_1_2)" in source
+    assert "ASCEND_IS_AIC" in source
+    assert "TPipe" not in source
     assert "simt_api/asc_simt.h" not in source
 
 
@@ -390,12 +396,18 @@ def test_sparse_attention_hd128_decode_bridge_uses_fused_decode_helpers():
         "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
         "aten_dsa_sparse_attention/csrc/sparse_attention.asc"
     ).read_text(encoding="utf-8")
+    decode_source = source.split(
+        "std::tuple<at::Tensor, at::Tensor> sparse_attention_forward_family_hd128_decode_fused("
+    )[1].split(
+        "std::tuple<at::Tensor, at::Tensor> sparse_attention_forward("
+    )[0]
 
     assert 'phase == "decode"' in source
     assert "sparse_attention_forward_family_hd128_decode_fused(" in source
-    assert "run_sparse_attention_keys_gather_pack_hd128_tile(" in source
-    assert "run_sparse_attention_score_family_hd128_tile(" in source
-    assert "run_sparse_attention_family_hd128_decode_direct_tile(" in source
+    assert "run_sparse_attention_score_gather_family_hd128_tile(" in decode_source
+    assert "selected_keys_chunk" not in decode_source
+    assert "run_sparse_attention_keys_gather_pack_hd128_tile(" not in decode_source
+    assert "run_sparse_attention_family_hd128_decode_direct_tile(" in decode_source
 
 
 def test_sparse_attention_hd512_decode_bridge_uses_fused_decode_helpers():
@@ -451,7 +463,7 @@ def test_sparse_attention_hd512_postprocess_source_uses_postprocess_symbol_names
     assert "sparse_attention_postprocess_family_hd512_kernel" in source
 
 
-def test_sparse_attention_hd128_decode_sources_keep_irregular_gather_out_of_score():
+def test_sparse_attention_hd128_decode_score_fuses_key_gather_but_not_postprocess():
     score_source = Path(
         "src/cannbench/operators/builtin/sparse_attention/simt/v1/"
         "aten_dsa_sparse_attention/csrc/simt/"
@@ -464,7 +476,7 @@ def test_sparse_attention_hd128_decode_sources_keep_irregular_gather_out_of_scor
     ).read_text(encoding="utf-8")
 
     assert "launch_sparse_attention_score_hd128_decode_direct_float" not in score_source
-    assert "indices[" not in score_source
+    assert "sparse_attention_score_gather_family_hd128" in score_source
     assert "launch_sparse_attention_hd128_postprocess_decode_direct_float" in postprocess_source
 
 
