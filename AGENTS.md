@@ -132,6 +132,28 @@ When updating benchmark records, run names, or published artifacts:
 
 If a schema change is required, update the relevant contract or guide in `docs/`.
 
+### 9. Ascend SIMT operator API boundary
+
+For Ascend SIMT and mixed SIMT/TensorAPI operator implementations in this repository:
+
+- use only C API, Tensor API, and SIMT API in operator source code
+- do not introduce new dependencies on C++ Basic API facilities
+
+In practice, avoid adding new usage of:
+
+- `basic_api/kernel_basic_intf.h`
+- `basic_api/kernel_operator_block_sync_intf.h`
+- `kernel_operator.h`
+- `AscendC::LocalTensor`
+- `SetFlag` / `WaitFlag` / `PipeBarrier` style Basic API synchronization helpers
+
+This is the target implementation boundary for ongoing operator work.
+
+Transitional note:
+
+- when a task is explicitly prioritized as "function first", agents may temporarily continue debugging or validating existing code that still contains legacy Basic API usage
+- however, new design work and follow-up cleanup should converge back to the `C API + Tensor API + SIMT API` boundary
+
 ## Expected Operator Package Shape
 
 A normal operator package should usually look like:
