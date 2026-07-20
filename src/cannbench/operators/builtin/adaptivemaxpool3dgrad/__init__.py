@@ -124,6 +124,7 @@ def _build_profile_kernel_selection(ctx: ProfileKernelSelectionContext):
             kernel_name_patterns=(
                 "AdaptiveMaxPool3DGrad",
                 "AdaptiveMaxPool3DGradD",
+                "MaxPool3DGradWithArgmax",
                 "adaptive_max_pool3d_backward",
                 "adaptivemaxpool3dgrad",
             )

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from cannbench.core.profile import read_device_profile
 from cannbench.operators import get_operator_plugin
 from cannbench.operators.builtin.adaptivemaxpool3dgrad import (
     _indices_for_backend,
@@ -90,6 +91,30 @@ def test_adaptivemaxpool3dgrad_profile_selection_covers_cuda_and_cann_names():
     assert nvidia.launch_count == 4
     assert "AdaptiveMaxPool3DGrad" in ascend.kernel_name_patterns
     assert "AdaptiveMaxPool3DGradD" in ascend.kernel_name_patterns
+
+
+def test_adaptivemaxpool3dgrad_cann_profile_selects_maxpool_lowering_only(tmp_path):
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir()
+    (profile_dir / "OpBasicInfo.csv").write_text(
+        "Op Name,Task Duration(us)\n"
+        "Cast_39a266ce9a8d7d9ead33f6686e936b72_high_performance_210000000,2.323\n"
+        "MaxPool3DGradWithArgmax_fp16_high_performance_2_mix_aiv,9.750\n"
+    )
+    selection = get_operator_plugin("adaptivemaxpool3dgrad").profile_kernel_selection(
+        backend="ascend",
+        implementation="cann_ops_library",
+        implementation_version=None,
+    )
+
+    summary = read_device_profile(
+        profile_dir,
+        backend="ascend",
+        kernel_selection=selection,
+    )
+
+    assert summary.latency_ms == 0.00975
+    assert summary.source_files == ("OpBasicInfo.csv",)
 
 
 def test_adaptivemaxpool3dgrad_profile_selection_covers_simt_v1_names():
